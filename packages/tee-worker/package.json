@@ -5,12 +5,10 @@
   "scripts": {
     "dev": "ts-node src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
-    "simulator": "cross-env DSTACK_SIMULATOR_ENDPOINT=/tmp/dstack.sock ts-node src/index.ts"
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "@0gfoundation/0g-storage-ts-sdk": "latest",
-    "@phala/dstack-sdk": "^0.1.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "ethers": "^6.11.1",

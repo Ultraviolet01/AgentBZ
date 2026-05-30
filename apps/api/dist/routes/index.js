@@ -68,6 +68,7 @@ router.put("/projects/:id", auth_middleware_1.authMiddleware, projectsController
 router.delete("/projects/:id", auth_middleware_1.authMiddleware, projectsController.deleteProject);
 router.get("/projects/:id/memory", auth_middleware_1.authMiddleware, projectsController.getProjectMemory);
 // Agents Routes
+router.get("/agents/my", auth_middleware_1.authMiddleware, agentsController.getMyAgents);
 router.post("/agents/scamsniff/run", auth_middleware_1.authMiddleware, agentsController.runScamSniff);
 router.post("/agents/threadsmith/run", auth_middleware_1.authMiddleware, agentsController.runThreadSmith);
 router.post("/agents/launchwatch/setup", auth_middleware_1.authMiddleware, agentsController.setupLaunchWatch);

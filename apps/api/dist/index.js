@@ -21,19 +21,19 @@ const port = Number(process.env.PORT) || 3005;
 // Global Rate Limiting
 const limiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per window
+    max: 1000, // Increased for development
     message: { error: "Too many requests, please try again later." }
 });
 // Middleware
 expressApp.use((0, helmet_1.default)({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
-expressApp.use((0, cookie_parser_1.default)());
-expressApp.use(limiter);
 expressApp.use((0, cors_1.default)({
     origin: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3010",
     credentials: true
 }));
+expressApp.use((0, cookie_parser_1.default)());
+expressApp.use(limiter);
 // Use express.json() for all routes EXCEPT Stripe webhooks
 expressApp.use((req, res, next) => {
     if (req.originalUrl === "/webhooks/stripe") {

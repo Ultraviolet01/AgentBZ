@@ -26,7 +26,7 @@ export default function RootLayout({
           <Web3Provider>
             <div className="flex flex-col lg:flex-row h-screen bg-gray-50 overflow-hidden">
               <Sidebar />
-              <main className="flex-1 overflow-y-auto bg-gray-50 p-4 lg:p-10 pb-24 lg:pb-10 custom-scrollbar">
+              <main className="flex-1 overflow-y-auto bg-gray-50 custom-scrollbar">
                 {children}
               </main>
             </div>

@@ -21,10 +21,7 @@ export interface AttestationProof {
 }
 
 /**
- * Generate a TEE attestation proof for an agent run.
- * 
- * On real TEE hardware (Phala Cloud), this generates a TDX quote.
- * On dev/simulator, it generates a signed hash stub.
+ * Generate a local/development attestation proof for an agent run.
  */
 export async function generateAttestation(
   agentId: string,
@@ -40,46 +37,24 @@ export async function generateAttestation(
   
   const dataHash = crypto.createHash('sha256').update(reportData).digest('hex');
   
-  // Try real TEE attestation via dstack
-  try {
-    const { TappdClient } = await import('@phala/dstack-sdk');
-    const client = new TappdClient();
-    
-    // Generate a TDX quote
-    const quoteData = await client.tdxQuote(reportData);
-    const quote = quoteData.quote;
-    
-    return {
-      isRealTEE: true,
-      quote: typeof quote === 'string' ? quote : JSON.stringify(quote),
-      timestamp: Date.now(),
-      dataHash,
-      provider: 'phala-dstack-tdx',
-    };
-  } catch (error) {
-    // Dev mode: generate a signed hash as a stub
-    console.warn('[Attestation] dstack not available, generating dev stub');
-    
-    const stubQuote = crypto
-      .createHash('sha256')
-      .update(`dev-attestation:${reportData}`)
-      .digest('hex');
-    
-    return {
-      isRealTEE: false,
-      quote: stubQuote,
-      timestamp: Date.now(),
-      dataHash,
-      provider: 'dev-simulator',
-    };
-  }
+  const stubQuote = crypto
+    .createHash('sha256')
+    .update(`dev-attestation:${reportData}`)
+    .digest('hex');
+  
+  return {
+    isRealTEE: false,
+    quote: stubQuote,
+    timestamp: Date.now(),
+    dataHash,
+    provider: 'dev-simulator',
+  };
 }
 
 /**
  * Verify an attestation proof (basic check)
  */
 export function verifyAttestationBasic(proof: AttestationProof): boolean {
-  // Basic validity checks
   if (!proof.quote || !proof.dataHash || !proof.timestamp) return false;
   
   // Check timestamp is within 1 hour

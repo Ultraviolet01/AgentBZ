@@ -48,9 +48,11 @@ const verifySignature = async (req, res) => {
         if (!address || !message || !signature) {
             return res.status(400).json({ error: "Missing required fields" });
         }
-        const recoveredAddress = (0, ethers_1.verifyMessage)(message, signature);
+        // Normalize line endings to prevent mismatches between Windows/Unix
+        const normalizedMessage = message.replace(/\r\n/g, "\n");
+        const recoveredAddress = (0, ethers_1.verifyMessage)(normalizedMessage, signature);
         const verified = recoveredAddress.toLowerCase() === address.toLowerCase();
-        console.log(`Signature verification for ${address}: ${verified}`);
+        console.log(`Signature verification for ${address}: ${verified} (Recovered: ${recoveredAddress})`);
         res.json({ verified });
     }
     catch (error) {

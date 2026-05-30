@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.setupLaunchWatch = exports.runThreadSmith = exports.runScamSniff = void 0;
+exports.getMyAgents = exports.setupLaunchWatch = exports.runThreadSmith = exports.runScamSniff = void 0;
 const database_1 = require("@agentbazaar/database");
 const sdk_1 = __importDefault(require("@anthropic-ai/sdk"));
 const monitoring_engine_1 = require("../services/monitoring.engine");
@@ -21,7 +21,7 @@ const runScamSniff = async (req, res) => {
         await creditsService.deductCredits(userId, 1, `ScamSniff Risk Analysis - ${url}`);
         // 2. Claude Analysis
         const response = await anthropic.messages.create({
-            model: "claude-3-5-sonnet-20241022",
+            model: "claude-sonnet-4-5",
             max_tokens: 1000,
             system: database_1.SCAMSNIFF_SYSTEM_PROMPT,
             messages: [{
@@ -115,7 +115,7 @@ const runThreadSmith = async (req, res) => {
             return res.status(500).json({ error: "AI Generation failed: Anthropic API Key is missing or invalid." });
         }
         const response = await anthropic.messages.create({
-            model: "claude-3-5-sonnet-20241022",
+            model: "claude-sonnet-4-5",
             max_tokens: 1500,
             system: database_1.THREADSMITH_SYSTEM_PROMPT,
             messages: [{
@@ -199,3 +199,18 @@ const setupLaunchWatch = async (req, res) => {
     }
 };
 exports.setupLaunchWatch = setupLaunchWatch;
+const getMyAgents = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const agents = await prisma.deployedAgent.findMany({
+            where: { userId },
+            orderBy: { createdAt: "desc" }
+        });
+        res.json(agents);
+    }
+    catch (error) {
+        console.error("GetMyAgents Error:", error);
+        res.status(500).json({ error: "Failed to fetch your agents" });
+    }
+};
+exports.getMyAgents = getMyAgents;

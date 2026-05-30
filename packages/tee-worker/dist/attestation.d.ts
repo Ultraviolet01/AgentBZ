@@ -12,10 +12,7 @@ export interface AttestationProof {
     provider: string;
 }
 /**
- * Generate a TEE attestation proof for an agent run.
- *
- * On real TEE hardware (Phala Cloud), this generates a TDX quote.
- * On dev/simulator, it generates a signed hash stub.
+ * Generate a local/development attestation proof for an agent run.
  */
 export declare function generateAttestation(agentId: string, inputHash: string, outputHash: string): Promise<AttestationProof>;
 /**

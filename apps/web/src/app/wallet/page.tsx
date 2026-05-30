@@ -19,6 +19,7 @@ import {
   ArrowUpRight,
   ArrowDownRight
 } from 'lucide-react';
+import { ethers } from 'ethers';
 
 // BSC Mainnet Configuration
 const BSC_CHAIN_ID = '0x38'; // 56 in hex
@@ -178,11 +179,14 @@ export default function WalletPage() {
       const timestamp = Date.now();
       const message = `AgentBazaar Wallet Verification\n\nI am the owner of this wallet and I authorize deposits to AgentBazaar.\n\nWallet: ${walletAddress}\nTimestamp: ${timestamp}\nAction: Authorize Deposit\n\nThis signature proves ownership and does not authorize any transactions.`;
 
-      console.log('Requesting signature...');
+      console.log('Requesting signature for address:', walletAddress);
+
+      // Convert message to hex for better wallet compatibility (especially with MetaMask/Mobile)
+      const messageHex = ethers.hexlify(ethers.toUtf8Bytes(message));
 
       const signedMessage = await (window as any).ethereum.request({
         method: 'personal_sign',
-        params: [message, walletAddress]
+        params: [messageHex, walletAddress]
       });
 
       console.log('Signature received:', signedMessage);
@@ -494,96 +498,90 @@ export default function WalletPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center">
-            <Wallet className="w-6 h-6 text-orange-600" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 uppercase">WALLET</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <div className="w-2 h-2 rounded-full bg-green-500" />
-              <span className="text-xs text-gray-600 font-medium uppercase tracking-widest">
-                Network Active
-              </span>
-              <span className="text-xs text-gray-400">•</span>
-              <span className="text-xs text-gray-500 font-mono">{getCurrentRpc().name}</span>
+    <div className="p-8 lg:p-10 min-h-screen relative overflow-hidden bg-gray-50/30">
+      {/* Background Ambience */}
+      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-orange-100/10 blur-[130px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-100/10 blur-[120px] rounded-full pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto relative z-10">
+        {/* Header */}
+        <div className="mb-10">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-14 h-14 rounded-2xl bg-orange-500 flex items-center justify-center shadow-lg shadow-orange-100">
+              <Wallet className="w-7 h-7 text-white" strokeWidth={2.5} />
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold text-gray-900 tracking-tight uppercase leading-none">Wallet</h1>
+              <div className="flex items-center gap-2 mt-2">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-[10px] font-bold text-orange-600 tracking-[0.3em] uppercase">Network Active • {getCurrentRpc().name}</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Top Metrics Row */}
-      <div className="grid md:grid-cols-3 gap-6 mb-8">
-        
-        {/* Wallet Balance Card */}
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg overflow-hidden relative">
-          <div className="p-6 relative z-10">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
-                <Wallet className="w-5 h-5 text-white" />
+        {/* Top Metrics Row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          
+          {/* Wallet Balance Card */}
+          <Card className="bg-gradient-to-br from-blue-600 to-blue-700 border-0 shadow-xl shadow-blue-100 overflow-hidden relative group p-8 rounded-[32px]">
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
+                   <Wallet className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-xs text-white/80 uppercase font-bold tracking-widest">
+                  Wallet Balance
+                </span>
               </div>
-              <span className="text-xs text-white/70 uppercase font-black tracking-widest">
-                Wallet Balance
-              </span>
+              <div className="text-5xl font-bold text-white mb-2 tracking-tighter">
+                {balance.toFixed(0)}
+                <span className="text-2xl font-medium opacity-60 ml-2">CRD</span>
+              </div>
+              <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Available Credits</p>
             </div>
-            <div className="text-5xl font-black text-white mb-1 tracking-tight">
-              {balance.toFixed(0)}
-              <span className="text-2xl font-bold opacity-50 ml-2">CRD</span>
-            </div>
-            <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Ready for Deployment</p>
-          </div>
-          <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
-        </Card>
+            <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+          </Card>
 
-        {/* Protocol Usage Card */}
-        <Card className="bg-white border border-gray-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-          <div className="p-6 relative z-10">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <TrendingUp className="w-5 h-5 text-orange-500" />
+          {/* Protocol Usage Card */}
+          <Card className="bg-white border border-gray-100 p-8 shadow-sm hover:shadow-md transition-all group rounded-[32px]">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
+                <TrendingUp className="w-6 h-6 text-orange-500" />
               </div>
-              <span className="text-xs text-gray-400 uppercase font-black tracking-widest">
+              <span className="text-xs text-gray-400 uppercase font-bold tracking-widest">
                 Protocol Usage
               </span>
             </div>
-            <div className="text-4xl font-black text-gray-900 mb-1 tracking-tight">
+            <div className="text-5xl font-bold text-gray-900 mb-2 tracking-tighter">
               {protocolUsage.toFixed(0)}
-              <span className="text-xl font-bold text-gray-300 ml-2">CRD</span>
+              <span className="text-2xl font-medium text-gray-300 ml-2">CRD</span>
             </div>
-            <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Compute Cost History</p>
-          </div>
-        </Card>
+            <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Lifetime Consumption</p>
+          </Card>
 
-        {/* Activity Card */}
-        <Card className="bg-white border border-gray-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-          <div className="p-6 relative z-10">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Clock className="w-5 h-5 text-orange-500" />
+          {/* Activity Card */}
+          <Card className="bg-white border border-gray-100 p-8 shadow-sm hover:shadow-md transition-all group rounded-[32px]">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
+                <ActivityIcon className="w-6 h-6 text-blue-500" />
               </div>
-              <span className="text-xs text-gray-400 uppercase font-black tracking-widest">
+              <span className="text-xs text-gray-400 uppercase font-bold tracking-widest">
                 Activity
               </span>
             </div>
-            <div className="text-4xl font-black text-gray-900 mb-1 tracking-tight">
+            <div className="text-5xl font-bold text-gray-900 mb-2 tracking-tighter">
               {totalTransactions}
             </div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Transactions</p>
-          </div>
-        </Card>
-      </div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Historical Records</p>
+          </Card>
+        </div>
 
-      <div className="grid lg:grid-cols-4 gap-6">
-        
-        {/* Left Column: Initialize Credits */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="flex items-center gap-2 mb-2">
-            <h2 className="text-xl font-black text-gray-900 uppercase tracking-tight">Initialize Credits</h2>
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-10 items-start">
+          
+          {/* Left Column: Initialize Credits */}
+          <div className="lg:col-span-1 space-y-6">
+            <h2 className="text-2xl font-bold text-gray-900 uppercase tracking-tight mb-2">Initialize Credits</h2>
 
           <Card className="bg-white border border-gray-100 shadow-sm rounded-3xl overflow-hidden">
             <div className="p-6">
@@ -747,11 +745,9 @@ export default function WalletPage() {
           </Card>
         </div>
 
-        {/* Right Column: Transaction Ledger */}
-        <div className="lg:col-span-3 space-y-6">
-          <div className="flex items-center gap-2 mb-2">
-            <h2 className="text-xl font-black text-gray-900 uppercase tracking-tight">Transaction Ledger</h2>
-          </div>
+          {/* Right Column: Transaction Ledger */}
+          <div className="lg:col-span-3 space-y-6">
+            <h2 className="text-2xl font-bold text-gray-900 uppercase tracking-tight mb-2">Transaction Ledger</h2>
 
           <Card className="bg-white border border-gray-100 shadow-sm rounded-3xl overflow-hidden">
             <div className="p-0">
@@ -837,6 +833,7 @@ export default function WalletPage() {
             standards are non-recoverable.
             </p>
         </div>
+      </div>
       </div>
     </div>
   );

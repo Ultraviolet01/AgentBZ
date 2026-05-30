@@ -80,31 +80,35 @@ exports.sendPasswordResetEmail = sendPasswordResetEmail;
 const sendAlertEmail = async (to, alert) => {
     try {
         const { alertType, severity, message, project } = alert;
+        console.log(`[EmailService] Sending alert email to: ${to} (Type: ${alertType})`);
         const { data, error } = await resend.emails.send({
-            from: 'AgentBazaar <alerts@agentbazaar.ai>',
+            from: 'AgentBazaar <onboarding@resend.dev>',
             to: [to],
             subject: `[LaunchWatch] ${severity} Alert: ${alertType}`,
             html: `
         <div style="${baseStyles}">
           <h1 style="color: #f5a623; margin-top: 0;">LaunchWatch Alert</h1>
-          <p style="font-size: 18px;"><strong>${alertType}</strong></p>
+          <p style="font-size: 18px; color: #ffffff;"><strong>${alertType.replace(/_/g, ' ')}</strong></p>
           <div style="background: rgba(245, 166, 35, 0.1); border-left: 4px solid #f5a623; padding: 20px; margin: 20px 0; border-radius: 4px;">
-            <p style="margin: 0; color: #ffffff;">${message}</p>
+            <p style="margin: 0; color: #ffffff; line-height: 1.5;">${message}</p>
           </div>
-          <p style="color: #9ca3af; font-size: 14px;">Project: ${project?.name || 'Your Project'}</p>
+          <p style="color: #9ca3af; font-size: 14px;">Project: ${project?.name || 'Your AgentBazaar Monitor'}</p>
           <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 30px 0;" />
-          <a href="${APP_URL}/launchwatch" style="background: #f5a623; color: black; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">View in Dashboard</a>
+          <div style="text-align: center;">
+            <a href="${APP_URL}/agents/launchwatch" style="background: #f5a623; color: black; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">View in Dashboard</a>
+          </div>
         </div>
       `,
         });
         if (error) {
-            console.error("Email delivery failed:", error);
+            console.error("[EmailService] Email delivery failed:", error);
             return false;
         }
+        console.log(`[EmailService] Alert email sent successfully to ${to}`);
         return true;
     }
     catch (error) {
-        console.error("Email service error:", error);
+        console.error("[EmailService] Email service error:", error);
         return false;
     }
 };

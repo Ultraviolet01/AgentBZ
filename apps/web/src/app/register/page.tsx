@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,14 +14,21 @@ import { useAuthStore } from '@/lib/store/auth.store';
 
 export default function SignUpPage() {
   const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuthStore();
   const setAuth = useAuthStore((state) => state.setAuth);
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.replace("/");
+    }
+  }, [isAuthenticated, isLoading, router]);
   const [formData, setFormData] = useState({
     email: '',
     username: '',
     password: '',
     confirmPassword: ''
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,7 +46,7 @@ export default function SignUpPage() {
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     try {
       const { data } = await api.post('/auth/register', {
@@ -58,10 +65,13 @@ export default function SignUpPage() {
       router.push('/onboarding');
       router.refresh();
     } catch (err: any) {
-      const message = err.response?.data?.error || err.message || 'Signup failed';
+      let message = err.response?.data?.error || err.message || 'Signup failed';
+      if (typeof message === 'object') {
+        message = JSON.stringify(message);
+      }
       setError(message);
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -172,10 +182,10 @@ export default function SignUpPage() {
           {/* Submit Button */}
           <Button
             type="submit"
-            disabled={isLoading}
+            disabled={isSubmitting}
             className="w-full h-16 bg-orange-500 hover:bg-orange-600 text-white rounded-[24px] font-bold text-lg transition-all shadow-xl shadow-orange-100 flex items-center justify-center gap-3 transform hover:-translate-y-1 active:scale-[0.98] group/btn"
           >
-            <span className="uppercase tracking-wider">{isLoading ? 'Initializing...' : 'Create Account'}</span>
+            <span className="uppercase tracking-wider">{isSubmitting ? 'Initializing...' : 'Create Account'}</span>
             <ArrowRight className="w-6 h-6 group-hover/btn:translate-x-1.5 transition-transform" strokeWidth={3} />
           </Button>
         </form>

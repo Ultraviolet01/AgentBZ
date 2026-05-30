@@ -28,7 +28,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { monitoringType, ...formData } = await req.json();
+    const body = await req.json();
+    const { monitoringType, ...formData } = body;
 
     // 1. Initial Setup Fee (10 CRD for Project/Token, 3 CRD for News week)
     let creditsUsed = 10;
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
     // Check balance
     const user = await prisma.user.findUnique({
       where: { id: authUser.id },
-      select: { credits: true }
+      select: { credits: true, email: true }
     });
 
     if (!user || user.credits < creditsUsed) {
@@ -49,32 +50,84 @@ export async function POST(req: Request) {
       }, { status: 402 });
     }
 
-    // Deduct credits
+    // 2. Resolve Project
+    let projectId = formData.projectId;
+
+    if (!projectId) {
+      // Create a project automatically for this monitor
+      const projectName = formData.tokenSymbol || formData.projectUrl || "LaunchWatch Project";
+      const newProject = await prisma.project.create({
+        data: {
+          userId: authUser.id,
+          name: projectName,
+          description: `Automatically created for ${monitoringType} monitoring`,
+          websiteUrl: formData.projectUrl,
+          twitterHandle: formData.projectUrl?.startsWith('@') ? formData.projectUrl : null,
+          tokenAddress: formData.contractAddress
+        }
+      });
+      projectId = newProject.id;
+    }
+
+    // 3. Create or Update LaunchWatchConfig
+    const alertTypes = {
+      social_activity: formData.monitorSocial ?? false,
+      website_changes: formData.monitorWebsite ?? false,
+      sentiment_shifts: formData.monitorSentiment ?? false,
+      token_milestone: monitoringType === 'token_milestone',
+      crypto_news: monitoringType === 'crypto_news',
+      targetFDV: formData.targetFDV ? parseFloat(formData.targetFDV) : null,
+      newsTopics: formData.newsTopics || [],
+      notificationEmail: formData.notificationEmail || null
+    };
+
+    const config = await prisma.launchWatchConfig.upsert({
+      where: { projectId },
+      create: {
+        projectId,
+        frequency: (formData.checkFrequency || formData.newsFrequency || 'daily').toUpperCase(),
+        alertTypes: alertTypes as any,
+        emailEnabled: true,
+        active: true,
+        nextRunAt: new Date() // Start immediately
+      },
+      update: {
+        frequency: (formData.checkFrequency || formData.newsFrequency || 'daily').toUpperCase(),
+        alertTypes: alertTypes as any,
+        active: true,
+        nextRunAt: new Date()
+      },
+      include: { project: true }
+    });
+
+    // 4. Deduct credits
     await creditsService.deductCredits(authUser.id, creditsUsed, `LaunchWatch Setup: ${monitoringType}`);
 
-    // 2. Create Monitoring Configuration
-    // In this simplified version for Vercel, we'll store it as a generic Monitor record if no projectId is provided
-    // or create a Project on the fly if needed.
-    
-    // For now, let's just return success so the UI moves to the 'active' state.
-    // We would normally create a LaunchWatchConfig record here.
-    
-    const monitor = {
-      id: Math.random().toString(36).substring(7),
-      type: monitoringType,
-      email: formData.notificationEmail,
-      projectUrl: formData.projectUrl || formData.contractAddress || "Crypto News",
-      tokenSymbol: formData.tokenSymbol,
-      targetFDV: formData.targetFDV,
-      frequency: formData.checkFrequency || formData.newsFrequency,
-      totalChecks: 0,
-      createdAt: new Date().toISOString()
-    };
+    // 5. Send Confirmation Email (This was missing)
+    try {
+      const { sendAlertEmail } = await import("@/../../apps/api/src/services/email.service");
+      await sendAlertEmail(formData.notificationEmail || authUser.email, {
+        alertType: "MONITORING_ACTIVATED",
+        severity: "INFO",
+        message: `Your LaunchWatch autonomous monitor for "${config.project.name}" has been successfully initialized. Our agents are now scanning for updates according to your "${config.frequency}" protocol.`,
+        project: config.project
+      });
+    } catch (emailErr) {
+      console.error("Failed to send setup confirmation email:", emailErr);
+    }
 
     return NextResponse.json({ 
       success: true, 
       message: "Monitoring activated successfully", 
-      monitor 
+      monitor: {
+        id: config.id,
+        type: monitoringType,
+        email: formData.notificationEmail || authUser.email,
+        projectUrl: config.project.websiteUrl || config.project.name,
+        tokenSymbol: config.project.tokenAddress,
+        frequency: config.frequency,
+        createdAt: config.createdAt
+      } 
     });
 
   } catch (error: any) {

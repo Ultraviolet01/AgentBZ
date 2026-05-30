@@ -10,6 +10,7 @@ type User = {
   email: string;
   username: string;
   credits: number;
+  onboardingCompleted: boolean;
 } | null;
 
 type AuthContextType = {
@@ -25,18 +26,22 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { user, isLoading, setAuth, logout } = useAuthStore();
+  const { user, isLoading, setAuth, setLoading, logout } = useAuthStore();
   const router = useRouter();
 
   const checkAuth = useCallback(async () => {
+    // Only set loading if we don't have a user yet to prevent flickering on credit updates
+    if (!user) setLoading(true);
     try {
       const response = await api.get('/auth/me');
       setAuth(response.data.user);
     } catch (error) {
       console.error('Auth check failed:', error);
       setAuth(null);
+    } finally {
+      setLoading(false);
     }
-  }, [setAuth]);
+  }, [setAuth, setLoading, user]);
 
   useEffect(() => {
     checkAuth();

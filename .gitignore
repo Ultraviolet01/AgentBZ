@@ -35,3 +35,6 @@ users_dump.json
 Thumbs.db
 
 .vercel
+
+# Local Netlify folder
+.netlify

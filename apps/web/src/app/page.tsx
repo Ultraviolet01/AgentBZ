@@ -20,12 +20,19 @@ import Marketplace from '@/components/Marketplace';
 import { cn } from '@/lib/utils';
 
 export default function RootPage() {
+  const router = useRouter();
   const { user, isLoading } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (mounted && !isLoading && user && !user.onboardingCompleted) {
+      router.replace('/onboarding');
+    }
+  }, [mounted, isLoading, user, router]);
 
   if (!mounted || isLoading) {
     return (
@@ -36,6 +43,9 @@ export default function RootPage() {
   }
 
   if (user) {
+    // If user is authenticated but not onboarded, show nothing (useEffect will handle redirect)
+    if (!user.onboardingCompleted) return null;
+    
     return <Marketplace />;
   }
 

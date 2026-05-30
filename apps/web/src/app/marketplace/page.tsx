@@ -16,10 +16,32 @@ import {
   Check
 } from 'lucide-react';
 
+import { useAuth } from '@/contexts/AuthContext';
+import { useEffect } from 'react';
+
 export default function MarketplacePage() {
   const router = useRouter();
+  const { user, isLoading } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState('all');
+
+  useEffect(() => {
+    if (!isLoading) {
+      if (!user) {
+        router.replace('/');
+      } else if (!user.onboardingCompleted) {
+        router.replace('/onboarding');
+      }
+    }
+  }, [user, isLoading, router]);
+
+  if (isLoading || !user || !user.onboardingCompleted) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-orange-500 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
 
   // Built-in agents
   const agentBazaarAgents = [
@@ -107,7 +129,7 @@ export default function MarketplacePage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 lg:p-10 max-w-7xl mx-auto">
       
       {/* Header */}
       <div className="mb-8">

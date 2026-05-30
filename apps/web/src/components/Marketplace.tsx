@@ -109,14 +109,14 @@ export default function Marketplace() {
   });
 
   return (
-    <div className="py-8 md:py-12 px-4 md:px-10 max-w-7xl mx-auto min-h-screen bg-[var(--background-secondary)] relative">
+    <div className="p-8 lg:p-10 max-w-7xl mx-auto min-h-screen bg-[var(--background-secondary)] relative">
       
       {/* Background Ambience */}
       <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-orange-50/20 blur-[130px] rounded-full pointer-events-none -z-10" />
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-50/10 blur-[120px] rounded-full pointer-events-none -z-10" />
 
       {/* Header */}
-      <div className="mb-20">
+      <div className="mb-12">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-2.5 h-2.5 rounded-full bg-[var(--accent-green)] shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse" />
           <span className="text-[11px] font-black text-[var(--text-muted)] uppercase tracking-[0.4em]">Mainnet Deployment Active</span>

@@ -20,7 +20,6 @@ import {
   Lock,
   ShieldCheck
 } from 'lucide-react';
-import { encryptCredentials } from '@/lib/tee-crypto';
 
 const CATEGORIES = [
   { value: 'security', label: '🛡️ Security & Safety', color: '#22c55e' },
@@ -43,7 +42,6 @@ export default function DeployAgentPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [currentStep, setCurrentStep] = useState(1);
-  const [teePublicKey, setTeePublicKey] = useState('');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -84,10 +82,24 @@ export default function DeployAgentPage() {
       custom_api_key: '',
     } as Record<string, string>,
     customSecrets: [] as { key: string, value: string }[],
+    // Agent Logic (system prompt / strategy) — vaulted by CDR
+    logic: '',
   });
 
   // Tag input
   const [tagInput, setTagInput] = useState('');
+
+  // Slug preview (derived from name)
+  const slugPreview = formData.name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  // URL validator
+  const isValidUrl = (url: string) => {
+    try { new URL(url); return url.startsWith('https://') || url.startsWith('http://'); }
+    catch { return false; }
+  };
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -130,6 +142,26 @@ export default function DeployAgentPage() {
     updated[index] = { ...updated[index], [field]: value };
     handleInputChange('inputFields', updated);
   };
+
+  const addOutputField = () => {
+    handleInputChange('outputFields', [
+      ...formData.outputFields,
+      { name: '', type: 'text', description: '' }
+    ]);
+  };
+
+  const removeOutputField = (index: number) => {
+    handleInputChange(
+      'outputFields',
+      formData.outputFields.filter((_, i) => i !== index)
+    );
+  };
+
+  const updateOutputField = (index: number, field: string, value: any) => {
+    const updated = [...formData.outputFields];
+    updated[index] = { ...updated[index], [field]: value };
+    handleInputChange('outputFields', updated);
+  };
   const addCustomSecret = () => {
     handleInputChange('customSecrets', [
       ...formData.customSecrets,
@@ -154,86 +186,58 @@ export default function DeployAgentPage() {
     setError('');
 
     try {
-      // Validate required fields
       if (!formData.name || !formData.description || !formData.category) {
         throw new Error('Please fill in all required fields');
       }
-
+      if (!formData.apiEndpoint || !isValidUrl(formData.apiEndpoint)) {
+        throw new Error('A valid API Endpoint URL is required (Step 2)');
+      }
       if (!formData.pricePerRun || parseFloat(formData.pricePerRun) <= 0) {
         throw new Error('Please set a valid price per run');
       }
+      if (!formData.logic.trim()) {
+        throw new Error('Agent logic / system prompt is required (Step 3)');
+      }
 
-      // Create input/output schemas
       const inputSchema = {
         type: 'object',
         properties: formData.inputFields.reduce((acc, field) => ({
           ...acc,
-          [field.name]: {
-            type: field.type,
-            description: field.description
-          }
+          [field.name]: { type: field.type, description: field.description }
         }), {}),
-        required: formData.inputFields
-          .filter(f => f.required)
-          .map(f => f.name)
+        required: formData.inputFields.filter(f => f.required).map(f => f.name),
       };
 
       const outputSchema = {
         type: 'object',
         properties: formData.outputFields.reduce((acc, field) => ({
           ...acc,
-          [field.name]: {
-            type: field.type,
-            description: field.description
-          }
-        }), {})
+          [field.name]: { type: field.type, description: field.description }
+        }), {}),
       };
 
-      // Create examples
       const examples = {
-        input: formData.exampleInput ? JSON.parse(formData.exampleInput) : {},
-        output: formData.exampleOutput ? JSON.parse(formData.exampleOutput) : {}
+        input:  formData.exampleInput  ? JSON.parse(formData.exampleInput)  : {},
+        output: formData.exampleOutput ? JSON.parse(formData.exampleOutput) : {},
       };
 
-      // Handle credentials encryption if needed
-      let encryptedCredentials = null;
-      let credentialSchema = null;
-      
-      const hasAnyKey = formData.apiKeys.openai_api_key || formData.apiKeys.anthropic_api_key || formData.apiKeys.custom_api_key;
-      const requiresEncryption = !!hasAnyKey;
-      
-      if (requiresEncryption) {
-        // Fetch TEE public key if we don't have it
-        let pubKey = teePublicKey;
-        if (!pubKey) {
-          const keyRes = await fetch('/api/tee/public-key');
-          if (!keyRes.ok) throw new Error('Failed to securely initialize credential store');
-          const keyData = await keyRes.json();
-          pubKey = keyData.publicKey;
-          setTeePublicKey(pubKey);
-        }
-        
-        // Build the credentials payload based on provider
-        const credsToEncrypt: any = { provider: formData.modelProvider };
-        if (formData.modelProvider === 'openai') credsToEncrypt.apiKey = formData.apiKeys.openai_api_key;
-        if (formData.modelProvider === 'anthropic') credsToEncrypt.apiKey = formData.apiKeys.anthropic_api_key;
-        if (formData.modelProvider === 'custom') credsToEncrypt.apiKey = formData.apiKeys.custom_api_key;
-        
-        // Add custom secrets
-        formData.customSecrets.forEach(s => {
-          if (s.key && s.value) credsToEncrypt[s.key] = s.value;
-        });
-        
-        // Only encrypt if something was actually provided
-        if (Object.keys(credsToEncrypt).length > 1) {
-          encryptedCredentials = await encryptCredentials(pubKey, credsToEncrypt);
-          credentialSchema = { 
-            provider: formData.modelProvider, 
-            fields: ['apiKey', ...formData.customSecrets.map(s => s.key).filter(Boolean)] 
-          };
-        }
-      }
+      // Build CDR-ready API keys array
+      const apiKeysList: { name: string; value: string }[] = [];
+      if (formData.modelProvider === 'openai'     && formData.apiKeys.openai_api_key)
+        apiKeysList.push({ name: 'OPENAI_API_KEY',     value: formData.apiKeys.openai_api_key });
+      if (formData.modelProvider === 'anthropic'  && formData.apiKeys.anthropic_api_key)
+        apiKeysList.push({ name: 'ANTHROPIC_API_KEY',  value: formData.apiKeys.anthropic_api_key });
+      if (formData.modelProvider === 'custom'     && formData.apiKeys.custom_api_key)
+        apiKeysList.push({ name: 'API_KEY',            value: formData.apiKeys.custom_api_key });
+      formData.customSecrets.forEach(s => {
+        if (s.key && s.value) apiKeysList.push({ name: s.key, value: s.value });
+      });
 
+      const credentialSchema = apiKeysList.length > 0
+        ? { provider: formData.modelProvider, fields: apiKeysList.map(k => k.name) }
+        : null;
+
+      // Send to server — CDR vaulting happens server-side
       const response = await fetch('/api/agents/deploy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -244,18 +248,16 @@ export default function DeployAgentPage() {
           inputSchema,
           outputSchema,
           examples,
-          encryptedCredentials,
-          credentialSchema
-        })
+          // CDR fields (plain text — server handles vaulting)
+          logic: formData.logic,
+          apiKeys: apiKeysList,
+          credentialSchema,
+        }),
       });
 
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to deploy agent');
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to deploy agent');
-      }
-
-      // Success!
       router.push('/projects');
     } catch (err: any) {
       setError(err.message || 'Failed to deploy agent');
@@ -265,7 +267,7 @@ export default function DeployAgentPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="max-w-4xl mx-auto p-8 lg:p-10">
       
       {/* Header */}
       <div className="mb-8">
@@ -348,9 +350,14 @@ export default function DeployAgentPage() {
                 onChange={(e) => handleInputChange('name', e.target.value)}
                 className="mt-1"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Choose a unique, memorable name for your agent
-              </p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-xs text-gray-500">Choose a unique, memorable name for your agent</p>
+                {slugPreview && (
+                  <p className="text-xs text-gray-400 font-mono">
+                    URL: <span className="text-orange-500">/agents/{slugPreview}</span>
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Short Description */}
@@ -375,7 +382,7 @@ export default function DeployAgentPage() {
             {/* Long Description */}
             <div>
               <Label htmlFor="longDescription" className="text-sm font-medium text-gray-800">
-                Long Description *
+                Long Description <span className="text-gray-400 font-normal">(Optional)</span>
               </Label>
               <Textarea
                 id="longDescription"
@@ -512,18 +519,40 @@ export default function DeployAgentPage() {
             {/* API Endpoint */}
             <div>
               <Label htmlFor="apiEndpoint" className="text-sm font-medium text-gray-800">
-                API Endpoint
+                API Endpoint *
               </Label>
               <Input
                 id="apiEndpoint"
                 placeholder="https://api.youragent.com/run"
                 value={formData.apiEndpoint}
                 onChange={(e) => handleInputChange('apiEndpoint', e.target.value)}
-                className="mt-1"
+                className={`mt-1 ${formData.apiEndpoint && !isValidUrl(formData.apiEndpoint) ? 'border-red-400 focus:ring-red-300' : ''}`}
               />
-              <p className="text-xs text-gray-500 mt-1">
-                POST endpoint where AgentBazaar will send agent run requests
-              </p>
+              {formData.apiEndpoint && !isValidUrl(formData.apiEndpoint) ? (
+                <p className="text-xs text-red-500 mt-1">⚠ Must be a valid URL starting with https://</p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-1">AgentBazaar will POST to this URL each time your agent is run</p>
+              )}
+            </div>
+
+            {/* API Contract Reference */}
+            <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+              <p className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-2">📋 What AgentBazaar will send to your endpoint</p>
+              <pre className="text-xs text-blue-700 font-mono whitespace-pre-wrap leading-relaxed">{`POST {your-api-endpoint}
+Content-Type: application/json
+X-AgentBazaar-Run-Id: <run-uuid>
+
+{
+  "runId": "<uuid>",
+  "input": { ...your-input-fields },
+  "userId": "<buyer-user-id>"
+}
+
+// Expected response (200 OK):
+{
+  "output": { ...your-output-fields },
+  "status": "success"  // or "error"
+}`}</pre>
             </div>
 
             {/* Webhook URL */}
@@ -569,11 +598,12 @@ export default function DeployAgentPage() {
               </Label>
               <Input
                 id="modelName"
-                placeholder="claude-sonnet-4-6"
+                placeholder="e.g. claude-sonnet-4-5, gpt-4o, gemini-1.5-pro"
                 value={formData.modelName}
                 onChange={(e) => handleInputChange('modelName', e.target.value)}
                 className="mt-1"
               />
+              <p className="text-xs text-gray-400 mt-1">The exact model ID passed to the provider API</p>
             </div>
 
             {/* Pricing */}
@@ -675,6 +705,59 @@ export default function DeployAgentPage() {
               </div>
             </div>
 
+            {/* Output Fields Schema */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <Label className="text-sm font-medium text-gray-800">Output Fields</Label>
+                  <p className="text-xs text-gray-500 mt-0.5">Declare what your endpoint returns so buyers know the response shape</p>
+                </div>
+                <Button onClick={addOutputField} variant="outline" size="sm">
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Field
+                </Button>
+              </div>
+              <div className="space-y-3">
+                {formData.outputFields.map((field, index) => (
+                  <div key={index} className="grid grid-cols-12 gap-2 p-3 bg-gray-50 rounded-lg">
+                    <Input
+                      placeholder="Field name"
+                      value={field.name}
+                      onChange={(e) => updateOutputField(index, 'name', e.target.value)}
+                      className="col-span-3"
+                    />
+                    <select
+                      value={field.type}
+                      onChange={(e) => updateOutputField(index, 'type', e.target.value)}
+                      className="col-span-2 px-2 py-1 border border-gray-300 rounded-lg text-sm text-gray-900"
+                    >
+                      <option value="text">Text</option>
+                      <option value="number">Number</option>
+                      <option value="boolean">Boolean</option>
+                      <option value="array">Array</option>
+                      <option value="object">Object</option>
+                      <option value="url">URL</option>
+                    </select>
+                    <Input
+                      placeholder="Description"
+                      value={field.description}
+                      onChange={(e) => updateOutputField(index, 'description', e.target.value)}
+                      className="col-span-6"
+                    />
+                    <button
+                      onClick={() => removeOutputField(index)}
+                      className="col-span-1 text-red-400 hover:text-red-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+                {formData.outputFields.length === 0 && (
+                  <p className="text-xs text-gray-400 italic">No output fields defined yet.</p>
+                )}
+              </div>
+            </div>
+
             {/* Example Input/Output */}
             <div className="grid grid-cols-2 gap-6">
               <div>
@@ -690,7 +773,6 @@ export default function DeployAgentPage() {
                   className="mt-1 font-mono text-sm"
                 />
               </div>
-              
               <div>
                 <Label htmlFor="exampleOutput" className="text-sm font-medium text-gray-800">
                   Example Output (JSON)
@@ -732,8 +814,9 @@ export default function DeployAgentPage() {
             </Button>
             <Button
               onClick={() => setCurrentStep(3)}
-              disabled={!formData.apiEndpoint || !formData.modelProvider || !formData.pricePerRun}
+              disabled={!formData.apiEndpoint || !isValidUrl(formData.apiEndpoint) || !formData.modelProvider || !formData.pricePerRun}
               className="bg-orange-500 hover:bg-orange-600"
+              title={!formData.apiEndpoint ? 'API Endpoint is required' : !isValidUrl(formData.apiEndpoint) ? 'Enter a valid https:// URL' : ''}
             >
               Next: Credentials
             </Button>
@@ -747,19 +830,38 @@ export default function DeployAgentPage() {
           <div className="flex items-center gap-3 mb-6">
             <Lock className="w-6 h-6 text-orange-500" />
             <h2 className="text-xl font-semibold text-gray-900">
-              API Credentials (TEE Secured)
+              API Credentials &amp; Agent Logic
             </h2>
           </div>
 
           <Alert className="mb-6 bg-green-50 border-green-200">
             <ShieldCheck className="w-4 h-4 text-green-600" />
             <AlertDescription className="text-sm text-green-900">
-              <strong>Bank-grade Security:</strong> Your API keys are encrypted locally in your browser 
-              using RSA-OAEP. They are stored on the 0G decentralized storage network and are <strong>only decrypted 
-              inside our hardware Trusted Execution Environment (TEE)</strong> when your agent runs. AgentBazaar 
-              never sees or stores your plaintext keys.
+              <strong>Secured by Story Protocol CDR:</strong> Your agent logic and API keys are
+              vaulted on <strong>Story Protocol&apos;s Content Derivative Rights network</strong>.
+              Only buyers with a valid on-chain license can decrypt them. AgentBazaar&apos;s
+              platform wallet handles all vaulting on your behalf — you never interact with CDR directly.
             </AlertDescription>
           </Alert>
+
+          {/* Agent Logic / System Prompt */}
+          <div className="mb-6">
+            <Label htmlFor="logic" className="text-sm font-medium text-gray-800">
+              Agent Logic / System Prompt *
+            </Label>
+            <Textarea
+              id="logic"
+              placeholder="You are a DeFi research agent. Your job is to…"
+              value={formData.logic}
+              onChange={(e) => handleInputChange('logic', e.target.value)}
+              rows={6}
+              className="mt-1 font-mono text-sm"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              The core strategy / system prompt for your agent. This is vaulted on CDR and only
+              accessible to licensed buyers.
+            </p>
+          </div>
 
           <div className="space-y-6">
             {formData.modelProvider === 'openai' && (
@@ -960,9 +1062,47 @@ export default function DeployAgentPage() {
             
             <div className="flex justify-between py-2 border-b border-gray-200">
               <span className="text-gray-700">Input Fields</span>
-              <span className="font-medium text-gray-900">
-                {formData.inputFields.filter(f => f.name).length} fields
-              </span>
+              <span className="font-medium text-gray-900">{formData.inputFields.filter(f => f.name).length} fields</span>
+            </div>
+
+            <div className="flex justify-between py-2 border-b border-gray-200">
+              <span className="text-gray-700">Output Fields</span>
+              <span className="font-medium text-gray-900">{formData.outputFields.filter(f => f.name).length} fields</span>
+            </div>
+
+            <div className="flex justify-between py-2 border-b border-gray-200">
+              <span className="text-gray-700">API Endpoint</span>
+              {formData.apiEndpoint ? (
+                <span className="font-medium text-gray-900 text-xs truncate max-w-[280px] font-mono">{formData.apiEndpoint}</span>
+              ) : (
+                <span className="text-red-500 font-medium text-xs">⚠ Not set</span>
+              )}
+            </div>
+
+            <div className="flex justify-between py-2 border-b border-gray-200">
+              <span className="text-gray-700">Agent URL (slug)</span>
+              <span className="font-medium text-orange-600 font-mono text-xs">/agents/{slugPreview}</span>
+            </div>
+
+            <div className="flex justify-between py-2 border-b border-gray-200">
+              <span className="text-gray-700">Credentials Vaulted</span>
+              {(() => {
+                const hasKey = (formData.modelProvider === 'openai' && formData.apiKeys.openai_api_key) ||
+                               (formData.modelProvider === 'anthropic' && formData.apiKeys.anthropic_api_key) ||
+                               (formData.modelProvider === 'custom' && formData.apiKeys.custom_api_key) ||
+                               formData.customSecrets.some(s => s.key && s.value);
+                return hasKey
+                  ? <span className="font-medium text-green-600 text-xs">✓ API key provided</span>
+                  : <span className="text-gray-400 text-xs">None (endpoint handles auth)</span>;
+              })()}
+            </div>
+
+            <div className="flex justify-between py-2 border-b border-gray-200">
+              <span className="text-gray-700">Agent Logic</span>
+              {formData.logic.trim()
+                ? <span className="font-medium text-green-600 text-xs">✓ System prompt provided ({formData.logic.trim().length} chars)</span>
+                : <span className="text-red-500 text-xs">⚠ Not filled — required</span>
+              }
             </div>
           </div>
 

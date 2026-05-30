@@ -22,9 +22,9 @@ export default function SettingsPage() {
   const { isConnected, address } = useAccount();
 
   return (
-    <div className="max-w-5xl mx-auto space-y-12 py-10 pb-20 px-6 md:px-0 bg-transparent text-gray-900">
+    <div className="max-w-5xl mx-auto space-y-12 p-8 lg:p-10 pb-20 bg-transparent text-gray-900">
       {/* Header */}
-      <div className="space-y-4 pt-10">
+      <div className="space-y-4">
         <div className="flex items-center space-x-5 text-blue-600">
           <div className="w-16 h-16 rounded-[24px] bg-blue-50 flex items-center justify-center border border-blue-100 shadow-sm transition-all hover:scale-105">
             <Settings size={36} strokeWidth={2.5} />

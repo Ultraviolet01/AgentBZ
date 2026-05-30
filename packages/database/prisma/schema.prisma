@@ -5,8 +5,8 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("AGENTBAZAAR_DB_URL")
-  directUrl = env("AGENTBAZAAR_DIRECT_URL")
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -199,18 +199,14 @@ model DeployedAgent {
   pricePerRun Float // in CRD
   setupFee    Float @default(0)
 
-  // TEE-Based Credentials
-  requiresCredentials Boolean @default(false)
-  credentialSchema    Json? // What credentials this agent needs
+  // CDR-Based Credentials (Story Protocol)
+  requiresCredentials Boolean   @default(false)
+  credentialSchema    Json?     // What credentials this agent needs
 
-  // 0G Network Integration (TEE)
-  teeCredentialId String? // Reference to TEE-encrypted credential blob
-  daLogHash       String? // 0G DA hash for audit trail
-  teeAttestation  String? // TEE attestation proof (verifiable)
-
-  // Credential Metadata (NOT the actual keys)
-  credentialMetadata Json? // {provider: 'openai', model: 'gpt-4', cost_per_1k: 0.03}
-  credentialStatus   String @default("pending") // 'pending', 'active', 'revoked', 'expired'
+  // Story Protocol CDR Vaults
+  cdrVaultUuid      Int?      // CDR vault UUID for agent logic (system prompt)
+  cdrKeysVaultUuid  Int?      // CDR vault UUID for API keys (optional)
+  cdrDeployedAt     DateTime? // Timestamp when CDR vaulting completed
 
   // Cost Tracking
   totalApiCost Float @default(0) // Creator's actual API costs
@@ -273,27 +269,5 @@ model AgentReview {
   updatedAt DateTime @updatedAt
 }
 
-// NEW: TEE Credential Usage Logs (stored on 0G DA)
-model CredentialUsageLog {
-  id              String @id @default(cuid())
-  agentId         String
-  teeCredentialId String
-
-  // Usage Metadata (NO sensitive data)
-  usedAt        DateTime @default(now())
-  apiProvider   String // 'openai', 'anthropic', etc.
-  tokensUsed    Int? // For LLM APIs
-  estimatedCost Float? // Calculated cost
-
-  // 0G DA Integration
-  daHash        String // Hash of this log on 0G DA
-  daBlockHeight BigInt // 0G DA block height
-
-  // Cryptographic Proof
-  teeProof String? // ZK proof that execution happened in TEE
-
-  createdAt DateTime @default(now())
-
-  @@index([agentId, usedAt])
-  @@index([teeCredentialId])
-}
+// CDR access events are recorded on-chain by the Story Protocol network
+// and do not require a separate DB model.

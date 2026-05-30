@@ -13,12 +13,35 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import api from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { useEffect } from 'react';
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { user, isLoading } = useAuth();
   const [step, setStep] = useState(1);
   const [credits] = useState(20); // Free starting credits
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && user?.onboardingCompleted) {
+      router.replace('/');
+    }
+  }, [user, isLoading, router]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-orange-500 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    // If not logged in, they shouldn't be here
+    router.replace('/login');
+    return null;
+  }
 
   const steps = [
     {
@@ -27,8 +50,8 @@ export default function OnboardingPage() {
       icon: Check
     },
     {
-      title: 'Connect Your Wallet (Optional)',
-      description: 'Link your 0G wallet for crypto deposits',
+      title: 'Sync BSC Wallet',
+      description: 'Link your BSC wallet to deposit OG tokens and top up CRD',
       icon: Wallet
     },
     {
@@ -132,7 +155,7 @@ export default function OnboardingPage() {
           {step === 2 && (
             <Card className="bg-gray-50/50 border border-gray-100 p-10 mb-12 shadow-inner rounded-[32px]">
               <p className="text-[15px] font-semibold text-gray-500 mb-8 leading-relaxed max-w-sm mx-auto">
-                Connect your 0G wallet to enable modular data storage, verifiable agent memory, and native gas transactions.
+                Connect your BSC wallet to deposit OG tokens. These tokens power your autonomous agent runs and marketplace services.
               </p>
               <Button
                 variant="outline"
@@ -140,7 +163,7 @@ export default function OnboardingPage() {
                 onClick={() => {/* Connect wallet logic */}}
               >
                 <Wallet className="w-5 h-5 mr-3 text-orange-500" strokeWidth={2.5} />
-                Authorize 0G Mainnet
+                Authorize BSC Mainnet
               </Button>
             </Card>
           )}

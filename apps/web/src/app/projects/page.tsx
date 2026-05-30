@@ -44,7 +44,7 @@ export default function ProjectsPage() {
     <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="max-w-6xl mx-auto space-y-12 pb-24 px-6 md:px-0 bg-transparent text-gray-900"
+        className="max-w-7xl mx-auto space-y-12 pb-24 p-8 lg:p-10 bg-transparent text-gray-900"
     >
       <CreateProjectModal 
         open={createModalOpen} 
@@ -53,7 +53,7 @@ export default function ProjectsPage() {
       />
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pt-10">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3">

@@ -1,25 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { jwtVerify } from 'jose';
+import { verifyMessage } from 'viem';
+import { executeAgent } from '@/lib/agent-executor';
+import type { ApiKey } from '@/lib/cdr-client';
 
 /**
  * POST /api/agents/run
- * 
- * Execute a deployed custom agent.
- * 1. Validates the user and deducts credits
- * 2. Fetches the agent's encrypted credentials
- * 3. Forwards to the TEE worker for secure execution
- * 4. Returns the result with TEE attestation
+ *
+ * Execute a custom agent using CDR-unlocked credentials (Option 1 — Buyer Signature Relay).
+ *
+ * Flow:
+ * 1. Authenticate user via JWT
+ * 2. Verify the buyer's wallet signature (proves on-chain identity match)
+ * 3. Accept the CDR-decrypted { logic, apiKeys } from the client
+ * 4. Deduct credits
+ * 5. Execute the agent directly using the decrypted credentials
+ * 6. Record the run and return results
  */
 
 const prisma = new PrismaClient();
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key');
-const TEE_WORKER_URL = process.env.TEE_WORKER_URL || 'http://localhost:4100';
-const TEE_WORKER_API_KEY = process.env.TEE_WORKER_API_KEY || 'dev-key';
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Authenticate user
+    // ── 1. Authenticate ───────────────────────────────────────────────────────
     const token = req.cookies.get('auth_token')?.value;
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -29,7 +34,16 @@ export async function POST(req: NextRequest) {
     const userId = payload.id as string;
 
     const body = await req.json();
-    const { agentSlug, input } = body;
+    const {
+      agentSlug,
+      input,
+      // CDR-decrypted content from buyer's browser
+      accessedContent,
+      // Buyer wallet signature relay (Option 1)
+      buyerAddress,
+      buyerSignature,
+      signatureMessage,
+    } = body;
 
     if (!agentSlug || !input?.prompt) {
       return NextResponse.json(
@@ -38,7 +52,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Find the deployed agent
+    if (!accessedContent?.logic) {
+      return NextResponse.json(
+        { error: 'Missing accessedContent from CDR unlock. Ensure the buyer called accessAgentCDR() first.' },
+        { status: 400 }
+      );
+    }
+
+    // ── 2. Verify Buyer Wallet Signature ─────────────────────────────────────
+    // The buyer signed a message in their browser wallet before calling this endpoint.
+    // We verify it here to confirm their on-chain identity (Option 1 relay).
+    if (buyerAddress && buyerSignature && signatureMessage) {
+      try {
+        const valid = await verifyMessage({
+          address: buyerAddress as `0x${string}`,
+          message: signatureMessage,
+          signature: buyerSignature as `0x${string}`,
+        });
+        if (!valid) {
+          return NextResponse.json({ error: 'Invalid buyer wallet signature' }, { status: 401 });
+        }
+        console.log(`[Run] Buyer wallet verified: ${buyerAddress}`);
+      } catch {
+        return NextResponse.json({ error: 'Failed to verify buyer wallet signature' }, { status: 401 });
+      }
+    }
+
+    // ── 3. Find Agent ─────────────────────────────────────────────────────────
     const agent = await prisma.deployedAgent.findUnique({
       where: { slug: agentSlug },
     });
@@ -54,7 +94,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Check user credits
+    // ── 4. Check Credits ──────────────────────────────────────────────────────
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { credits: true },
@@ -71,57 +111,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Forward to TEE worker
-    const teeResponse = await fetch(`${TEE_WORKER_URL}/run-agent`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-tee-api-key': TEE_WORKER_API_KEY,
-      },
-      body: JSON.stringify({
-        agentId: agent.id,
-        agentSlug: agent.slug,
-        teeCredentialId: agent.teeCredentialId,
-        encryptedCredentials: agent.credentialMetadata, // Stored encrypted bundle
-        modelProvider: agent.modelProvider,
-        modelName: agent.modelName,
-        apiEndpoint: agent.apiEndpoint,
-        input,
-      }),
+    // ── 5. Execute Agent with CDR-decrypted credentials ───────────────────────
+    const { logic, apiKeys } = accessedContent as { logic: string; apiKeys: ApiKey[] };
+
+    const result = await executeAgent({
+      logic,
+      apiKeys: apiKeys || [],
+      modelProvider: agent.modelProvider,
+      modelName: agent.modelName || undefined,
+      apiEndpoint: agent.apiEndpoint || undefined,
+      input,
     });
 
-    if (!teeResponse.ok) {
-      const error = await teeResponse.json();
-      throw new Error(error.error || 'TEE execution failed');
-    }
-
-    const result = await teeResponse.json();
-
-    // 5. Deduct credits from user, credit the agent creator
-    const creatorShare = agent.pricePerRun * 0.9; // 90% to creator
-    const platformFee = agent.pricePerRun * 0.1; // 10% platform fee
+    // ── 6. Deduct Credits & Record Run ────────────────────────────────────────
+    const creatorShare = agent.pricePerRun * 0.9;
 
     await prisma.$transaction([
-      // Deduct from runner
       prisma.user.update({
         where: { id: userId },
         data: { credits: { decrement: agent.pricePerRun } },
       }),
-      // Credit the creator
       prisma.user.update({
         where: { id: agent.userId },
         data: { credits: { increment: creatorShare } },
       }),
-      // Update agent analytics
       prisma.deployedAgent.update({
         where: { id: agent.id },
         data: {
           totalRuns: { increment: 1 },
           totalRevenue: { increment: agent.pricePerRun },
-          totalApiCost: { increment: result.metadata?.estimatedCost || 0 },
+          totalApiCost: { increment: result.estimatedCost || 0 },
         },
       }),
-      // Record the agent run
       prisma.agentRun.create({
         data: {
           userId,
@@ -131,24 +152,33 @@ export async function POST(req: NextRequest) {
           inputData: input,
           outputData: {
             content: result.output,
-            attestation: result.attestation,
-            metadata: result.metadata,
+            metadata: {
+              model: result.model,
+              provider: result.provider,
+              tokensUsed: result.tokensUsed,
+              estimatedCost: result.estimatedCost,
+              executionTime: result.executionTime,
+            },
           },
           status: 'COMPLETED',
         },
       }),
     ]);
 
-    // 6. Return result
+    // ── 7. Return Result ──────────────────────────────────────────────────────
     return NextResponse.json({
       success: true,
       output: result.output,
       metadata: {
-        ...result.metadata,
+        model: result.model,
+        provider: result.provider,
+        tokensUsed: result.tokensUsed,
+        estimatedCost: result.estimatedCost,
+        executionTime: result.executionTime,
         creditsUsed: agent.pricePerRun,
         creatorEarned: creatorShare,
+        cdrVerified: !!(buyerAddress && buyerSignature),
       },
-      attestation: result.attestation,
     });
   } catch (error: any) {
     console.error('[Agent Run] Error:', error.message);

@@ -21,7 +21,7 @@ export const runScamSniff = async (req: Request, res: Response) => {
 
     // 2. Claude Analysis
     const response = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-sonnet-4-5",
       max_tokens: 1000,
       system: SCAMSNIFF_SYSTEM_PROMPT,
       messages: [{ 
@@ -122,7 +122,7 @@ export const runThreadSmith = async (req: Request, res: Response) => {
     }
 
     const response = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-sonnet-4-5",
       max_tokens: 1500,
       system: THREADSMITH_SYSTEM_PROMPT,
       messages: [{ 

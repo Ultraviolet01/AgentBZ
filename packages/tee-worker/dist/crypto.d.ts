@@ -2,15 +2,13 @@
  * TEE Worker — Crypto Module
  *
  * Handles RSA key generation and credential decryption.
- * The RSA private key is generated inside the TEE at startup
+ * The RSA private key is generated inside the service at startup
  * and NEVER exported or written to disk.
  *
- * When running on Phala Cloud (real TEE), keys are derived
- * deterministically from the enclave identity via dstack SDK.
- * When running locally (simulator/dev), keys are generated in memory.
+ * Keys are generated as standard ephemeral RSA-OAEP keys in memory.
  */
 /**
- * Initialize RSA key pair inside the TEE.
+ * Initialize RSA key pair.
  * Called once at startup.
  */
 export declare function initializeKeys(): Promise<void>;

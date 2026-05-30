@@ -111,6 +111,32 @@ class MonitoringEngine {
                     });
                 }
             }
+            if (enabledAlerts?.token_milestone) {
+                // Milestone Tracking Logic
+                const tokenSymbol = config.project.tokenAddress || config.project.name;
+                const currentFDV = await this.getCurrentFDV(tokenSymbol);
+                const targetFDV = enabledAlerts.targetFDV;
+                if (targetFDV && currentFDV >= targetFDV) {
+                    alerts.push({
+                        type: "MILESTONE_REACHED",
+                        severity: database_1.AlertSeverity.CRITICAL,
+                        message: `Target Milestone Reached! ${config.project.name} (${config.project.tokenAddress || 'Token'}) has surpassed your target FDV of $${targetFDV.toLocaleString()}. Current FDV: $${currentFDV.toLocaleString()}`,
+                        metadata: { currentFDV, targetFDV, tokenSymbol }
+                    });
+                }
+            }
+            if (enabledAlerts?.crypto_news) {
+                // Intelligence News Logic
+                const hasNews = Math.random() > 0.8;
+                if (hasNews) {
+                    alerts.push({
+                        type: "INTELLIGENCE_UPDATE",
+                        severity: database_1.AlertSeverity.MEDIUM,
+                        message: `New market intelligence detected for ${config.project.name}. Potential ecosystem expansion identified.`,
+                        metadata: { source: "SimulatedNewsService", relevance: 0.92 }
+                    });
+                }
+            }
             // 3. Create Monitoring Artifact Snapshot for 0G Storage
             const checkSnapshot = {
                 projectId,
@@ -151,7 +177,8 @@ class MonitoringEngine {
                     }
                 });
                 if (config.emailEnabled) {
-                    await EmailService.sendAlertEmail(config.project.user.email, {
+                    const targetEmail = config.alertTypes?.notificationEmail || config.project.user.email;
+                    await EmailService.sendAlertEmail(targetEmail, {
                         projectName: config.project.name,
                         alertType: alertData.type,
                         severity: alertData.severity,
@@ -211,6 +238,13 @@ class MonitoringEngine {
         if (frequency === "WEEKLY")
             return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
         return new Date(now.getTime() + 24 * 60 * 60 * 1000); // Daily
+    }
+    static async getCurrentFDV(symbol) {
+        // In production, this would call CoinGecko, DexScreener, etc.
+        // For this simulation, we'll return a value that occasionally hits the target
+        console.log(`[MonitoringEngine] Fetching FDV for ${symbol}...`);
+        // Simulate a value between 1M and 100M
+        return Math.floor(Math.random() * 99000000) + 1000000;
     }
 }
 exports.MonitoringEngine = MonitoringEngine;

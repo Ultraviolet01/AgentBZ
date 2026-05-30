@@ -74,18 +74,21 @@ const register = async (req, res) => {
                 description: "Signup Bonus"
             }
         });
-        // Verification email skip
-        /*
-        await sendVerificationEmail(email, verificationToken);
-    
-        if (process.env.NODE_ENV !== "production") {
-          console.log(`\n================================`);
-          console.log(`[DEV EMAIL] Verify: http://localhost:3010/verify-email?token=${verificationToken}`);
-          console.log(`================================\n`);
-        }
-        */
+        const { accessToken, refreshToken } = generateTokens(user.id);
+        // Save refresh token to DB
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { refreshToken }
+        });
+        setAuthCookies(res, accessToken, refreshToken);
         res.status(201).json({
-            message: "Registration successful. You can now log in."
+            message: "Registration successful",
+            user: {
+                id: user.id,
+                email: user.email,
+                username: user.username,
+                onboardingCompleted: user.onboardingCompleted
+            }
         });
     }
     catch (error) {

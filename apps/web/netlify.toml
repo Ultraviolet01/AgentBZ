@@ -1,0 +1,2 @@
+[build]
+  command = "turbo run build --filter=web"

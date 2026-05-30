@@ -2,12 +2,10 @@
  * TEE Worker — Crypto Module
  * 
  * Handles RSA key generation and credential decryption.
- * The RSA private key is generated inside the TEE at startup
+ * The RSA private key is generated inside the service at startup
  * and NEVER exported or written to disk.
  * 
- * When running on Phala Cloud (real TEE), keys are derived
- * deterministically from the enclave identity via dstack SDK.
- * When running locally (simulator/dev), keys are generated in memory.
+ * Keys are generated as standard ephemeral RSA-OAEP keys in memory.
  */
 
 import crypto from 'node:crypto';
@@ -15,49 +13,24 @@ import crypto from 'node:crypto';
 let rsaKeyPair: { publicKey: string; privateKey: crypto.KeyObject } | null = null;
 
 /**
- * Initialize RSA key pair inside the TEE.
+ * Initialize RSA key pair.
  * Called once at startup.
  */
 export async function initializeKeys(): Promise<void> {
-  // Try to use dstack SDK for deterministic key derivation (real TEE)
-  try {
-    const { TappdClient } = await import('@phala/dstack-sdk');
-    const client = new TappdClient();
-    
-    // Derive a deterministic seed from the TEE enclave
-    const seedInfo = await client.deriveKey('/agentbazaar/credential-master-key');
-    const seed = seedInfo.asUint8Array();
-    
-    // Use the seed to generate a deterministic RSA key pair
-    const keyPair = crypto.generateKeyPairSync('rsa', {
-      modulusLength: 2048,
-      publicKeyEncoding: { type: 'spki', format: 'pem' },
-      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-    });
-    
-    rsaKeyPair = {
-      publicKey: keyPair.publicKey,
-      privateKey: crypto.createPrivateKey(keyPair.privateKey),
-    };
-    
-    console.log('[TEE Crypto] Keys derived from TEE enclave identity');
-  } catch (error) {
-    // Fallback: generate ephemeral keys (dev/simulator mode)
-    console.warn('[TEE Crypto] dstack not available, generating ephemeral keys (dev mode)');
-    
-    const keyPair = crypto.generateKeyPairSync('rsa', {
-      modulusLength: 2048,
-      publicKeyEncoding: { type: 'spki', format: 'pem' },
-      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-    });
-    
-    rsaKeyPair = {
-      publicKey: keyPair.publicKey,
-      privateKey: crypto.createPrivateKey(keyPair.privateKey),
-    };
-    
-    console.log('[TEE Crypto] Ephemeral keys generated (NOT TEE-backed)');
-  }
+  console.log('[TEE Crypto] Generating ephemeral keys...');
+  
+  const keyPair = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  });
+  
+  rsaKeyPair = {
+    publicKey: keyPair.publicKey,
+    privateKey: crypto.createPrivateKey(keyPair.privateKey),
+  };
+  
+  console.log('[TEE Crypto] Ephemeral keys generated successfully');
 }
 
 /**

@@ -5,6 +5,8 @@ interface User {
   id: string;
   email: string;
   username: string;
+  onboardingCompleted: boolean;
+  credits: number;
 }
 
 interface AuthState {
@@ -12,6 +14,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   setAuth: (user: User | null) => void;
+  setLoading: (isLoading: boolean) => void;
   logout: () => void;
 }
 
@@ -26,6 +29,7 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: !!user,
         isLoading: false 
       }),
+      setLoading: (isLoading) => set({ isLoading }),
       logout: () => set({ 
         user: null, 
         isAuthenticated: false,

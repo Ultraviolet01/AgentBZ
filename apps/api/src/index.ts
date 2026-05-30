@@ -22,7 +22,7 @@ initSocket();
 // Global Rate Limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per window
+  max: 1000, // Increased for development
   message: { error: "Too many requests, please try again later." }
 });
 
@@ -30,12 +30,12 @@ const limiter = rateLimit({
 expressApp.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
-expressApp.use(cookieParser());
-expressApp.use(limiter);
 expressApp.use(cors({
   origin: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3010",
   credentials: true
 }));
+expressApp.use(cookieParser());
+expressApp.use(limiter);
 
 // Use express.json() for all routes EXCEPT Stripe webhooks
 expressApp.use((req, res, next) => {

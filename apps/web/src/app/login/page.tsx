@@ -21,7 +21,14 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   
   const router = useRouter();
+  const { user, isAuthenticated, isLoading } = useAuthStore();
   const setAuth = useAuthStore((state) => state.setAuth);
+
+  React.useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.replace("/");
+    }
+  }, [isAuthenticated, isLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +41,11 @@ export default function LoginPage() {
       router.push("/");
       router.refresh(); // Ensure sidebar updates
     } catch (err: any) {
-      setError(err.response?.data?.error || "Login failed. Please check your credentials.");
+      let message = err.response?.data?.error || "Login failed. Please check your credentials.";
+      if (typeof message === 'object') {
+        message = JSON.stringify(message);
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }
