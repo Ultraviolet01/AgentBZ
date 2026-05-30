@@ -5,6 +5,8 @@ import { verifyMessage } from 'viem';
 import { executeAgent } from '@/lib/agent-executor';
 import type { ApiKey } from '@/lib/cdr-client';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/agents/run
  *

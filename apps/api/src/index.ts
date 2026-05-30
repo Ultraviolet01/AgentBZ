@@ -30,8 +30,20 @@ const limiter = rateLimit({
 expressApp.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
+const allowedOrigins = [
+  process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3010",
+  "https://agentb.netlify.app",
+  "https://agentbazaar.vercel.app"
+];
+
 expressApp.use(cors({
-  origin: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3010",
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`Origin ${origin} not allowed by CORS`), false);
+    }
+  },
   credentials: true
 }));
 expressApp.use(cookieParser());

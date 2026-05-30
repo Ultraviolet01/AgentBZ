@@ -28,8 +28,20 @@ const limiter = (0, express_rate_limit_1.default)({
 expressApp.use((0, helmet_1.default)({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
+const allowedOrigins = [
+    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3010",
+    "https://agentb.netlify.app",
+    "https://agentbazaar.vercel.app"
+];
 expressApp.use((0, cors_1.default)({
-    origin: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3010",
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        }
+        else {
+            callback(new Error(`Origin ${origin} not allowed by CORS`), false);
+        }
+    },
     credentials: true
 }));
 expressApp.use((0, cookie_parser_1.default)());

@@ -11,6 +11,7 @@ const CDR_EXTERNALS = [
 
 const nextConfig = {
     transpilePackages: ["@agentbazaar/types", "@agentbazaar/database"],
+    staticPageGenerationTimeout: 300,
     experimental: {
       serverComponentsExternalPackages: CDR_EXTERNALS,
     },

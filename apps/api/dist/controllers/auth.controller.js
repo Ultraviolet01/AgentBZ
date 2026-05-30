@@ -33,14 +33,14 @@ const generateTokens = (userId) => {
 const setAuthCookies = (res, accessToken, refreshToken) => {
     res.cookie("accessToken", accessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        secure: true,
+        sameSite: "none",
         maxAge: 15 * 60 * 1000, // 15 mins
     });
     res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        secure: true,
+        sameSite: "none",
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 };
@@ -236,8 +236,16 @@ const resetPassword = async (req, res) => {
 };
 exports.resetPassword = resetPassword;
 const logout = async (req, res) => {
-    res.clearCookie("accessToken");
-    res.clearCookie("refreshToken");
+    res.clearCookie("accessToken", {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+    });
+    res.clearCookie("refreshToken", {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+    });
     // Optional: Invalidate in DB
     const userId = req.userId;
     if (userId) {

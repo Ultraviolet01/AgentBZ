@@ -3,6 +3,8 @@ import { PrismaClient, CreditsService } from "@agentbazaar/database";
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 
+export const dynamic = 'force-dynamic';
+
 const prisma = new PrismaClient();
 const creditsService = new CreditsService(prisma);
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "your-secret-key");

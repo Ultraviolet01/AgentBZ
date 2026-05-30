@@ -45,7 +45,7 @@ api.interceptors.response.use(
 
       return new Promise(function(resolve, reject) {
         axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/auth/refresh`,
+          `${process.env.NEXT_PUBLIC_API_URL || '/api'}/auth/refresh`,
           {},
           { withCredentials: true }
         )

@@ -3,6 +3,8 @@ import { PrismaClient } from "@prisma/client";
 import { jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
+export const dynamic = 'force-dynamic';
+
 const prisma = new PrismaClient();
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "your-secret-key");
 
