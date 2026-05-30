@@ -2,7 +2,74 @@
   command = "turbo run build --filter=web"
 
 [[redirects]]
-  from = "/api/*"
-  to = "https://agentbazaar-api.vercel.app/:splat"
+  from = "/api/auth/*"
+  to = "https://agentbazaar-api.vercel.app/auth/:splat"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/api/credits/*"
+  to = "https://agentbazaar-api.vercel.app/credits/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/projects/*"
+  to = "https://agentbazaar-api.vercel.app/projects/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/alerts/*"
+  to = "https://agentbazaar-api.vercel.app/alerts/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/agents/my"
+  to = "https://agentbazaar-api.vercel.app/agents/my"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/agents/scamsniff/run"
+  to = "https://agentbazaar-api.vercel.app/agents/scamsniff/run"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/agents/threadsmith/run"
+  to = "https://agentbazaar-api.vercel.app/agents/threadsmith/run"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/wallet/connect"
+  to = "https://agentbazaar-api.vercel.app/wallet/connect"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/wallet/status"
+  to = "https://agentbazaar-api.vercel.app/wallet/status"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/wallet/transactions"
+  to = "https://agentbazaar-api.vercel.app/wallet/transactions"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/wallet/verify-signature"
+  to = "https://agentbazaar-api.vercel.app/wallet/verify-signature"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/cron/*"
+  to = "https://agentbazaar-api.vercel.app/cron/:splat"
+  status = 200
+  force = true
+
