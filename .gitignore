@@ -38,3 +38,20 @@ Thumbs.db
 
 # Local Netlify folder
 .netlify
+
+# Test scripts & logs
+test-*.js
+test_output*.txt
+test-db.js
+test-resend.js
+test-rpc.js
+test_output_utf8.txt
+tests/
+tmp_tests/
+*logs.txt
+vercel_logs.txt
+vercel_final_logs.txt
+apps/api/test-*.js
+packages/database/test-*.js
+scripts/test-*.ts
+apps/web/src/app/api/test-cdr/
