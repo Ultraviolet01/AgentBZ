@@ -31,7 +31,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkAuth = useCallback(async () => {
     // Only set loading if we don't have a user yet to prevent flickering on credit updates
-    if (!user) setLoading(true);
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser) setLoading(true);
     try {
       const response = await api.get('/auth/me');
       setAuth(response.data.user);
@@ -41,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [setAuth, setLoading, user]);
+  }, [setAuth, setLoading]);
 
   useEffect(() => {
     checkAuth();
