@@ -1,5 +1,10 @@
 [build]
   command = "turbo run build --filter=web"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+
 
 [[redirects]]
   from = "/api/auth/*"
