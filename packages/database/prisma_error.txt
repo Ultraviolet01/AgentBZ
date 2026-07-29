@@ -1,4 +1,0 @@
-﻿Environment variables loaded from .env
-Prisma schema loaded from prisma\schema.prisma
-Datasource "db": PostgreSQL database "postgres", schema "public" at "db.uzmeufcylnbfnmwhvaht.supabase.co:5432"
-

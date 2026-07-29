@@ -20,7 +20,7 @@ export default function AgentsPage() {
       bgColor: 'bg-emerald-500/10',
       badge: 'HIGH ACCURACY',
       badgeColor: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-      cost: '1 CRD',
+      cost: '$0.10 / run',
       status: 'active',
       totalRuns: 1247,
       successRate: 99.2
@@ -28,13 +28,13 @@ export default function AgentsPage() {
     {
       id: 'threadsmith',
       name: 'ThreadSmith',
-      description: 'Context-aware AI content synthesis. Transform raw intelligence into viral-ready threads for the 0G ecosystem.',
+      description: 'Context-aware AI content synthesis. Transform raw intelligence into viral-ready threads for the Web3 ecosystem.',
       icon: Sparkles,
       iconColor: 'text-[#f5a623]',
       bgColor: 'bg-[#f5a623]/10',
       badge: 'MULTI-MODAL',
       badgeColor: 'bg-[#f5a623]/10 text-[#f5a623] border-[#f5a623]/20',
-      cost: '2-5 CRD',
+      cost: '$0.10 / run',
       status: 'active',
       totalRuns: 856,
       successRate: 97.8
@@ -48,7 +48,7 @@ export default function AgentsPage() {
       bgColor: 'bg-blue-500/10',
       badge: '24/7 PULSE',
       badgeColor: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-      cost: '10 CRD + 1 CRD/check',
+      cost: '$0.10 / run',
       status: 'active',
       totalRuns: 432,
       successRate: 98.5
@@ -59,12 +59,12 @@ export default function AgentsPage() {
   const avgSuccessRate = (agents.reduce((acc, agent) => acc + agent.successRate, 0) / agents.length).toFixed(1);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 lg:p-10 relative overflow-hidden">
+    <div className="min-h-screen bg-gray-50 relative overflow-hidden">
       {/* Background Ambience */}
       <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-orange-100/30 blur-[130px] rounded-full pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-100/20 blur-[120px] rounded-full pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto relative z-10">
+      <div className="mx-auto w-full max-w-7xl relative z-10 space-y-8 pb-16">
         {/* Header */}
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-6">
@@ -77,7 +77,7 @@ export default function AgentsPage() {
             </div>
           </div>
           <p className="text-base font-semibold text-gray-600 max-w-2xl leading-relaxed">
-            AgentBazaar&apos;s built-in intelligence agents - production-ready nodes fully integrated with 0G&apos;s Mainnet infrastructure for autonomous decision making.
+            AgentBazaar&apos;s built-in intelligence agents - production-ready nodes for autonomous decision making.
           </p>
         </div>
 

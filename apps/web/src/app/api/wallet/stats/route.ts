@@ -32,7 +32,6 @@ export async function GET(req: Request) {
     const user = await prisma.user.findUnique({
       where: { id: authUser.id },
       select: {
-        credits: true,
         walletAddress: true
       }
     });
@@ -41,37 +40,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const transactions = await prisma.transaction.findMany({
-      where: { userId: authUser.id },
-      orderBy: { createdAt: "desc" }
-    });
-
-    const mappedTransactions = transactions.map(tx => {
-      // Map credit-like types to "deposit" for UI to show as green (+)
-      const uiType = (tx.type === "CREDIT" || tx.type === "SIGNUP_BONUS" || tx.type === "DEPOSIT") 
-        ? "deposit" 
-        : tx.type.toLowerCase();
-      
-      return {
-        id: tx.id,
-        type: uiType,
-        description: tx.description,
-        amount: tx.amount,
-        status: tx.status.toLowerCase(),
-        date: tx.createdAt.toISOString()
-      };
-    });
-
-    // Calculate totals
-    const protocolUsage = transactions
-      .filter(tx => tx.type === "AGENT_RUN")
-      .reduce((acc, tx) => acc + tx.amount, 0);
-
     return NextResponse.json({
-      balance: user.credits,
-      protocolUsage,
-      totalTransactions: transactions.length,
-      transactions: mappedTransactions,
       walletAddress: user.walletAddress
     });
   } catch (error: any) {

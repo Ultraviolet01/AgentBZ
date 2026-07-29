@@ -8,7 +8,7 @@ import {
   Cpu, 
   FolderOpen, 
   History,
-  Wallet,
+  UserRound,
   Settings,
   Plus,
   LogOut,
@@ -66,7 +66,7 @@ export default function Sidebar() {
   ];
 
   const accountItems = [
-    { label: 'Wallet', href: '/wallet', icon: Wallet },
+    { label: 'Profile', href: '/profile', icon: UserRound },
     { label: 'Settings', href: '/settings', icon: Settings }
   ];
 
@@ -80,7 +80,7 @@ export default function Sidebar() {
           </div>
           <div>
             <h1 className="text-lg font-bold text-gray-900 leading-none uppercase tracking-tighter">AgentBazaar</h1>
-            <p className="text-[10px] font-bold text-orange-600 tracking-widest uppercase mt-1">0G MAINNET</p>
+            <p className="text-[10px] font-bold text-orange-600 tracking-widest uppercase mt-1">AI MARKETPLACE</p>
           </div>
         </Link>
         <button 
@@ -183,9 +183,6 @@ export default function Sidebar() {
                 <p className="text-sm font-medium text-gray-900 truncate">
                   {user?.username || 'New User'}
                 </p>
-                <p className="text-[10px] font-medium text-gray-500 lowercase">
-                  {user?.credits ?? 20} CRD
-                </p>
               </div>
             </div>
             <Button 
@@ -210,7 +207,7 @@ export default function Sidebar() {
         
         <div className="flex items-center gap-2 text-xs">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-gray-600 font-medium tracking-tight">0G Mainnet Live</span>
+          <span className="text-gray-600 font-medium tracking-tight">System Live</span>
         </div>
       </div>
     </div>

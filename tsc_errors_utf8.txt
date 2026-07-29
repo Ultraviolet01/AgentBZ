@@ -1,1 +1,0 @@
-﻿src/controllers/projects.controller.ts(78,22): error TS2339: Property 'stopMonitoring' does not exist on type 'typeof MonitoringEngine'.

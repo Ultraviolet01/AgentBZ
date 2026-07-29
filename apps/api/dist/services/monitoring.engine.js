@@ -38,8 +38,6 @@ const database_1 = require("@agentbazaar/database");
 const EmailService = __importStar(require("./email.service"));
 const social_service_1 = require("./social.service");
 const prisma = new database_1.PrismaClient();
-const storageService = new database_1.StorageService();
-const creditsService = new database_1.CreditsService(prisma);
 class MonitoringEngine {
     /**
      * Triggers monitoring checks for all active projects.
@@ -81,9 +79,7 @@ class MonitoringEngine {
             if (!config || !config.active)
                 return;
             const realUserId = config.project.userId;
-            // 1. Credit Deduction (1 CRD per check)
-            await creditsService.deductCredits(realUserId, 1, `LaunchWatch Monitoring Check: ${config.project.name}`);
-            // 2. Perform Intelligent Checks
+            // 1. Perform Intelligent Checks
             const alerts = [];
             const enabledAlerts = config.alertTypes;
             let socialSnapshot = null;
@@ -137,7 +133,7 @@ class MonitoringEngine {
                     });
                 }
             }
-            // 3. Create Monitoring Artifact Snapshot for 0G Storage
+            // 3. Create Monitoring Artifact Snapshot
             const checkSnapshot = {
                 projectId,
                 projectName: config.project.name,
@@ -146,11 +142,6 @@ class MonitoringEngine {
                 website: websiteSnapshot,
                 alertsGenerated: alerts.length
             };
-            const uploadResult = await storageService.uploadArtifact(checkSnapshot, {
-                agent: "LAUNCHWATCH",
-                projectId,
-                type: "MONITORING_SNAPSHOT"
-            });
             // 4. Record as AgentRun (Universal History)
             await prisma.agentRun.create({
                 data: {
@@ -160,8 +151,7 @@ class MonitoringEngine {
                     inputData: { configId: config.id, frequency: config.frequency },
                     outputData: checkSnapshot,
                     creditsUsed: 1,
-                    status: "COMPLETED",
-                    artifactCid: uploadResult.cid
+                    status: "COMPLETED"
                 }
             });
             // 5. Process Alerts (Emails)

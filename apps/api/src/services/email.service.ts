@@ -25,7 +25,7 @@ export const sendVerificationEmail = async (to: string, token: string) => {
       <div style="${baseStyles}">
         <h1 style="color: #f5a623; margin-top: 0;">Welcome to AgentBazaar!</h1>
         <p style="font-size: 16px; line-height: 1.6; color: #9ca3af;">
-          Before you can start running AI agents on the 0G Network, please verify your email address.
+          Before you can start running AI agents on AgentBazaar, please verify your email address.
         </p>
         <div style="padding: 30px 0;">
           <a href="${verifyLink}" style="background: #f5a623; color: black; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 800; font-size: 16px; display: inline-block;">Verify Email Address</a>

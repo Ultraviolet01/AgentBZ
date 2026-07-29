@@ -44,7 +44,7 @@ export default function ProjectsPage() {
     <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="max-w-7xl mx-auto space-y-12 pb-24 p-8 lg:p-10 bg-transparent text-gray-900"
+        className="mx-auto w-full max-w-7xl space-y-8 pb-16 bg-transparent text-gray-900"
     >
       <CreateProjectModal 
         open={createModalOpen} 

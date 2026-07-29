@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { 
   Zap, 
   ShieldCheck, 
@@ -21,7 +21,6 @@ import {
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import api from "@/lib/api";
 import { toast } from "sonner";
 
 const agents = [
@@ -30,7 +29,7 @@ const agents = [
     name: "ScamSniff",
     description: "Advanced social & smart contract threat analysis.",
     icon: ShieldCheck,
-    cost: "1 CRD",
+    cost: "$0.10 / run",
     color: "text-green-600",
     bg: "bg-green-100",
     href: "/agents/scamsniff",
@@ -41,7 +40,7 @@ const agents = [
     name: "ThreadSmith",
     description: "Context-aware AI content synthesis for terminal projects.",
     icon: PenTool,
-    cost: "2-5 CRD",
+    cost: "$0.10 / run",
     color: "text-orange-600",
     bg: "bg-orange-100",
     href: "/agents/threadsmith",
@@ -52,7 +51,7 @@ const agents = [
     name: "LaunchWatch",
     description: "Autonomous real-time health & security monitoring.",
     icon: Search,
-    cost: "10 CRD",
+    cost: "$0.10 / run",
     color: "text-blue-600",
     bg: "bg-blue-100",
     href: "/agents/launchwatch",
@@ -62,13 +61,6 @@ const agents = [
 
 export function AgentSelectionModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const router = useRouter();
-  const [balance, setBalance] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (open) {
-        api.get("/credits/balance").then(res => setBalance(res.data.balance)).catch(console.error);
-    }
-  }, [open]);
 
   const handleLaunch = (agentHref: string) => {
     onOpenChange(false);
@@ -131,7 +123,7 @@ export function AgentSelectionModal({ open, onOpenChange }: { open: boolean; onO
                 <TrendingUp size={16} strokeWidth={2.5} className="text-orange-500" />
                 <p className="text-xs font-bold font-mono tracking-tight">Project throughput: <span className="text-green-600">OPTIMAL</span></p>
             </div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-mono">0G Infrastructure Active</p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-mono">Infrastructure Active</p>
         </div>
       </DialogContent>
     </Dialog>

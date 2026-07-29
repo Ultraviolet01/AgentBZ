@@ -105,7 +105,7 @@ const App = () => {
       </div>
 
       <div className="pt-2 text-center text-[10px] text-white/20 font-medium">
-        v1.0.0 • Connected to Mainnet
+        v1.0.0 • Connected
       </div>
     </div>
   );

@@ -1,10 +1,8 @@
-import { PrismaClient, AlertSeverity, CreditsService, StorageService } from "@agentbazaar/database";
+import { PrismaClient, AlertSeverity } from "@agentbazaar/database";
 import * as EmailService from "./email.service";
 import { SimulatedSocialService } from "./social.service";
 
 const prisma = new PrismaClient();
-const storageService = new StorageService();
-const creditsService = new CreditsService(prisma);
 
 export class MonitoringEngine {
   /**
@@ -52,10 +50,7 @@ export class MonitoringEngine {
 
       const realUserId = config.project.userId;
 
-      // 1. Credit Deduction (1 CRD per check)
-      await creditsService.deductCredits(realUserId, 1, `LaunchWatch Monitoring Check: ${config.project.name}`);
-
-      // 2. Perform Intelligent Checks
+      // 1. Perform Intelligent Checks
       const alerts = [];
       const enabledAlerts = config.alertTypes as any;
       let socialSnapshot = null;
@@ -115,7 +110,7 @@ export class MonitoringEngine {
         }
       }
 
-      // 3. Create Monitoring Artifact Snapshot for 0G Storage
+      // 3. Create Monitoring Artifact Snapshot
       const checkSnapshot = {
         projectId,
         projectName: config.project.name,
@@ -124,12 +119,6 @@ export class MonitoringEngine {
         website: websiteSnapshot,
         alertsGenerated: alerts.length
       };
-
-      const uploadResult = await storageService.uploadArtifact(checkSnapshot, {
-        agent: "LAUNCHWATCH",
-        projectId,
-        type: "MONITORING_SNAPSHOT"
-      });
 
       // 4. Record as AgentRun (Universal History)
       await prisma.agentRun.create({
@@ -140,8 +129,7 @@ export class MonitoringEngine {
           inputData: { configId: config.id, frequency: config.frequency },
           outputData: checkSnapshot as any,
           creditsUsed: 1,
-          status: "COMPLETED",
-          artifactCid: uploadResult.cid as string
+          status: "COMPLETED"
         }
       });
 

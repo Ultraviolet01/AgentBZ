@@ -13,8 +13,9 @@ model User {
   id                  String             @id @default(cuid())
   email               String             @unique
   username            String             @unique
-  passwordHash        String
-  credits             Float              @default(20)
+  passwordHash        String?
+  googleId            String?            @unique
+  avatarUrl           String?
   emailVerified       Boolean            @default(false)
   verificationToken   String?
   refreshToken        String?
@@ -206,6 +207,7 @@ model DeployedAgent {
   // Story Protocol CDR Vaults
   cdrVaultUuid      Int?      // CDR vault UUID for agent logic (system prompt)
   cdrKeysVaultUuid  Int?      // CDR vault UUID for API keys (optional)
+  keeperhubSlug     String?   // KeeperHub workflow slug for x402/MPP execution
   cdrDeployedAt     DateTime? // Timestamp when CDR vaulting completed
 
   // Cost Tracking
@@ -240,9 +242,9 @@ model DeployedAgent {
   averageRating Float?
   reviewCount   Int    @default(0)
 
-  // 0G Network Integration (Storage)
-  storageNodeId String? // 0G Storage node where encrypted blob is stored
-  memoryHash    String? // 0G Memory reference
+  // Decentralized storage references
+  storageNodeId String? // storage node where encrypted blob is stored
+  memoryHash    String? // memory reference
 
   // Timestamps
   createdAt  DateTime  @default(now())

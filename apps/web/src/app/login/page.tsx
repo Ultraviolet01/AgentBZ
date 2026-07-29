@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -140,6 +141,15 @@ export default function LoginPage() {
                     </Button>
                 </div>
             </form>
+
+            <div className="space-y-6">
+                <div className="flex items-center justify-center space-x-4">
+                    <div className="h-px flex-1 bg-gray-100" />
+                    <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Or</p>
+                    <div className="h-px flex-1 bg-gray-100" />
+                </div>
+                <GoogleSignInButton onError={setError} />
+            </div>
 
             <div className="text-center pt-2 space-y-4">
                 <div className="flex items-center justify-center space-x-4">

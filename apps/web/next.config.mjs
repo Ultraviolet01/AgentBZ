@@ -1,3 +1,12 @@
+import { config as loadEnv } from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
+
+// Load the monorepo-root .env so a single root env file also feeds the web app
+// (Next.js only reads .env files inside apps/web by default). This makes
+// NEXT_PUBLIC_* vars available for build-time inlining and server routes.
+loadEnv({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') });
+
 /** @type {import('next').NextConfig} */
 const CDR_EXTERNALS = [
   'helia',
@@ -37,14 +46,6 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-    env: {
-    // Note: Secrets removed for security. 
-    // Manage these via Vercel / VPS Environment Variables.
-    OG_RPC_URL: "https://evmrpc.0g.ai",
-    OG_INDEXER_URL: "https://indexer-storage-mainnet-standard.0g.ai",
-    OG_CONTRACT_ADDRESS: "0x02DF8a5934dA46859962bd4962668d109d544457",
-    OG_NETWORK: "mainnet",
-  },
   optimizeFonts: false,
   async rewrites() {
       return {
@@ -53,7 +54,7 @@ const nextConfig = {
             source: '/api/:path*',
             destination: process.env.NODE_ENV === 'production' 
               ? '/api/:path*' // Point to the same origin in production
-              : 'http://localhost:3006/:path*', // Local dev
+              : 'http://localhost:3001/:path*', // Local dev
           },
         ],
       };

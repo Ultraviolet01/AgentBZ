@@ -58,6 +58,7 @@ export async function GET(
         // Pricing
         pricePerRun: agent.pricePerRun,
         setupFee: agent.setupFee,
+        keeperhubSlug: agent.keeperhubSlug,
         
         // Technical (safe to show)
         modelProvider: agent.modelProvider,
@@ -78,9 +79,7 @@ export async function GET(
         
         // TEE
         requiresCredentials: agent.requiresCredentials,
-        credentialStatus: agent.credentialStatus,
-        teeAttestation: agent.teeAttestation,
-        
+
         // Analytics
         totalRuns: agent.totalRuns,
         totalRevenue: agent.totalRevenue,

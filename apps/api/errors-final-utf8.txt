@@ -1,6 +1,0 @@
-﻿src/controllers/agents.controller.ts(2,24): error TS2305: Module '"@agentbazaar/database"' has no exported member 'AgentType'.
-src/controllers/agents.controller.ts(81,13): error TS2322: Type 'string | null' is not assignable to type 'string'.
-  Type 'null' is not assignable to type 'string'.
-src/controllers/agents.controller.ts(176,11): error TS2322: Type 'string | null' is not assignable to type 'string'.
-  Type 'null' is not assignable to type 'string'.
-src/controllers/alerts.controller.ts(24,27): error TS2561: Object literal may only specify known properties, but 'readAt' does not exist in type '(Without<LaunchWatchAlertUpdateInput, LaunchWatchAlertUncheckedUpdateInput> & LaunchWatchAlertUncheckedUpdateInput) | (Without<...> & LaunchWatchAlertUpdateInput)'. Did you mean to write 'read'?

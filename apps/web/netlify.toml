@@ -13,12 +13,6 @@
   force = true
 
 [[redirects]]
-  from = "/api/credits/*"
-  to = "https://agentbazaar-api.vercel.app/credits/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
   from = "/api/projects/*"
   to = "https://agentbazaar-api.vercel.app/projects/:splat"
   status = 200

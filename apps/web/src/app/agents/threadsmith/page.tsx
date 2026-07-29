@@ -34,7 +34,6 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { InsufficientCreditsModal } from "@/components/InsufficientCreditsModal";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "@/lib/api";
 
@@ -48,7 +47,6 @@ export default function ThreadSmithPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [output, setOutput] = useState('');
   const [statusIdx, setStatusIdx] = useState(0);
-  const [showError, setShowError] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const statusMessages = [
@@ -100,17 +98,12 @@ export default function ThreadSmithPage() {
 
       const data = await response.json();
       setOutput(data.content);
-      window.dispatchEvent(new Event("credits-updated"));
       toast.success("Synthesis Complete", {
-        description: "Content has been anchored to 0G Decentralized Storage.",
+        description: "Content synthesis finished.",
       });
     } catch (error: any) {
       console.error('Generation error:', error);
-      if (error.response?.status === 402 || error.response?.data?.error?.includes('balance')) {
-        setShowError(true);
-      } else {
-        toast.error("Generation Failed", { description: error.message });
-      }
+      toast.error("Generation Failed", { description: error.message });
     } finally {
       setIsGenerating(false);
     }
@@ -123,18 +116,8 @@ export default function ThreadSmithPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const getCreditsRequired = () => {
-    return quality === 'premium' ? 5 : 2;
-  };
-
   return (
     <div className="p-10 max-w-7xl mx-auto min-h-screen space-y-12 pb-24 bg-transparent text-gray-900">
-      <InsufficientCreditsModal 
-        open={showError} 
-        onOpenChange={setShowError} 
-        requiredCredits={getCreditsRequired()} 
-      />
-
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
         <div className="space-y-4">
@@ -153,7 +136,7 @@ export default function ThreadSmithPage() {
             </Badge>
             <div className="flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-white border border-gray-100 shadow-sm">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Mainnet Live</span>
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">System Live</span>
             </div>
           </div>
         </div>
@@ -238,7 +221,7 @@ export default function ThreadSmithPage() {
                   </div>
                   <div>
                     <p className={cn("text-base font-bold transition-colors uppercase tracking-tight", useMemory ? "text-gray-900" : "text-gray-400")}>Access Project Memory</p>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Inject 0G audit history</p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Inject audit history</p>
                   </div>
                 </div>
                 <div className={cn("w-6 h-6 rounded-full border-[3px] transition-all relative flex items-center justify-center", useMemory ? "border-orange-500" : "border-gray-200")}>
@@ -271,11 +254,11 @@ export default function ThreadSmithPage() {
                   ) : (
                     <>
                       <Sparkles className="w-7 h-7" strokeWidth={2.5} />
-                      INITIALIZE ENGINE ({getCreditsRequired()} CRD)
+                      INITIALIZE ENGINE
                     </>
                   )}
                 </Button>
-                <p className="text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.25em]">Computation anchored to 0G Mainnet</p>
+                <p className="text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.25em]">Computation anchored on-chain</p>
               </div>
             </div>
           </Card>
@@ -405,7 +388,7 @@ export default function ThreadSmithPage() {
                 
                 <div className="hidden sm:flex items-center space-x-4 px-6 py-4 bg-green-50 rounded-[22px] border border-green-100 shadow-sm">
                    <CheckCircle2 size={18} className="text-green-600" strokeWidth={2.5} />
-                   <span className="text-[10px] font-bold text-green-700 uppercase tracking-widest leading-none">NARRATIVE PROOF ANCHORED — 0G-MS</span>
+                   <span className="text-[10px] font-bold text-green-700 uppercase tracking-widest leading-none">NARRATIVE PROOF ANCHORED</span>
                 </div>
             </div>
           </Card>

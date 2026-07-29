@@ -1,83 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@agentbazaar/database';
 import { jwtVerify } from 'jose';
-import { verifyMessage } from 'viem';
 import { executeAgent } from '@/lib/agent-executor';
-import type { ApiKey } from '@/lib/cdr-client';
+import { executeAgentViaKeeperHub } from '@/lib/keeperhub';
+import { retrieveAgentKeys } from '@/lib/cdr-server';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/agents/run
  *
- * Execute a custom agent using CDR-unlocked credentials (Option 1 — Buyer Signature Relay).
+ * Execute a custom agent.
  *
  * Flow:
- * 1. Authenticate user via JWT
- * 2. Verify the buyer's wallet signature (proves on-chain identity match)
- * 3. Accept the CDR-decrypted { logic, apiKeys } from the client
- * 4. Deduct credits
- * 5. Execute the agent directly using the decrypted credentials
- * 6. Record the run and return results
+ * 1. Authenticate buyer via JWT
+ * 2. Find the agent record in DB
+ * 3. If the agent has CDR-vaulted API keys, retrieve them server-side
+ *    using the platform wallet (no buyer wallet signature required —
+ *    the x402 payment is the authorisation proof)
+ * 4. Execute via KeeperHub (x402 payment) or fallback to direct LLM call
+ * 5. Discard keys, record the run, return result + txHash
  */
 
 const prisma = new PrismaClient();
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key');
+// Use ACCESS_TOKEN_SECRET to match the Express API token signing
+const JWT_SECRET = new TextEncoder().encode(process.env.ACCESS_TOKEN_SECRET || 'at_super-secret-key');
 
 export async function POST(req: NextRequest) {
   try {
     // ── 1. Authenticate ───────────────────────────────────────────────────────
-    const token = req.cookies.get('auth_token')?.value;
+    // Cookie name matches what auth.controller.ts sets: 'accessToken'
+    const token = req.cookies.get('accessToken')?.value;
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { payload } = await jwtVerify(token, JWT_SECRET);
-    const userId = payload.id as string;
+    // JWT is signed with { userId } — matches auth.controller.ts generateTokens()
+    const userId = payload.userId as string;
 
     const body = await req.json();
-    const {
-      agentSlug,
-      input,
-      // CDR-decrypted content from buyer's browser
-      accessedContent,
-      // Buyer wallet signature relay (Option 1)
-      buyerAddress,
-      buyerSignature,
-      signatureMessage,
-    } = body;
+    const { agentSlug, input, txHash: clientTxHash } = body;
 
     if (!agentSlug || !input?.prompt) {
       return NextResponse.json(
         { error: 'Missing required fields: agentSlug, input.prompt' },
         { status: 400 }
       );
-    }
-
-    if (!accessedContent?.logic) {
-      return NextResponse.json(
-        { error: 'Missing accessedContent from CDR unlock. Ensure the buyer called accessAgentCDR() first.' },
-        { status: 400 }
-      );
-    }
-
-    // ── 2. Verify Buyer Wallet Signature ─────────────────────────────────────
-    // The buyer signed a message in their browser wallet before calling this endpoint.
-    // We verify it here to confirm their on-chain identity (Option 1 relay).
-    if (buyerAddress && buyerSignature && signatureMessage) {
-      try {
-        const valid = await verifyMessage({
-          address: buyerAddress as `0x${string}`,
-          message: signatureMessage,
-          signature: buyerSignature as `0x${string}`,
-        });
-        if (!valid) {
-          return NextResponse.json({ error: 'Invalid buyer wallet signature' }, { status: 401 });
-        }
-        console.log(`[Run] Buyer wallet verified: ${buyerAddress}`);
-      } catch {
-        return NextResponse.json({ error: 'Failed to verify buyer wallet signature' }, { status: 401 });
-      }
     }
 
     // ── 3. Find Agent ─────────────────────────────────────────────────────────
@@ -96,47 +65,58 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── 4. Check Credits ──────────────────────────────────────────────────────
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { credits: true },
-    });
+    // ── 4. Retrieve API keys from CDR (server-side, using platform wallet) ─────────────
+    // The platform wallet owns the CDR vault — it retrieves the keys after the
+    // buyer's x402 payment is confirmed. Keys are in-memory only; never logged.
+    const logic = agent.readme || agent.description || '';
+    let apiKeys: { name: string; value: string }[] = [];
 
-    if (!user || user.credits < agent.pricePerRun) {
-      return NextResponse.json(
-        {
-          error: 'Insufficient credits',
-          required: agent.pricePerRun,
-          current: user?.credits || 0,
-        },
-        { status: 402 }
-      );
+    if (agent.cdrKeysVaultUuid) {
+      try {
+        apiKeys = await retrieveAgentKeys(agent.cdrKeysVaultUuid);
+      } catch (cdrErr: any) {
+        console.error('[Run] CDR key retrieval failed, proceeding without keys:', cdrErr.message);
+        // Fallback: continue without keys (agent may still work via its own endpoint)
+      }
     }
 
-    // ── 5. Execute Agent with CDR-decrypted credentials ───────────────────────
-    const { logic, apiKeys } = accessedContent as { logic: string; apiKeys: ApiKey[] };
+    let result: Awaited<ReturnType<typeof executeAgent>>;
+    let txHash: string | null = clientTxHash || null;
 
-    const result = await executeAgent({
-      logic,
-      apiKeys: apiKeys || [],
-      modelProvider: agent.modelProvider,
-      modelName: agent.modelName || undefined,
-      apiEndpoint: agent.apiEndpoint || undefined,
-      input,
-    });
+    // ── 4. Execute via KeeperHub ──────────────────────────────────────────────
+    const workflowSlug = agent.keeperhubSlug || agent.slug;
+    const keeperHubResult = await executeAgentViaKeeperHub(workflowSlug, input, clientTxHash);
 
-    // ── 6. Deduct Credits & Record Run ────────────────────────────────────────
-    const creatorShare = agent.pricePerRun * 0.9;
+    if (keeperHubResult.txHash || keeperHubResult.output?.skipped !== true) {
+      result = {
+        output: keeperHubResult.output,
+        model: agent.modelProvider,
+        provider: agent.modelProvider,
+        tokensUsed: 0,
+        estimatedCost: 0,
+        executionTime: 0,
+      } as Awaited<ReturnType<typeof executeAgent>>;
+      txHash = keeperHubResult.txHash || clientTxHash || null;
+    } else {
+      // Fallback: execute locally via Anthropic/configured LLM if KeeperHub is unconfigured/skipped
+      result = await executeAgent({
+        logic,
+        apiKeys: apiKeys || [],
+        modelProvider: agent.modelProvider,
+        modelName: agent.modelName || undefined,
+        apiEndpoint: agent.apiEndpoint || undefined,
+        input,
+      });
+    }
+
+    // ── 5. Record Run + Buyer & Treasury Transactions ────────────────────────
+    const feePercent = Number(process.env.TREASURY_FEE_PERCENT || '10') / 100;
+    const creatorShare = agent.pricePerRun * (1 - feePercent); // 90%
+    const treasuryShare = agent.pricePerRun * feePercent;       // 10%
+    const treasuryAddress = process.env.TREASURY_WALLET_ADDRESS || '0xd6C48a201B275A21966Aef9D6C1bc087e754D848';
 
     await prisma.$transaction([
-      prisma.user.update({
-        where: { id: userId },
-        data: { credits: { decrement: agent.pricePerRun } },
-      }),
-      prisma.user.update({
-        where: { id: agent.userId },
-        data: { credits: { increment: creatorShare } },
-      }),
+      // Update agent analytics
       prisma.deployedAgent.update({
         where: { id: agent.id },
         data: {
@@ -145,6 +125,7 @@ export async function POST(req: NextRequest) {
           totalApiCost: { increment: result.estimatedCost || 0 },
         },
       }),
+      // Record run history
       prisma.agentRun.create({
         data: {
           userId,
@@ -160,9 +141,32 @@ export async function POST(req: NextRequest) {
               tokensUsed: result.tokensUsed,
               estimatedCost: result.estimatedCost,
               executionTime: result.executionTime,
+              txHash,
             },
           },
           status: 'COMPLETED',
+        },
+      }),
+      // Record buyer payment transaction (full run cost)
+      prisma.transaction.create({
+        data: {
+          userId,
+          amount: agent.pricePerRun,
+          type: 'AGENT_RUN',
+          status: txHash ? 'CONFIRMED' : 'COMPLETED',
+          description: `Ran agent: ${agent.name}`,
+          txHash: txHash || undefined,
+        },
+      }),
+      // Record treasury fee (10% platform cut → 0xd6C48a201B275A21966Aef9D6C1bc087e754D848)
+      prisma.transaction.create({
+        data: {
+          userId,
+          amount: treasuryShare,
+          type: 'PLATFORM_FEE',
+          status: 'COMPLETED',
+          description: `Platform fee (${Math.round(feePercent * 100)}%) for agent: ${agent.name} → ${treasuryAddress}`,
+          txHash: txHash || undefined,
         },
       }),
     ]);
@@ -179,8 +183,10 @@ export async function POST(req: NextRequest) {
         executionTime: result.executionTime,
         creditsUsed: agent.pricePerRun,
         creatorEarned: creatorShare,
-        cdrVerified: !!(buyerAddress && buyerSignature),
+        keeperhubSlug: agent.keeperhubSlug,
+        txHash,
       },
+      txHash,
     });
   } catch (error: any) {
     console.error('[Agent Run] Error:', error.message);

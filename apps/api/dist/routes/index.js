@@ -38,7 +38,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const authController = __importStar(require("../controllers/auth.controller"));
-const creditsController = __importStar(require("../controllers/credits.controller"));
 const projectsController = __importStar(require("../controllers/projects.controller"));
 const agentsController = __importStar(require("../controllers/agents.controller"));
 const walletController = __importStar(require("../controllers/wallet.controller"));
@@ -51,16 +50,16 @@ router.use("/cron", cron_routes_1.default);
 // Auth Routes
 router.post("/auth/register", authController.register);
 router.post("/auth/login", authController.login);
+router.post("/auth/google", authController.googleAuth);
 router.get("/auth/verify", authController.verify);
 router.post("/auth/refresh", authController.refresh);
 router.post("/auth/forgot-password", authController.forgotPassword);
 router.post("/auth/reset-password", authController.resetPassword);
+router.post("/auth/change-password", auth_middleware_1.authMiddleware, authController.changePassword);
+router.delete("/auth/account", auth_middleware_1.authMiddleware, authController.deleteAccount);
 router.post("/auth/logout", auth_middleware_1.authMiddleware, authController.logout);
 router.post("/auth/onboarding/complete", auth_middleware_1.authMiddleware, authController.completeOnboarding);
 router.get("/auth/me", auth_middleware_1.authMiddleware, authController.me);
-// Credits Routes
-router.get("/credits/balance", auth_middleware_1.authMiddleware, creditsController.getBalance);
-router.get("/credits/history", auth_middleware_1.authMiddleware, creditsController.getHistory);
 // Projects Routes
 router.get("/projects", auth_middleware_1.authMiddleware, projectsController.getProjects);
 router.post("/projects", auth_middleware_1.authMiddleware, projectsController.createProject);
@@ -77,7 +76,6 @@ router.post("/wallet/connect", auth_middleware_1.authMiddleware, walletControlle
 router.get("/wallet/status", auth_middleware_1.authMiddleware, walletController.getStatus);
 router.get("/wallet/transactions", auth_middleware_1.authMiddleware, walletController.getTransactions);
 router.post("/wallet/verify-signature", walletController.verifySignature);
-router.post("/wallet/deposit", auth_middleware_1.authMiddleware, walletController.deposit);
 // Alerts Routes
 router.get("/alerts/list", auth_middleware_1.authMiddleware, alertsController.listAlerts);
 router.patch("/alerts/:id/mark-read", auth_middleware_1.authMiddleware, alertsController.markRead);

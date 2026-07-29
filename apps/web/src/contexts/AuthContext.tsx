@@ -9,7 +9,6 @@ type User = {
   id: string;
   email: string;
   username: string;
-  credits: number;
   onboardingCompleted: boolean;
 } | null;
 
@@ -46,15 +45,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     checkAuth();
-
-    // Listen for credit updates from agents
-    const handleUpdate = () => {
-      // Small delay to ensure DB transactions are committed before re-fetching
-      setTimeout(() => checkAuth(), 500);
-    };
-
-    window.addEventListener('credits-updated', handleUpdate);
-    return () => window.removeEventListener('credits-updated', handleUpdate);
   }, [checkAuth]);
 
   const signOut = async () => {

@@ -2,15 +2,24 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
+import { useAccount, useSendTransaction } from 'wagmi';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Check, AlertCircle, Clock, ShieldCheck } from 'lucide-react';
+import { Check, AlertCircle, Clock, ShieldCheck, Wallet } from 'lucide-react';
+import { payAgentFeeFromWallet } from '@/lib/x402-client';
 
 export default function DeployedAgentPage() {
   const params = useParams();
   const searchParams = useSearchParams();
+  const { isConnected } = useAccount();
+  const { sendTransactionAsync } = useSendTransaction();
+
   const [agent, setAgent] = useState<any>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [runOutput, setRunOutput] = useState<any>(null);
   const isNewlyDeployed = searchParams?.get('deployed') === 'true';
 
   useEffect(() => {
@@ -22,6 +31,54 @@ export default function DeployedAgentPage() {
     if (response.ok) {
       const data = await response.json();
       setAgent(data.agent);
+    }
+  };
+
+  const handleRunAgent = async () => {
+    if (!agent) return;
+
+    setIsRunning(true);
+    setRunError(null);
+    setTxHash(null);
+    setRunOutput(null);
+
+    try {
+      let clientTxHash: string | undefined = undefined;
+
+      // If buyer has connected their Web3 wallet, pay $0.10 USDC directly to Treasury
+      if (isConnected && sendTransactionAsync) {
+        try {
+          clientTxHash = await payAgentFeeFromWallet(
+            sendTransactionAsync as any,
+            agent.pricePerRun || 0.1
+          );
+          setTxHash(clientTxHash);
+        } catch (walletErr: any) {
+          throw new Error(`Wallet payment canceled or failed: ${walletErr.message || walletErr}`);
+        }
+      }
+
+      const response = await fetch('/api/agents/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentSlug: agent.slug,
+          input: { prompt: 'Run this agent' },
+          txHash: clientTxHash,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to run agent');
+      }
+
+      setRunOutput(data.output);
+      setTxHash(data.txHash || clientTxHash || null);
+    } catch (err: any) {
+      setRunError(err.message || 'Failed to run agent');
+    } finally {
+      setIsRunning(false);
     }
   };
 
@@ -104,9 +161,40 @@ export default function DeployedAgentPage() {
           </div>
         </div>
 
+        <div className="mt-8 rounded-2xl border border-gray-200 bg-gray-50/70 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Run this agent</h2>
+              <p className="text-sm text-gray-600">This signs a wallet message and submits the execution request with KeeperHub support.</p>
+            </div>
+            <Button onClick={handleRunAgent} disabled={isRunning}>
+              {isRunning ? 'Running…' : 'Run agent'}
+            </Button>
+          </div>
+
+          {runError ? <p className="mt-3 text-sm text-red-600">{runError}</p> : null}
+
+          {txHash ? (
+            <a
+              href={`https://x402scan.com/tx/${txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex text-sm font-medium text-orange-600 underline"
+            >
+              View execution on x402scan ↗
+            </a>
+          ) : null}
+
+          {runOutput ? (
+            <pre className="mt-3 overflow-x-auto rounded-xl bg-white p-4 text-xs text-gray-700">
+              {JSON.stringify(runOutput, null, 2)}
+            </pre>
+          ) : null}
+        </div>
+
         {/* Documentation */}
         {agent.readme && (
-          <div className="prose max-w-none">
+          <div className="prose max-w-none mt-8">
             <h2>Documentation</h2>
             <div dangerouslySetInnerHTML={{ __html: agent.readme }} />
           </div>

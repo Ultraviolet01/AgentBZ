@@ -54,7 +54,7 @@ export default function MarketplacePage() {
       bgColor: 'bg-green-100',
       badgeText: 'HIGH ACCURACY',
       badgeColor: 'bg-green-100 text-green-700',
-      cost: '1 CRD',
+      cost: '$0.10 / run',
       creator: 'AgentBazaar',
       verified: true,
       trending: true,
@@ -69,7 +69,7 @@ export default function MarketplacePage() {
       bgColor: 'bg-orange-100',
       badgeText: 'MULTI-MODAL',
       badgeColor: 'bg-orange-100 text-orange-700',
-      cost: '2-5 CRD',
+      cost: '$0.10 / run',
       creator: 'AgentBazaar',
       verified: true,
       trending: true,
@@ -84,7 +84,7 @@ export default function MarketplacePage() {
       bgColor: 'bg-blue-100',
       badgeText: '24/7 PULSE',
       badgeColor: 'bg-blue-100 text-blue-700',
-      cost: '10 CRD',
+      cost: '$0.10 / run',
       creator: 'AgentBazaar',
       verified: true,
       trending: false,
@@ -103,7 +103,7 @@ export default function MarketplacePage() {
       bgColor: 'bg-purple-100',
       badgeText: 'ANALYTICS',
       badgeColor: 'bg-purple-100 text-purple-700',
-      cost: '3 CRD',
+      cost: '$0.10 / run',
       creator: 'CryptoLabs',
       verified: false,
       trending: true,
@@ -135,7 +135,7 @@ export default function MarketplacePage() {
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-2">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-xs text-gray-600 font-medium">0G Network • Mainnet Live</span>
+          <span className="text-xs text-gray-600 font-medium">System Live</span>
         </div>
         <h1 className="text-5xl font-bold text-gray-900 mb-4 leading-tight uppercase">
           Agent

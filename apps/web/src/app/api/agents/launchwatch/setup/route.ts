@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { PrismaClient, CreditsService } from "@agentbazaar/database";
+import { PrismaClient } from "@agentbazaar/database";
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 
 export const dynamic = 'force-dynamic';
 
 const prisma = new PrismaClient();
-const creditsService = new CreditsService(prisma);
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "your-secret-key");
 
 async function getAuthUser() {
@@ -33,26 +32,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { monitoringType, ...formData } = body;
 
-    // 1. Initial Setup Fee (10 CRD for Project/Token, 3 CRD for News week)
-    let creditsUsed = 10;
-    if (monitoringType === 'crypto_news') creditsUsed = 3;
-    if (monitoringType === 'token_milestone') creditsUsed = 5;
-
-    // Check balance
-    const user = await prisma.user.findUnique({
-      where: { id: authUser.id },
-      select: { credits: true, email: true }
-    });
-
-    if (!user || user.credits < creditsUsed) {
-      return NextResponse.json({ 
-        error: "Insufficient credits", 
-        required: creditsUsed, 
-        current: user?.credits || 0 
-      }, { status: 402 });
-    }
-
-    // 2. Resolve Project
+    // 1. Resolve Project
     let projectId = formData.projectId;
 
     if (!projectId) {
@@ -102,10 +82,7 @@ export async function POST(req: Request) {
       include: { project: true }
     });
 
-    // 4. Deduct credits
-    await creditsService.deductCredits(authUser.id, creditsUsed, `LaunchWatch Setup: ${monitoringType}`);
-
-    // 5. Send Confirmation Email (This was missing)
+    // 4. Send Confirmation Email
     try {
       const { sendAlertEmail } = await import("@/../../apps/api/src/services/email.service");
       await sendAlertEmail(formData.notificationEmail || authUser.email, {

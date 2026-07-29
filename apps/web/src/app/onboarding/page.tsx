@@ -20,7 +20,6 @@ export default function OnboardingPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
   const [step, setStep] = useState(1);
-  const [credits] = useState(20); // Free starting credits
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -46,12 +45,12 @@ export default function OnboardingPage() {
   const steps = [
     {
       title: 'Welcome to AgentBazaar',
-      description: 'You\'ve been credited 20 CRD to get started',
+      description: 'Set up your account to get started',
       icon: Check
     },
     {
-      title: 'Sync BSC Wallet',
-      description: 'Link your BSC wallet to deposit OG tokens and top up CRD',
+      title: 'Connect Wallet',
+      description: 'Link your wallet to your account',
       icon: Wallet
     },
     {
@@ -135,14 +134,6 @@ export default function OnboardingPage() {
               <div className="absolute -right-20 -top-20 w-40 h-40 bg-white/40 blur-3xl rounded-full" />
               <div className="flex items-center justify-center gap-12 relative z-10">
                 <div className="text-center space-y-1">
-                  <div className="text-7xl font-bold text-gray-900 tracking-tighter group-hover/stat:scale-105 transition-transform flex items-center">
-                    {credits}
-                    <span className="text-lg text-orange-500 font-bold ml-2 uppercase tracking-widest mt-6">CRD</span>
-                  </div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">Genesis Allocation</p>
-                </div>
-                <div className="h-16 w-px bg-gray-200" />
-                <div className="text-center space-y-1">
                   <div className="text-7xl font-bold text-gray-900 tracking-tighter">
                     ∞
                   </div>
@@ -155,7 +146,7 @@ export default function OnboardingPage() {
           {step === 2 && (
             <Card className="bg-gray-50/50 border border-gray-100 p-10 mb-12 shadow-inner rounded-[32px]">
               <p className="text-[15px] font-semibold text-gray-500 mb-8 leading-relaxed max-w-sm mx-auto">
-                Connect your BSC wallet to deposit OG tokens. These tokens power your autonomous agent runs and marketplace services.
+                Connect your wallet to link it to your account for agent access and on-chain identity.
               </p>
               <Button
                 variant="outline"
@@ -163,7 +154,7 @@ export default function OnboardingPage() {
                 onClick={() => {/* Connect wallet logic */}}
               >
                 <Wallet className="w-5 h-5 mr-3 text-orange-500" strokeWidth={2.5} />
-                Authorize BSC Mainnet
+                Connect Wallet
               </Button>
             </Card>
           )}
@@ -175,7 +166,7 @@ export default function OnboardingPage() {
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-tight">Native<br/>Agents</p>
               </div>
               <div className="bg-gray-50/50 border border-gray-100 p-8 rounded-3xl shadow-inner hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all duration-500 group/feature">
-                <div className="text-4xl font-bold text-orange-500 mb-2 tracking-tighter group-hover/feature:scale-110 transition-transform">0G</div>
+                <div className="text-4xl font-bold text-orange-500 mb-2 tracking-tighter group-hover/feature:scale-110 transition-transform">Web3</div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-tight">Decentralized<br/>Data</p>
               </div>
               <div className="bg-gray-50/50 border border-gray-100 p-8 rounded-3xl shadow-inner hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all duration-500 group/feature">

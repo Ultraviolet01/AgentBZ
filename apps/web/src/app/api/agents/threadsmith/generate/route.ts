@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
-import { PrismaClient, CreditsService, StorageService, THREADSMITH_SYSTEM_PROMPT } from "@agentbazaar/database";
+import { PrismaClient, THREADSMITH_SYSTEM_PROMPT } from "@agentbazaar/database";
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 
 const prisma = new PrismaClient();
-const storageService = new StorageService();
-const creditsService = new CreditsService(prisma);
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "your-secret-key");
 
 async function getAuthUser() {
@@ -79,22 +77,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Input context is required" }, { status: 400 });
     }
 
-    // 1. Credit Calculation (Premium: 5 CRD, Standard: 2 CRD)
+    // 1. Run cost (metadata only)
     const creditsUsed = quality === 'premium' ? 5 : 2;
-
-    // Check balance first
-    const user = await prisma.user.findUnique({
-      where: { id: authUser.id },
-      select: { credits: true }
-    });
-
-    if (!user || user.credits < creditsUsed) {
-      return NextResponse.json({ 
-        error: "Insufficient credits", 
-        required: creditsUsed, 
-        current: user?.credits || 0 
-      }, { status: 402 });
-    }
 
     // 2. Context Gathering
     let context = input || "";
@@ -159,28 +143,7 @@ export async function POST(req: Request) {
       throw new Error("Empty response from AI engine");
     }
 
-    // 4. Deduct credits
-    await creditsService.deductCredits(authUser.id, creditsUsed, `ThreadSmith Generation: ${contentType}`);
-
-    // 5. Upload to 0G Storage
-    let artifactCid = "";
-    try {
-      const uploadResult = await storageService.uploadArtifact({
-        content: generatedContent,
-        contentType,
-        tone,
-        timestamp: new Date()
-      }, {
-        agent: "THREADSMITH",
-        projectId: projectId || "independent",
-        userId: authUser.id
-      });
-      artifactCid = uploadResult.cid as string;
-    } catch (storageError: any) {
-      console.warn("Storage upload failed, continuing without CID", storageError);
-    }
-
-    // 6. Persistence
+    // 4. Persistence
     let run;
     try {
       run = await prisma.agentRun.create({
@@ -191,8 +154,7 @@ export async function POST(req: Request) {
           inputData: { contentType, tone, quality, input, useMemory },
           outputData: { content: generatedContent },
           creditsUsed,
-          status: "COMPLETED",
-          artifactCid
+          status: "COMPLETED"
         }
       });
     } catch (dbError) {
@@ -203,7 +165,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 7. Project Memory
+    // 6. Project Memory
     if (projectId) {
       await prisma.projectMemory.create({
         data: {
@@ -211,15 +173,14 @@ export async function POST(req: Request) {
           sourceAgent: "THREADSMITH",
           memoryType: "CONTENT_GENERATION",
           content: { contentType, tone, excerpt: generatedContent.substring(0, 200) },
-          storageCid: artifactCid
+          storageCid: ""
         }
       });
     }
 
-    return NextResponse.json({ 
-      content: generatedContent, 
-      cid: artifactCid, 
-      runId: run.id 
+    return NextResponse.json({
+      content: generatedContent,
+      runId: run.id
     });
 
   } catch (error: any) {

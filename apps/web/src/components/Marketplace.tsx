@@ -37,7 +37,7 @@ export default function Marketplace() {
       bgColor: 'bg-green-50',
       badge: 'HIGH ACCURACY',
       badgeColor: 'bg-green-50 text-green-600 border border-green-100',
-      cost: '1 CRD',
+      cost: '$0.10 / run',
       creator: 'AgentBazaar',
       verified: true,
       trending: true,
@@ -47,13 +47,13 @@ export default function Marketplace() {
       id: 'threadsmith',
       route: '/threadsmith',
       name: 'ThreadSmith',
-      description: 'Context-aware AI content synthesis. Transform raw intelligence into viral-ready threads for the 0G ecosystem.',
+      description: 'Context-aware AI content synthesis. Transform raw intelligence into viral-ready threads for the Web3 ecosystem.',
       icon: Sparkles,
       iconColor: 'text-orange-500',
       bgColor: 'bg-orange-50',
       badge: 'MULTI-MODAL',
       badgeColor: 'bg-orange-50 text-orange-600 border border-orange-100',
-      cost: '2-5 CRD',
+      cost: '$0.10 / run',
       creator: 'AgentBazaar',
       verified: true,
       trending: true,
@@ -69,7 +69,7 @@ export default function Marketplace() {
       bgColor: 'bg-blue-50',
       badge: '24/7 PULSE',
       badgeColor: 'bg-blue-50 text-blue-600 border border-blue-100',
-      cost: '10 CRD',
+      cost: '$0.10 / run',
       creator: 'AgentBazaar',
       verified: true,
       trending: false,
@@ -89,7 +89,7 @@ export default function Marketplace() {
       bgColor: 'bg-indigo-50',
       badge: 'ANALYTICS',
       badgeColor: 'bg-indigo-50 text-indigo-600 border border-indigo-100',
-      cost: '3 CRD',
+      cost: '$0.10 / run',
       creator: 'CryptoLabs',
       verified: false,
       trending: true,
@@ -119,7 +119,7 @@ export default function Marketplace() {
       <div className="mb-12">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-2.5 h-2.5 rounded-full bg-[var(--accent-green)] shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse" />
-          <span className="text-[11px] font-black text-[var(--text-muted)] uppercase tracking-[0.4em]">Mainnet Deployment Active</span>
+          <span className="text-[11px] font-black text-[var(--text-muted)] uppercase tracking-[0.4em]">Deployment Active</span>
         </div>
         <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-[var(--text-primary)] tracking-tighter leading-[0.9] mb-6 md:mb-10 uppercase">
           Agent
@@ -127,7 +127,7 @@ export default function Marketplace() {
           <span className="text-[var(--accent-orange)]">Marketplace.</span>
         </h1>
         <p className="text-lg md:text-xl text-[var(--text-secondary)] max-w-2xl font-semibold leading-relaxed">
-          Discover, deploy, and scale AI-native autonomous agents powered by 0G&apos;s modular data layer. Verifiable memory, permanent artifacts.
+          Discover, deploy, and scale AI-native autonomous agents on a decentralized data layer. Verifiable memory, permanent artifacts.
         </p>
       </div>
 

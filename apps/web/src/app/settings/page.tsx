@@ -1,191 +1,377 @@
 "use client";
 
-import { 
-  Settings, 
-  Database, 
-  Shield, 
-  Globe, 
-  Cpu, 
-  LineChart, 
-  Smartphone, 
-  Bell, 
-  Clock, 
-  CheckCircle2, 
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import {
   AlertTriangle,
-  HardDrive,
-  Link as LinkIcon,
-  ExternalLink
+  CheckCircle2,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Loader2,
+  Lock,
+  Mail,
+  MessageCircleQuestion,
+  PanelTop,
+  Settings as SettingsIcon,
+  ShieldCheck,
+  Trash2,
+  UserRound,
 } from "lucide-react";
-import { useAccount } from 'wagmi';
+import { useAuth } from "@/contexts/AuthContext";
+import api from "@/lib/api";
+
+type PreferencesState = {
+  language: "en" | "fr" | "es";
+  profilePublic: boolean;
+  shareActivity: boolean;
+};
+
+const STORAGE_KEY = "agentbazaar-settings";
+
+const defaultPreferences: PreferencesState = {
+  language: "en",
+  profilePublic: true,
+  shareActivity: true,
+};
 
 export default function SettingsPage() {
-  const { isConnected, address } = useAccount();
+  const { user, isLoading, signOut } = useAuth();
+  const [preferences, setPreferences] = useState<PreferencesState>(defaultPreferences);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordStatus, setPasswordStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const savedValue = window.localStorage.getItem(STORAGE_KEY);
+    if (savedValue) {
+      try {
+        const parsed = JSON.parse(savedValue) as Partial<PreferencesState>;
+        setPreferences({ ...defaultPreferences, ...parsed });
+      } catch {
+        window.localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+  }, [preferences]);
+
+  if (isLoading) {
+    return <div className="p-4 sm:p-6 lg:p-8 text-sm font-medium text-gray-400">Loading settings…</div>;
+  }
+
+  if (!user) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] max-w-xl items-center justify-center p-4 text-center sm:p-6 lg:p-8">
+        <div className="space-y-4">
+          <ShieldCheck className="w-12 h-12 mx-auto text-orange-500" />
+          <h1 className="text-3xl font-bold text-gray-900">Sign in to manage settings</h1>
+          <p className="text-gray-500">Your account controls will appear here once you sign in.</p>
+          <Link href="/login" className="inline-flex items-center justify-center rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white">
+            Sign in
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const handlePasswordSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setPasswordStatus(null);
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordStatus({ type: "error", text: "Please fill in all password fields." });
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordStatus({ type: "error", text: "New password must be at least 8 characters." });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordStatus({ type: "error", text: "New passwords do not match." });
+      return;
+    }
+
+    try {
+      setIsSavingPassword(true);
+      await api.post("/auth/change-password", {
+        currentPassword,
+        newPassword,
+      });
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordStatus({ type: "success", text: "Password updated successfully." });
+    } catch (error: any) {
+      setPasswordStatus({ type: "error", text: error?.response?.data?.error || "Unable to update password right now." });
+    } finally {
+      setIsSavingPassword(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const confirmed = window.confirm(
+      "This will deactivate your account and sign you out from this browser. Continue?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setIsDeleting(true);
+      await api.delete("/auth/account");
+      await signOut();
+    } catch (error: any) {
+      window.alert(error?.response?.data?.error || "Unable to deactivate your account right now.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-12 p-8 lg:p-10 pb-20 bg-transparent text-gray-900">
-      {/* Header */}
-      <div className="space-y-4">
-        <div className="flex items-center space-x-5 text-blue-600">
-          <div className="w-16 h-16 rounded-[24px] bg-blue-50 flex items-center justify-center border border-blue-100 shadow-sm transition-all hover:scale-105">
-            <Settings size={36} strokeWidth={2.5} />
+    <main className="mx-auto w-full max-w-5xl space-y-6 pb-16 text-gray-900">
+      <header className="space-y-4">
+        <div className="flex items-center gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-[24px] border border-orange-100 bg-orange-50 text-orange-500 shadow-sm">
+            <SettingsIcon className="h-7 w-7" />
           </div>
           <div>
-              <h1 className="text-4xl lg:text-6xl font-bold text-gray-900 tracking-tight uppercase leading-none">Settings</h1>
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.3em] mt-3">Node & Protocol Control</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-orange-500">Account controls</p>
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Settings</h1>
           </div>
         </div>
-        <p className="text-gray-500 text-lg max-w-2xl leading-relaxed font-semibold">
-          Configure your 0G Network nodes, storage preferences, and account security.
+        <p className="max-w-2xl text-lg text-gray-500">
+          Manage the basics of your account, privacy, and workspace experience.
         </p>
-      </div>
+      </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-12 pt-4">
-        {/* Navigation Sidebar */}
-        <div className="space-y-2.5">
-            <SettingsNavItem label="0G Network" icon={Globe} active />
-            <SettingsNavItem label="Storage Index" icon={HardDrive} />
-            <SettingsNavItem label="Agents & API" icon={Cpu} />
-            <SettingsNavItem label="Notifications" icon={Bell} />
-            <SettingsNavItem label="Security" icon={Shield} />
+      <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-[32px] border border-gray-100 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl bg-gray-100 p-2.5 text-gray-600">
+              <UserRound className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Account</h2>
+              <p className="text-sm text-gray-500">Your core identity and access details.</p>
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-3">
+            <SettingRow label="Username" value={user.username} icon={UserRound} />
+            <SettingRow label="Email" value={user.email} icon={Mail} />
+          </div>
+
+          <form onSubmit={handlePasswordSubmit} className="mt-6 rounded-2xl border border-gray-100 bg-gray-50/70 p-4">
+            <div className="flex items-center gap-2">
+              <Lock className="h-4 w-4 text-gray-500" />
+              <h3 className="text-sm font-semibold text-gray-900">Change password</h3>
+            </div>
+            <div className="mt-4 space-y-3">
+              <div className="relative">
+                <input
+                  type={showCurrentPassword ? "text" : "password"}
+                  value={currentPassword}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  placeholder="Current password"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none ring-0"
+                />
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" onClick={() => setShowCurrentPassword((value) => !value)}>
+                  {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  placeholder="New password"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none ring-0"
+                />
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" onClick={() => setShowNewPassword((value) => !value)}>
+                  {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                placeholder="Confirm new password"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none ring-0"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={isSavingPassword}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isSavingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+              Save password
+            </button>
+            {passwordStatus ? (
+              <p className={`mt-3 flex items-center gap-2 text-sm ${passwordStatus.type === "success" ? "text-emerald-600" : "text-red-600"}`}>
+                <CheckCircle2 className="h-4 w-4" />
+                {passwordStatus.text}
+              </p>
+            ) : null}
+          </form>
         </div>
 
-        {/* Content Area */}
-        <div className="md:col-span-3 space-y-12">
-            {/* 0G Status Section */}
-            <section className="space-y-8">
-                <div className="flex items-center justify-between">
-                    <h2 className="text-2xl font-bold text-gray-900 flex items-center space-x-3 uppercase tracking-tight">
-                        <Globe size={22} className="text-blue-600" strokeWidth={2.5} />
-                        <span>Network Configuration</span>
-                    </h2>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Mainnet v1.0.4</span>
-                </div>
+        <div className="rounded-[32px] border border-orange-100 bg-orange-50/60 p-6 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="rounded-2xl bg-white p-2.5 text-orange-500 shadow-sm">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold">Delete account</h2>
+              <p className="mt-1 text-sm text-gray-600">This deactivates your account and signs you out.</p>
+              <p className="mt-3 text-sm text-gray-600">
+                Your account will be disabled and you will need support to restore it later.
+              </p>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={isDeleting}
+                className="mt-5 inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Delete account
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <StatusCard 
-                        label="Connection Status" 
-                        value={isConnected ? "Active - Mainnet" : "Disconnected"} 
-                        status={isConnected ? "success" : "error"}
-                        subValue={isConnected ? `Node: ${address?.substring(0, 10)}...` : "Please connect wallet"}
-                    />
-                    <StatusCard 
-                        label="RPC Endpoint" 
-                        value="Mainnet Optimal" 
-                        status="success"
-                        subValue="https://evmrpc-mainnet-1.0g.ai"
-                    />
-                </div>
-            </section>
+      <section className="grid gap-6 lg:grid-cols-1">
+        <div className="rounded-[32px] border border-gray-100 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl bg-gray-100 p-2.5 text-gray-600">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Preferences</h2>
+              <p className="text-sm text-gray-500">Tune the app to fit your workflow.</p>
+            </div>
+          </div>
+          <div className="mt-6 flex items-center justify-between rounded-2xl border border-gray-100 bg-gray-50/70 px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Language</p>
+              <p className="text-xs text-gray-500">Select the display language</p>
+            </div>
+            <select
+              value={preferences.language}
+              onChange={(event) => setPreferences((value) => ({ ...value, language: event.target.value as "en" | "fr" | "es" }))}
+              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm"
+            >
+              <option value="en">English</option>
+              <option value="fr">Français</option>
+              <option value="es">Español</option>
+            </select>
+          </div>
+        </div>
+      </section>
 
-            {/* Storage Usage */}
-            <section className="space-y-8">
-                 <h2 className="text-2xl font-bold text-gray-900 flex items-center space-x-3 uppercase tracking-tight">
-                    <HardDrive size={22} className="text-blue-600" strokeWidth={2.5} />
-                    <span>Decentralized Storage (0G)</span>
-                </h2>
-                
-                <div className="bg-white border border-gray-100 rounded-[40px] p-10 space-y-10 shadow-sm relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50/50 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />
-                    
-                    <div className="flex justify-between items-end relative z-10">
-                        <div className="space-y-2">
-                            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Total Stored Data</p>
-                            <p className="text-5xl font-bold text-gray-900">412.5 <span className="text-2xl text-gray-400">MB</span></p>
-                        </div>
-                        <div className="text-right space-y-2">
-                             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mr-1">Index Coverage</p>
-                             <span className="inline-flex items-center bg-emerald-50 text-emerald-600 text-[10px] font-bold px-4 py-1.5 rounded-full border border-emerald-100 shadow-sm uppercase tracking-wider">
-                                <CheckCircle2 size={12} className="mr-1.5" strokeWidth={3} />
-                                100% Verified
-                             </span>
-                        </div>
-                    </div>
+      <section className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-[32px] border border-gray-100 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl bg-gray-100 p-2.5 text-gray-600">
+              <Eye className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Privacy</h2>
+              <p className="text-sm text-gray-500">Control how your profile and activity are shared.</p>
+            </div>
+          </div>
+          <div className="mt-6 space-y-4">
+            <ToggleRow
+              label="Public profile"
+              description="Show your profile to other users"
+              enabled={preferences.profilePublic}
+              onToggle={() => setPreferences((value) => ({ ...value, profilePublic: !value.profilePublic }))}
+            />
+            <ToggleRow
+              label="Share marketplace activity"
+              description="Let others see your recent activity"
+              enabled={preferences.shareActivity}
+              onToggle={() => setPreferences((value) => ({ ...value, shareActivity: !value.shareActivity }))}
+            />
+          </div>
+        </div>
 
-                    <div className="space-y-4 relative z-10">
-                        <div className="w-full bg-gray-50 h-4 rounded-full overflow-hidden border border-gray-100 shadow-inner">
-                            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 h-full w-[15%] rounded-full shadow-[0_0_15px_rgba(37,99,235,0.3)]"></div>
-                        </div>
-                        <div className="flex justify-between text-[11px] font-bold px-1">
-                            <span className="text-gray-400 uppercase tracking-wider">Storage Capacity: 15% used of 2GB Free Tier</span>
-                            <span className="text-blue-600 hover:text-blue-700 cursor-pointer transition-colors uppercase tracking-widest font-black">Upgrade to Enterprise Nodes</span>
-                        </div>
-                    </div>
+        <div className="rounded-[32px] border border-gray-100 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl bg-gray-100 p-2.5 text-gray-600">
+              <MessageCircleQuestion className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Support</h2>
+              <p className="text-sm text-gray-500">Need help or want to report an issue?</p>
+            </div>
+          </div>
+          <div className="mt-6 space-y-2">
+            <SupportLink href="/help" label="Help center" />
+            <SupportLink href="mailto:support@agentbazaar.com" label="Contact support" />
+            <SupportLink href="/report-bug" label="Report a bug" />
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
 
-                    <div className="grid grid-cols-3 gap-6 pt-4 relative z-10">
-                         <div className="p-6 bg-gray-50/50 rounded-2xl border border-gray-100 transition-all hover:bg-white hover:border-blue-100 hover:shadow-sm">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">Audit Reports</p>
-                            <p className="text-3xl font-bold text-gray-900">84</p>
-                         </div>
-                         <div className="p-6 bg-gray-50/50 rounded-2xl border border-gray-100 transition-all hover:bg-white hover:border-blue-100 hover:shadow-sm">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">Snapshots</p>
-                            <p className="text-3xl font-bold text-gray-900">228</p>
-                         </div>
-                         <div className="p-6 bg-gray-50/50 rounded-2xl border border-gray-100 transition-all hover:bg-white hover:border-blue-100 hover:shadow-sm">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">Permanent CIDs</p>
-                            <p className="text-3xl font-bold text-gray-900">312</p>
-                         </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* Explorer Integration */}
-            <section className="bg-blue-50/50 border border-blue-100 rounded-[32px] p-10 flex flex-col sm:flex-row items-center justify-between gap-10 shadow-sm relative overflow-hidden group">
-                <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-blue-100 rounded-full blur-3xl opacity-50 group-hover:scale-150 transition-transform duration-700" />
-                
-                <div className="space-y-4 relative z-10 text-center sm:text-left">
-                    <h3 className="text-xl font-bold text-gray-900 flex items-center justify-center sm:justify-start space-x-3 uppercase tracking-tight">
-                        <LinkIcon size={22} className="text-blue-600" strokeWidth={2.5} />
-                        <span>0G Explorer Integration</span>
-                    </h3>
-                    <p className="text-[15px] text-gray-500 font-medium max-w-md leading-relaxed">
-                        Your on-chain records are permanently immutable on 0G Network. Click to verify your project&apos;s heartbeat.
-                    </p>
-                </div>
-                <a 
-                    href="https://scan.0g.ai/" 
-                    target="_blank"
-                    className="whitespace-nowrap bg-gray-900 text-white font-bold px-8 py-4 rounded-2xl flex items-center space-x-3 hover:bg-black transition-all shadow-xl hover:-translate-y-1 relative z-10"
-                >
-                    <span className="text-[13px] uppercase tracking-wider">Open Explorer</span>
-                    <ExternalLink size={18} strokeWidth={2.5} />
-                </a>
-            </section>
+function SettingRow({ label, value, icon: Icon }: { label: string; value: string; icon: any }) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl border border-gray-100 bg-gray-50/70 px-4 py-3">
+      <div className="flex items-center gap-3">
+        <div className="rounded-xl bg-white p-2 text-gray-500 shadow-sm">
+          <Icon className="h-4 w-4" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-gray-900">{label}</p>
+          <p className="text-xs text-gray-500">{value}</p>
         </div>
       </div>
+      <ChevronRight className="h-4 w-4 text-gray-300" />
     </div>
   );
 }
 
-function SettingsNavItem({ label, icon: Icon, active = false }: { label: string; icon: any; active?: boolean }) {
-    return (
-        <button className={`w-full flex items-center space-x-4 px-5 py-4 rounded-2xl transition-all group ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-100 -translate-x-1' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50'}`}>
-            <Icon size={20} className={active ? 'text-white' : 'group-hover:text-blue-600 transition-colors'} strokeWidth={active ? 2.5 : 2} />
-            <span className={`text-sm font-bold uppercase tracking-wider ${active ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`}>{label}</span>
-        </button>
-    )
+function ToggleRow({ label, description, enabled, onToggle }: { label: string; description: string; enabled: boolean; onToggle: () => void }) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl border border-gray-100 bg-gray-50/70 px-4 py-3">
+      <div>
+        <p className="text-sm font-semibold text-gray-900">{label}</p>
+        <p className="text-xs text-gray-500">{description}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${enabled ? "bg-orange-500" : "bg-gray-300"}`}
+      >
+        <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${enabled ? "translate-x-6" : "translate-x-1"}`} />
+      </button>
+    </div>
+  );
 }
 
-function StatusCard({ label, value, subValue, status }: { label: string; value: string; subValue?: string; status: 'success' | 'warning' | 'error' }) {
-    const colors = {
-        success: 'bg-emerald-50/50 border-emerald-100 text-emerald-600 shadow-emerald-50',
-        warning: 'bg-orange-50/50 border-orange-100 text-orange-600 shadow-orange-50',
-        error: 'bg-red-50/50 border-red-100 text-red-600 shadow-red-50'
-    };
-
-    const statusBullets = {
-        success: 'bg-emerald-500',
-        warning: 'bg-orange-500',
-        error: 'bg-red-500'
-    };
-
-    return (
-        <div className={`p-8 rounded-[32px] border ${colors[status]} space-y-2 shadow-sm transition-all hover:shadow-md`}>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 ml-1">{label}</p>
-            <div className="flex items-center space-x-3">
-                <div className={`w-2 h-2 rounded-full ${statusBullets[status]} ${status === 'success' ? 'animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]' : ''}`}></div>
-                <p className="text-xl font-bold tracking-tight uppercase">{value}</p>
-            </div>
-            {subValue && <p className="text-[11px] font-bold opacity-60 font-mono truncate ml-5 uppercase tracking-tighter">{subValue}</p>}
-        </div>
-    )
+function SupportLink({ href, label }: { href: string; label: string }) {
+  return (
+    <Link href={href} className="flex items-center justify-between rounded-2xl border border-gray-100 bg-gray-50/70 px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-white">
+      <span>{label}</span>
+      <ChevronRight className="h-4 w-4 text-gray-300" />
+    </Link>
+  );
 }

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { MonitoringEngine } from "../services/monitoring.engine";
 
-const router = Router();
+const router: Router = Router();
 
 /**
  * Endpoint to trigger all active monitors.
@@ -9,9 +9,9 @@ const router = Router();
  */
 router.get("/monitor", async (req, res) => {
   const authHeader = req.headers.authorization;
-  const cronSecret = process.env.CRON_SECRET;
+  const cronSecret = process.env.CRON_SECRET || "agentbazaar_cron_secret_key_2026";
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 

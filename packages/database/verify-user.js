@@ -10,7 +10,7 @@ async function main() {
   try {
     const user = await prisma.user.findUnique({
       where: { email: 'ultravioletadewale@gmail.com' },
-      select: { email: true, credits: true }
+      select: { email: true }
     });
     console.log(`User Verification: ${JSON.stringify(user)}`);
   } catch (error) {

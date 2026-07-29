@@ -18,12 +18,16 @@ export const listAlerts = async (req: Request, res: Response) => {
 
 export const markRead = async (req: Request, res: Response) => {
   try {
+    const userId = (req as any).userId;
     const { id } = req.params;
-    const alert = await prisma.launchWatchAlert.update({
-      where: { id },
+    const alert = await prisma.launchWatchAlert.updateMany({
+      where: { id, userId },
       data: { read: true }
     });
-    res.json(alert);
+    if (alert.count === 0) {
+      return res.status(404).json({ error: "Alert not found or unauthorized" });
+    }
+    res.json({ success: true, id, read: true });
   } catch (error) {
     res.status(500).json({ error: "Failed to mark alert as read" });
   }

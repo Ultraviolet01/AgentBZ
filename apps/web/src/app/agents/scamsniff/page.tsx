@@ -286,7 +286,7 @@ export default function ScamSniffPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                    Project Intelligence (0G Memory)
+                    Project Intelligence
                   </h3>
                   <p className="text-sm text-gray-600">
                     Check if this project has been scanned before. Compare current page against 
@@ -302,7 +302,7 @@ export default function ScamSniffPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                    AI Reasoning (0G Compute)
+                    AI Reasoning
                   </h3>
                   <p className="text-sm text-gray-600">
                     AI layer weighs all evidence, calculates risk score, generates reasoning, 
@@ -334,7 +334,7 @@ export default function ScamSniffPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                    Full Report (0G Storage)
+                    Full Report
                   </h3>
                   <p className="text-sm text-gray-600">
                     Complete analysis stored permanently with all evidence, reasoning steps, 

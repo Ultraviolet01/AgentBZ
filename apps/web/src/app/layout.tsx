@@ -10,8 +10,8 @@ import { Toaster } from "sonner";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AgentBazaar | 0G Network",
-  description: "The decentralized agent marketplace powered by 0G Network",
+  title: "AgentBazaar | AI Agent Marketplace",
+  description: "The decentralized AI agent marketplace",
 };
 
 export default function RootLayout({
@@ -26,7 +26,7 @@ export default function RootLayout({
           <Web3Provider>
             <div className="flex flex-col lg:flex-row h-screen bg-gray-50 overflow-hidden">
               <Sidebar />
-              <main className="flex-1 overflow-y-auto bg-gray-50 custom-scrollbar">
+              <main className="flex-1 overflow-y-auto bg-gray-50 custom-scrollbar px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
                 {children}
               </main>
             </div>

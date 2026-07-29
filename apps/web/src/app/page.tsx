@@ -80,7 +80,7 @@ function LandingPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight">AgentBazaar</h1>
-              <p className="text-[10px] font-bold text-orange-600 tracking-widest uppercase mt-0.5">0G MAINNET</p>
+              <p className="text-[10px] font-bold text-orange-600 tracking-widest uppercase mt-0.5">AI MARKETPLACE</p>
             </div>
           </div>
 
@@ -112,7 +112,7 @@ function LandingPage() {
         <div className="flex justify-center mb-8">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-gray-200 shadow-sm">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-xs font-medium text-gray-700">0G Network • Mainnet Live</span>
+            <span className="text-xs font-medium text-gray-700">System Live</span>
           </div>
         </div>
 
@@ -184,7 +184,7 @@ function LandingPage() {
               icon={Shield} 
               title="ScamSniff" 
               desc="Real-time threat detection for contracts and profiles."
-              cost="1 CRD"
+              cost="$0.10 / run"
               highlight="HIGH ACCURACY"
               color="text-green-600"
               bgColor="bg-green-100"
@@ -193,7 +193,7 @@ function LandingPage() {
               icon={Sparkles} 
               title="ThreadSmith" 
               desc="AI content synthesis for Web3 project updates."
-              cost="2-5 CRD"
+              cost="$0.10 / run"
               highlight="MULTI-MODAL"
               color="text-orange-600"
               bgColor="bg-orange-100"
@@ -202,7 +202,7 @@ function LandingPage() {
               icon={Search} 
               title="LaunchWatch" 
               desc="Autonomous monitoring for modular network activity."
-              cost="10 CRD"
+              cost="$0.10 / run"
               highlight="24/7 PULSE"
               color="text-blue-600"
               bgColor="bg-blue-100"
@@ -217,11 +217,11 @@ function LandingPage() {
             <div className="w-10 h-10 rounded-xl bg-orange-500 shadow-md flex items-center justify-center text-white font-bold">
                B
             </div>
-            <span>© 2026 AgentBazaar. Powered by 0G Network.</span>
+            <span>© 2026 AgentBazaar. All rights reserved.</span>
           </div>
           <div className="flex items-center gap-3">
             <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
-            <span className="text-gray-900 font-bold uppercase tracking-wider">Mainnet Live</span>
+            <span className="text-gray-900 font-bold uppercase tracking-wider">System Live</span>
           </div>
         </div>
       </footer>

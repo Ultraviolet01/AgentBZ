@@ -59,7 +59,7 @@ export default function DeployAgentPage() {
     modelName: '',
     
     // Pricing
-    pricePerRun: '',
+    pricePerRun: '0.1',
     setupFee: '0',
     
     // Branding
@@ -82,7 +82,7 @@ export default function DeployAgentPage() {
       custom_api_key: '',
     } as Record<string, string>,
     customSecrets: [] as { key: string, value: string }[],
-    // Agent Logic (system prompt / strategy) — vaulted by CDR
+    // Agent Logic (system prompt / strategy)
     logic: '',
   });
 
@@ -267,7 +267,7 @@ export default function DeployAgentPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-8 lg:p-10">
+    <div className="mx-auto w-full max-w-4xl pb-16">
       
       {/* Header */}
       <div className="mb-8">
@@ -837,10 +837,11 @@ X-AgentBazaar-Run-Id: <run-uuid>
           <Alert className="mb-6 bg-green-50 border-green-200">
             <ShieldCheck className="w-4 h-4 text-green-600" />
             <AlertDescription className="text-sm text-green-900">
-              <strong>Secured by Story Protocol CDR:</strong> Your agent logic and API keys are
-              vaulted on <strong>Story Protocol&apos;s Content Derivative Rights network</strong>.
-              Only buyers with a valid on-chain license can decrypt them. AgentBazaar&apos;s
-              platform wallet handles all vaulting on your behalf — you never interact with CDR directly.
+              <strong>API Keys securely vaulted:</strong> Any API keys you provide are encrypted
+              and stored on <strong>Story Protocol&apos;s CDR network</strong> at listing time.
+              They are never stored in plaintext and are only used to authenticate your agent
+              when it executes. AgentBazaar&apos;s platform wallet handles all vaulting on your
+              behalf — you never interact with CDR directly.
             </AlertDescription>
           </Alert>
 
@@ -858,8 +859,8 @@ X-AgentBazaar-Run-Id: <run-uuid>
               className="mt-1 font-mono text-sm"
             />
             <p className="text-xs text-gray-500 mt-1">
-              The core strategy / system prompt for your agent. This is vaulted on CDR and only
-              accessible to licensed buyers.
+              The core strategy / system prompt for your agent. This is kept confidential
+              and only used during agent execution.
             </p>
           </div>
 

@@ -21,7 +21,7 @@ async function handleScanAndSpeak(message, tabId) {
     await speakText(verdict, tabId);
 
     // Optional: Log CID for transparency
-    if (cid) console.log('ScamSniff 0G Storage Proof (CID):', cid);
+    if (cid) console.log('ScamSniff Storage Proof (CID):', cid);
 
   } catch (err) {
     console.error('Scan and Speak failed:', err);
@@ -55,7 +55,7 @@ async function getVerdict(pageText) {
     const data = await response.json();
     const verdict = data.content[0].text;
 
-    // Asynchronously archive to 0G Storage even in Sovereign mode
+    // Asynchronously archive to storage even in Sovereign mode
     const archiveResp = await fetch('http://localhost:3010/api/agents/scamsniff/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

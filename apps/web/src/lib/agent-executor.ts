@@ -1,12 +1,14 @@
 /**
  * Agent Executor — Server-side LLM runner
  *
- * Called by /api/agents/run after CDR has decrypted the agent's logic
- * and API keys client-side. Runs the agent against OpenAI / Anthropic /
- * custom endpoints using the buyer-supplied decrypted credentials.
+ * Called by /api/agents/run to execute the agent against the configured
+ * AI provider using credentials passed through from the agent record.
  */
 
-import type { ApiKey } from './cdr-client';
+export interface ApiKey {
+  name: string;
+  value: string;
+}
 
 export interface ExecutionRequest {
   logic: string;

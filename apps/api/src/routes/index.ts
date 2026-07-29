@@ -1,6 +1,5 @@
 import express, { Router } from "express";
 import * as authController from "../controllers/auth.controller";
-import * as creditsController from "../controllers/credits.controller";
 import * as projectsController from "../controllers/projects.controller";
 import * as agentsController from "../controllers/agents.controller";
 import * as walletController from "../controllers/wallet.controller";
@@ -16,17 +15,16 @@ router.use("/cron", cronRoutes);
 // Auth Routes
 router.post("/auth/register", authController.register);
 router.post("/auth/login", authController.login);
+router.post("/auth/google", authController.googleAuth);
 router.get("/auth/verify", authController.verify);
 router.post("/auth/refresh", authController.refresh);
 router.post("/auth/forgot-password", authController.forgotPassword);
 router.post("/auth/reset-password", authController.resetPassword);
+router.post("/auth/change-password", authMiddleware, authController.changePassword);
+router.delete("/auth/account", authMiddleware, authController.deleteAccount);
 router.post("/auth/logout", authMiddleware, authController.logout);
 router.post("/auth/onboarding/complete", authMiddleware, authController.completeOnboarding);
 router.get("/auth/me", authMiddleware, authController.me);
-
-// Credits Routes
-router.get("/credits/balance", authMiddleware, creditsController.getBalance);
-router.get("/credits/history", authMiddleware, creditsController.getHistory);
 
 // Projects Routes
 router.get("/projects", authMiddleware, projectsController.getProjects);
@@ -46,7 +44,6 @@ router.post("/wallet/connect", authMiddleware, walletController.connectWallet);
 router.get("/wallet/status", authMiddleware, walletController.getStatus);
 router.get("/wallet/transactions", authMiddleware, walletController.getTransactions);
 router.post("/wallet/verify-signature", walletController.verifySignature);
-router.post("/wallet/deposit", authMiddleware, walletController.deposit);
 
 // Alerts Routes
 router.get("/alerts/list", authMiddleware, alertsController.listAlerts);

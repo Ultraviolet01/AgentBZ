@@ -1,32 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@agentbazaar/database';
 import { jwtVerify } from 'jose';
 
 const prisma = new PrismaClient();
-const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key');
+// Must match ACCESS_TOKEN_SECRET used by auth.controller.ts
+const secret = new TextEncoder().encode(process.env.ACCESS_TOKEN_SECRET || 'at_super-secret-key');
 
 export async function GET(req: NextRequest) {
   try {
-    // Verify authentication
-    const token = req.cookies.get('auth-token')?.value || req.cookies.get('auth_token')?.value;
+    // Cookie name matches auth.controller.ts — 'accessToken'
+    const token = req.cookies.get('accessToken')?.value;
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { payload } = await jwtVerify(token, secret);
-    const userId = payload.userId as string || payload.id as string;
+    // JWT is signed with { userId } in generateTokens()
+    const userId = payload.userId as string;
 
     const runs = await prisma.agentRun.findMany({
       where: { userId },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        deployedAgent: {
-          select: {
-            teeAttestation: true,
-            daLogHash: true
-          }
-        }
-      }
+      orderBy: { createdAt: 'desc' }
     });
 
     return NextResponse.json(runs);

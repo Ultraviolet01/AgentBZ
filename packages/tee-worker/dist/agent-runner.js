@@ -3,7 +3,7 @@
  * TEE Worker — Agent Runner
  *
  * The core execution engine that:
- * 1. Fetches encrypted credentials from 0G Storage
+ * 1. Fetches encrypted credentials from decentralized storage
  * 2. Decrypts them inside the TEE
  * 3. Calls the external AI API with the real credentials
  * 4. Returns the result with an attestation proof

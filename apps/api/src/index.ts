@@ -1,4 +1,8 @@
 import dotenv from "dotenv";
+import path from "path";
+// Load the monorepo-root .env regardless of the process cwd
+dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
+// Fallback to a local .env if one exists (does not override already-set vars)
 dotenv.config();
 
 import express from "express";
@@ -12,9 +16,9 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 
-const expressApp = express();
+const expressApp: express.Application = express();
 const httpServer = createServer(expressApp);
-const port = Number(process.env.PORT) || 3005;
+const port = Number(process.env.PORT) || 3001;
 
 // Initialize WebSockets (on-demand via Pusher)
 initSocket();
@@ -49,14 +53,7 @@ expressApp.use(cors({
 expressApp.use(cookieParser());
 expressApp.use(limiter);
 
-// Use express.json() for all routes EXCEPT Stripe webhooks
-expressApp.use((req, res, next) => {
-  if (req.originalUrl === "/webhooks/stripe") {
-    next();
-  } else {
-    express.json()(req, res, next);
-  }
-});
+expressApp.use(express.json());
 
 // Main Routes
 expressApp.use("/", routes);

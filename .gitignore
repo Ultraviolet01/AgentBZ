@@ -14,12 +14,21 @@ out/
 # Turbo
 .turbo
 
-# Logs
+# Logs & Error Dumps
 *.log
+*.bak
 *_output.txt
 wallet_errors_final_final.txt
 api_crash*.log
 api_error*.log
+compile-errors.txt
+errors-*.txt
+tsc_errors.txt
+lint-*.txt
+lint_*.txt
+db_error.txt
+prisma-err*.txt
+prisma_error*.txt
 
 # Sensitive data
 token.txt

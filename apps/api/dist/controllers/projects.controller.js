@@ -41,7 +41,12 @@ const createProject = async (req, res) => {
 exports.createProject = createProject;
 const getProjectMemory = async (req, res) => {
     try {
+        const userId = req.userId;
         const { id } = req.params;
+        const project = await prisma.project.findFirst({ where: { id, userId } });
+        if (!project) {
+            return res.status(404).json({ error: "Project not found or unauthorized" });
+        }
         const memory = await prisma.projectMemory.findMany({
             where: { projectId: id },
             orderBy: { createdAt: "desc" }
@@ -55,8 +60,13 @@ const getProjectMemory = async (req, res) => {
 exports.getProjectMemory = getProjectMemory;
 const updateProject = async (req, res) => {
     try {
+        const userId = req.userId;
         const { id } = req.params;
         const { name, description, websiteUrl, tokenAddress, twitterHandle, notes } = req.body;
+        const existing = await prisma.project.findFirst({ where: { id, userId } });
+        if (!existing) {
+            return res.status(404).json({ error: "Project not found or unauthorized" });
+        }
         const project = await prisma.project.update({
             where: { id },
             data: { name, description, websiteUrl, tokenAddress, twitterHandle, notes }
@@ -70,8 +80,12 @@ const updateProject = async (req, res) => {
 exports.updateProject = updateProject;
 const deleteProject = async (req, res) => {
     try {
+        const userId = req.userId;
         const { id } = req.params;
-        // Monitoring is stateless in serverless, no need to stop persistent jobs.
+        const existing = await prisma.project.findFirst({ where: { id, userId } });
+        if (!existing) {
+            return res.status(404).json({ error: "Project not found or unauthorized" });
+        }
         await prisma.project.delete({ where: { id } });
         res.json({ message: "Project deleted successfully" });
     }

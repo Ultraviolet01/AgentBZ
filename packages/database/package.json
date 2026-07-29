@@ -13,7 +13,6 @@
   "dependencies": {
     "@prisma/client": "^5.12.1",
     "jsonwebtoken": "^9.0.2",
-    "@0glabs/0g-ts-sdk": "^0.2.1",
     "ethers": "^6.11.1"
   },
   "devDependencies": {

@@ -11,17 +11,13 @@ const prisma = new database_1.PrismaClient();
 const anthropic = new sdk_1.default({
     apiKey: process.env.ANTHROPIC_API_KEY,
 });
-const storageService = new database_1.StorageService();
-const creditsService = new database_1.CreditsService(prisma);
 const runScamSniff = async (req, res) => {
     try {
         const userId = req.userId;
         const { projectId, url, pageContent, extractedData } = req.body;
-        // 1. Credit Check and Deduction (1 CRD)
-        await creditsService.deductCredits(userId, 1, `ScamSniff Risk Analysis - ${url}`);
-        // 2. Claude Analysis
+        // Claude Analysis
         const response = await anthropic.messages.create({
-            model: "claude-sonnet-4-5",
+            model: "claude-sonnet-4-20250514",
             max_tokens: 1000,
             system: database_1.SCAMSNIFF_SYSTEM_PROMPT,
             messages: [{
@@ -44,17 +40,7 @@ const runScamSniff = async (req, res) => {
                 recommendations: ["Manually audit the target URL", "Retry analysis in 5 minutes"]
             };
         }
-        // 3. Upload Full Report to 0G Storage
-        const uploadResult = await storageService.uploadArtifact({
-            ...analysis,
-            url,
-            timestamp: new Date()
-        }, {
-            agent: "SCAMSNIFF",
-            url,
-            projectId
-        });
-        // 4. Persistence
+        // 3. Persistence
         const result = await prisma.$transaction(async (tx) => {
             const run = await tx.agentRun.create({
                 data: {
@@ -64,8 +50,7 @@ const runScamSniff = async (req, res) => {
                     inputData: { url, extractedData },
                     outputData: analysis,
                     creditsUsed: 1,
-                    status: "COMPLETED",
-                    artifactCid: uploadResult.cid
+                    status: "COMPLETED"
                 }
             });
             if (projectId) {
@@ -75,13 +60,13 @@ const runScamSniff = async (req, res) => {
                         sourceAgent: "SCAMSNIFF",
                         memoryType: "SCAN_RESULT",
                         content: { riskScore: analysis.riskScore, verdict: analysis.verdict, url },
-                        storageCid: uploadResult.cid
+                        storageCid: ""
                     }
                 });
             }
             return run;
         });
-        res.json({ ...analysis, cid: uploadResult.cid });
+        res.json({ ...analysis });
     }
     catch (error) {
         console.error("ScamSniff Error:", error);
@@ -99,7 +84,6 @@ const runThreadSmith = async (req, res) => {
             creditsUsed = 3;
         if (length === "LONG")
             creditsUsed = 5;
-        await creditsService.deductCredits(userId, creditsUsed, `ThreadSmith Content Generation - ${contentType}`);
         // 2. Context Gathering
         let context = customInput || "";
         if (useMemory && projectId) {
@@ -115,7 +99,7 @@ const runThreadSmith = async (req, res) => {
             return res.status(500).json({ error: "AI Generation failed: Anthropic API Key is missing or invalid." });
         }
         const response = await anthropic.messages.create({
-            model: "claude-sonnet-4-5",
+            model: "claude-sonnet-4-20250514",
             max_tokens: 1500,
             system: database_1.THREADSMITH_SYSTEM_PROMPT,
             messages: [{
@@ -127,20 +111,7 @@ const runThreadSmith = async (req, res) => {
         if (!generatedContent) {
             throw new Error("Claude returned an empty response.");
         }
-        // 4. Upload to 0G
-        const uploadResult = await storageService.uploadArtifact({
-            content: generatedContent,
-            contentType,
-            tone,
-            length,
-            timestamp: new Date()
-        }, {
-            agent: "THREADSMITH",
-            projectId,
-            source: "EXPRESS_API",
-            userId
-        });
-        // 5. Persistence
+        // 4. Persistence
         const run = await prisma.agentRun.create({
             data: {
                 userId,
@@ -149,11 +120,10 @@ const runThreadSmith = async (req, res) => {
                 inputData: { contentType, tone, length, customInput, useMemory },
                 outputData: { content: generatedContent },
                 creditsUsed,
-                status: "COMPLETED",
-                artifactCid: uploadResult.cid
+                status: "COMPLETED"
             }
         });
-        // 6. Optional: Update Project Memory
+        // 5. Optional: Update Project Memory
         if (projectId) {
             await prisma.projectMemory.create({
                 data: {
@@ -161,11 +131,11 @@ const runThreadSmith = async (req, res) => {
                     sourceAgent: "THREADSMITH",
                     memoryType: "CONTENT_GENERATION",
                     content: { contentType, tone, length, excerpt: generatedContent.substring(0, 200) },
-                    storageCid: uploadResult.cid
+                    storageCid: ""
                 }
             });
         }
-        res.json({ content: generatedContent, cid: uploadResult.cid, runId: run.id });
+        res.json({ content: generatedContent, runId: run.id });
     }
     catch (error) {
         console.error("ThreadSmith Error:", error);
@@ -177,9 +147,7 @@ const setupLaunchWatch = async (req, res) => {
     try {
         const userId = req.userId;
         const { projectId, config } = req.body;
-        // 1. Initial Setup Fee (10 CRD)
-        await creditsService.deductCredits(userId, 10, "LaunchWatch Terminal Activation");
-        // 2. Configure Monitoring
+        // 1. Configure Monitoring
         const result = await prisma.launchWatchConfig.upsert({
             where: { projectId },
             update: { ...config, active: true },

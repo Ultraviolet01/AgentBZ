@@ -4,6 +4,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const dotenv_1 = __importDefault(require("dotenv"));
+const path_1 = __importDefault(require("path"));
+// Load the monorepo-root .env regardless of the process cwd
+dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../../../.env") });
+// Fallback to a local .env if one exists (does not override already-set vars)
 dotenv_1.default.config();
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
@@ -15,7 +19,7 @@ const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const expressApp = (0, express_1.default)();
 const httpServer = (0, http_1.createServer)(expressApp);
-const port = Number(process.env.PORT) || 3005;
+const port = Number(process.env.PORT) || 3001;
 // Initialize WebSockets (on-demand via Pusher)
 (0, websocket_service_1.initSocket)();
 // Global Rate Limiting
@@ -46,15 +50,7 @@ expressApp.use((0, cors_1.default)({
 }));
 expressApp.use((0, cookie_parser_1.default)());
 expressApp.use(limiter);
-// Use express.json() for all routes EXCEPT Stripe webhooks
-expressApp.use((req, res, next) => {
-    if (req.originalUrl === "/webhooks/stripe") {
-        next();
-    }
-    else {
-        express_1.default.json()(req, res, next);
-    }
-});
+expressApp.use(express_1.default.json());
 // Main Routes
 expressApp.use("/", routes_1.default);
 // Health Check

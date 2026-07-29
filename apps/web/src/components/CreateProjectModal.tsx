@@ -81,7 +81,7 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: {
                         <input 
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            placeholder="e.g. Apollo Mainnet"
+                            placeholder="e.g. Apollo Protocol"
                             className="w-full h-15 bg-gray-50 border border-gray-100 rounded-[22px] pl-14 pr-4 text-sm font-bold text-gray-900 placeholder-gray-300 focus:bg-white focus:border-orange-200 focus:ring-4 focus:ring-orange-50/50 outline-none transition-all shadow-sm"
                         />
                     </div>

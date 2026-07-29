@@ -9,6 +9,10 @@ export const connectWallet = async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const { walletAddress } = req.body;
 
+    if (!walletAddress || typeof walletAddress !== "string" || !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+      return res.status(400).json({ error: "Invalid EVM wallet address format" });
+    }
+
     const user = await prisma.user.update({
       where: { id: userId },
       data: { walletAddress }
@@ -26,7 +30,6 @@ export const getStatus = async (req: Request, res: Response) => {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
-        credits: true,
         walletAddress: true
       }
     });
@@ -36,7 +39,6 @@ export const getStatus = async (req: Request, res: Response) => {
     }
 
     res.json({
-      credits: user.credits,
       walletAddress: user.walletAddress
     });
   } catch (error: any) {
@@ -64,58 +66,6 @@ export const verifySignature = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Signature verification error:", error);
     res.status(500).json({ error: "Failed to verify signature", verified: false });
-  }
-};
-
-export const deposit = async (req: Request, res: Response) => {
-  try {
-    const userId = (req as any).userId;
-    const { ogAmount, crdAmount, txHash, walletAddress } = req.body;
-
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    // Check if transaction already exists
-    const existingTx = await prisma.transaction.findFirst({
-      where: { txHash }
-    });
-
-    if (existingTx) {
-      return res.status(400).json({ error: "Transaction already processed" });
-    }
-
-    // Update user credits and record transaction in a transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // Create transaction record
-      const newTx = await tx.transaction.create({
-        data: {
-          userId,
-          type: "DEPOSIT",
-          amount: crdAmount,
-          description: `Deposit of ${ogAmount} OG tokens. Wallet: ${walletAddress}, TX: ${txHash}`,
-          txHash,
-          status: "COMPLETED"
-        }
-      });
-
-      // Update user credits
-      await tx.user.update({
-        where: { id: userId },
-        data: {
-          credits: {
-            increment: crdAmount
-          }
-        }
-      });
-
-      return newTx;
-    });
-
-    res.json({ success: true, transaction: result });
-  } catch (error: any) {
-    console.error("Deposit error:", error);
-    res.status(500).json({ error: error.message || "Failed to process deposit" });
   }
 };
 

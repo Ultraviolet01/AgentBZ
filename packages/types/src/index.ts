@@ -2,7 +2,6 @@ export type User = {
   id: string;
   email?: string;
   walletAddress?: string;
-  credits: number;
 };
 
 export type Project = {

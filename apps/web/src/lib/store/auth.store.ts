@@ -6,7 +6,6 @@ interface User {
   email: string;
   username: string;
   onboardingCompleted: boolean;
-  credits: number;
 }
 
 interface AuthState {

@@ -21,7 +21,6 @@ async function run() {
         username: 'meedex42',
         passwordHash,
         walletAddress,
-        credits: 1000,
         emailVerified: true,
         onboardingCompleted: true
       }

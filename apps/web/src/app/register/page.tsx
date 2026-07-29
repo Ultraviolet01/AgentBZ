@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/lib/store/auth.store';
+import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -189,6 +190,16 @@ export default function SignUpPage() {
             <ArrowRight className="w-6 h-6 group-hover/btn:translate-x-1.5 transition-transform" strokeWidth={3} />
           </Button>
         </form>
+
+        {/* Google Sign-Up */}
+        <div className="space-y-6 mt-8 relative z-10">
+          <div className="flex items-center justify-center space-x-4">
+            <div className="h-px flex-1 bg-gray-100" />
+            <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Or</p>
+            <div className="h-px flex-1 bg-gray-100" />
+          </div>
+          <GoogleSignInButton onError={setError} />
+        </div>
 
         {/* Divider */}
         <div className="flex items-center justify-center space-x-4 mt-10 relative z-10">

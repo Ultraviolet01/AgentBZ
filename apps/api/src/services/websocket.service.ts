@@ -1,6 +1,6 @@
 import Pusher from "pusher";
 
-let pusher: Pusher;
+let pusher: Pusher | null = null;
 
 /**
  * Initializes Pusher with environment variables.
@@ -8,11 +8,21 @@ let pusher: Pusher;
  */
 export const initSocket = () => {
   if (!pusher) {
+    const appId = process.env.PUSHER_APP_ID;
+    const key = process.env.PUSHER_KEY;
+    const secret = process.env.PUSHER_SECRET;
+    const cluster = process.env.PUSHER_CLUSTER || "mt1";
+
+    if (!appId || !key || !secret || appId.startsWith("mock_")) {
+      console.warn("⚠️ Pusher is not fully configured (using mock/missing credentials). Websockets broadcast disabled.");
+      return null;
+    }
+
     pusher = new Pusher({
-      appId: process.env.PUSHER_APP_ID!,
-      key: process.env.PUSHER_KEY!,
-      secret: process.env.PUSHER_SECRET!,
-      cluster: process.env.PUSHER_CLUSTER!,
+      appId,
+      key,
+      secret,
+      cluster,
       useTLS: true,
     });
   }
@@ -20,10 +30,7 @@ export const initSocket = () => {
 };
 
 export const getIO = () => {
-  if (!pusher) {
-    initSocket();
-  }
-  return pusher;
+  return initSocket();
 };
 
 /**
@@ -31,6 +38,8 @@ export const getIO = () => {
  */
 export const broadcastAlert = async (projectId: string, alert: any) => {
   const p = getIO();
+  if (!p) return;
+  
   try {
     await p.trigger(`project_${projectId}`, "newAlert", alert);
     console.log(`📡 Pusher alert broadcasted for project ${projectId}`);
@@ -38,3 +47,4 @@ export const broadcastAlert = async (projectId: string, alert: any) => {
     console.error("❌ Pusher broadcast failed:", error);
   }
 };
+

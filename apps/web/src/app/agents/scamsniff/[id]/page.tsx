@@ -49,7 +49,7 @@ export default function ReportDetailPage() {
                 <h3 className="font-semibold text-blue-900 mb-1">Live Report Feature Coming Soon</h3>
                 <p className="text-blue-800 text-sm">
                   We are currently integrating the real-time database viewer. 
-                  This report ID has been safely stored in our 0G Storage system.
+                  This report ID has been safely stored in our system.
                 </p>
               </div>
             </div>

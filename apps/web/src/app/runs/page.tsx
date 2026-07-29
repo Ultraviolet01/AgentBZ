@@ -36,11 +36,11 @@ export default function RunsPage() {
             </div>
             <div>
                 <h1 className="text-4xl lg:text-6xl font-bold text-gray-900 tracking-tight uppercase leading-none">Terminal Runs</h1>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.3em] mt-3">0G Infrastructure Logs</p>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.3em] mt-3">Execution Logs</p>
             </div>
           </div>
           <p className="text-gray-500 text-lg max-w-2xl leading-relaxed font-semibold">
-            Immutable audit trail of every agent execution. All artifacts are anchored to the 0G Network.
+            Immutable audit trail of every agent execution. All artifacts are anchored on-chain.
           </p>
         </div>
       </div>
@@ -101,7 +101,7 @@ export default function RunsPage() {
             <EmptyState 
                 icon={BarChart3}
                 title="No Executions Found"
-                description="Your terminal history is empty. Deploy your first agent to generate permanent 0G audit logs."
+                description="Your terminal history is empty. Deploy your first agent to generate permanent audit logs."
                 actionLabel="EXPLORE AGENTS"
                 onAction={() => router.push("/")}
             />
