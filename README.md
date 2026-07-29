@@ -6,37 +6,40 @@ AgentBazaar is the premier unified AI agent marketplace—a decentralized ecosys
 
 ```mermaid
 graph TD
-    subgraph Client & Frontend
+    subgraph Client["Client & Frontend"]
         User[User Browser]
     end
 
-    subgraph Core Backend
+    subgraph Backend["Core Backend"]
         NextJS[Next.js Server]
         DB[(Database)]
     end
 
-    subgraph Payment Layer
+    subgraph PaymentLayer["Payment Layer"]
         KH[KeeperHub / x402]
         Base[Base Blockchain]
     end
 
-    subgraph API Key Vault
+    subgraph Vault["API Key Vault"]
         CDR[Story Protocol CDR]
     end
 
-    %% Payment flow
-    User -- "Pay USDC per run (x402)" --> KH
-    KH -- "Settle on-chain" --> Base
+    LLM[OpenAI / Anthropic]
 
-    %% CDR at deploy time — vault keys
-    NextJS -- "Vault API keys at listing" --> CDR
-    CDR -- "Keys Vault UUID" --> DB
+    %% Deploy flow — vault keys at listing time
+    NextJS -- "1. Vault API keys at listing" --> CDR
+    CDR -- "2. Return keysVaultUuid" --> DB
 
-    %% Run flow — server retrieves keys from CDR after payment
-    User -- "Run Request" --> NextJS
-    NextJS -- "Retrieve keys (platform wallet)" --> CDR
-    CDR -- "Decrypted API keys (in-memory)" --> NextJS
-    NextJS -- "Execute with keys" --> LLM[OpenAI / Anthropic]
+    %% Run flow — payment MUST be confirmed before anything else
+    User -- "3. Run Request" --> NextJS
+    NextJS -- "4. Verify & settle payment" --> KH
+    KH -- "5. Settle on-chain" --> Base
+    KH -- "6. txHash confirmed" --> NextJS
+    NextJS -- "7. Retrieve keys (post-payment only)" --> CDR
+    CDR -- "8. Decrypted API keys (in-memory)" --> NextJS
+    NextJS -- "9. Execute agent" --> LLM
+    LLM -- "10. Output" --> NextJS
+    NextJS -- "11. Result + txHash" --> User
 ```
 
 ### Components
