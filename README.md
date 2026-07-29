@@ -66,11 +66,67 @@ graph TD
 | **Deploy** | Listing time | Platform vaults developer API keys encrypted in CDR |
 | **Run** | After x402 payment | Platform wallet retrieves keys from CDR (in-memory only) |
 
-### How CDR Works in AgentBazaar
+### How KeeperHub Works in AgentBazaar
 
-CDR is the **secure API key store** for the marketplace. The platform wallet both writes (at deploy) and reads (at run) the vault — no buyer wallet interaction with CDR is ever required.
+KeeperHub is the **payment enforcement layer** — every agent execution is gated behind a confirmed on-chain payment. No payment confirmation from KeeperHub means no keys retrieved, no LLM call made, no response returned. It is the single source of truth for whether a run is authorised.
+
+#### Role Summary
+
+| Responsibility | Detail |
+|---|---|
+| **Payment verification** | Intercepts every `/api/agents/run` call via the x402 protocol before any execution logic runs |
+| **x402 challenge-response** | Issues HTTP 402 challenges; the platform's Turnkey-backed payer wallet auto-signs and resolves them |
+| **On-chain settlement** | Settles $0.10 USDC on **Base Mainnet** to `TREASURY_WALLET_ADDRESS` using EIP-3009 transfer authorisation |
+| **txHash delivery** | Returns a public, auditable `x-payment-tx-hash` on confirmation — this is the gate that unlocks CDR and LLM access |
+| **Agentic wallet management** | The `KEEPERHUB_PAYER_WALLET` is a Turnkey-proxied wallet; no raw private key is stored on disk or in env |
+
+#### x402 Payment Cycle — Detailed Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Buyer as Buyer
+    participant App as Web Frontend
+    participant Server as "Next.js Server<br/>(/api/agents/run)"
+    participant KH as KeeperHub
+    participant Turnkey as Turnkey Enclave<br/>(Payer Wallet)
+    participant Base as Base Blockchain
+    participant CDR as Story Protocol CDR
+    participant LLM as OpenAI / Anthropic
+
+    Buyer->>App: Click "Run Agent" — submits input
+    App->>Server: POST /api/agents/run {agentSlug, input}
+
+    Note over Server: executeAgentViaKeeperHub() called
+    Server->>KH: HTTP request with x402 fetch wrapper
+
+    KH-->>Server: HTTP 402 Payment Required<br/>+ payment details (amount, currency, network, recipient)
+    Note over Server: x402 challenge received —<br/>resolve with payer wallet
+
+    Server->>Turnkey: Sign EIP-3009 transfer authorisation<br/>($0.10 USDC → TREASURY_WALLET_ADDRESS)
+    Turnkey-->>Server: Signed authorisation (no key leaves enclave)
+
+    Server->>KH: Retry request with x-payment header<br/>(signed EIP-3009 authorisation)
+    KH->>Base: Broadcast USDC transfer on Base Mainnet
+    Base-->>KH: Transaction mined — txHash
+    KH-->>Server: HTTP 200 + x-payment-tx-hash confirmed
+
+    Note over Server: ✅ Payment gate passed —<br/>execution authorised
+
+    Server->>CDR: retrieveAgentKeys(keysVaultUuid)
+    CDR-->>Server: Decrypted API keys (in-memory only)
+
+    Server->>LLM: Execute agent prompt with retrieved keys
+    LLM-->>Server: Agent output
+
+    Note over Server: Keys discarded from memory immediately
+    Server-->>App: Result + txHash (auditable on Base explorer)
+    App-->>Buyer: Agent response displayed
+```
 
 #### 1. Developer Agent Listing (Deploy Flow)
+
+> KeeperHub is **not involved** at deploy time. This step only vaults the developer's API keys into Story Protocol CDR for later retrieval.
 
 ```mermaid
 sequenceDiagram
@@ -90,34 +146,14 @@ sequenceDiagram
     Server-->>App: Success
 ```
 
-#### 2. Buyer Agent Execution (Run Flow)
+#### Key Guarantees
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Buyer as Buyer
-    participant App as Web Frontend
-    participant KH as KeeperHub / x402
-    participant Server as Next.js Server
-    participant CDR as Story Protocol CDR
-    participant LLM as OpenAI / Anthropic
-
-    Buyer->>App: Click "Run Agent" ($0.10 USDC)
-    App->>Server: POST /api/agents/run {agentSlug, input, txHash}
-    Server->>KH: executeAgentViaKeeperHub() — x402 payment verification
-    KH-->>Server: txHash (settled to Treasury Wallet on Base)
-    Note over Server: Payment confirmed — retrieve keys
-    Server->>CDR: retrieveAgentKeys(keysVaultUuid)
-    CDR-->>Server: Decrypted API keys (in-memory only)
-    Server->>LLM: Execute agent with retrieved keys
-    LLM-->>Server: Output
-    Note over Server: Keys discarded from memory
-    Server-->>App: Result + txHash
-```
-
-* **No buyer wallet interaction with CDR**: The x402 payment is the authorisation proof — CDR vault access is handled entirely server-side by the platform.
+* **Hard payment gate**: `executeAgentViaKeeperHub()` is called before any CDR retrieval or LLM invocation. A failed or absent payment means the function throws — no execution path bypasses it.
+* **No buyer wallet required**: The platform's Turnkey-backed `KEEPERHUB_PAYER_WALLET` handles all signing. Buyers trigger runs via the UI; they do not need a Web3 wallet (unless opting into direct on-chain payment).
+* **Auditable by design**: Every successful run produces a public Base Mainnet `txHash` returned in `x-payment-tx-hash`, verifiable on [x402scan](https://x402scan.com) and the Base block explorer.
+* **Turnkey enclave security**: The payer wallet's private key never leaves the Turnkey secure enclave — it is never written to disk, logged, or exposed in environment variables.
 * **Zero Database Exposure**: Only `cdrKeysVaultUuid` is stored in the DB — no plaintext API keys ever touch persistent storage.
-* **In-memory only**: Retrieved keys exist only for the duration of a single execution and are garbage-collected immediately after.
+* **In-memory only**: Retrieved CDR keys exist solely for the duration of a single execution and are garbage-collected immediately after the LLM call completes.
 
 
 ## 🚀 Getting Started
