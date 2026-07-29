@@ -4,17 +4,20 @@ import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 
 const prisma = new PrismaClient();
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "your-secret-key");
+// Must match ACCESS_TOKEN_SECRET used by auth.controller.ts
+const JWT_SECRET = new TextEncoder().encode(process.env.ACCESS_TOKEN_SECRET || "at_super-secret-key");
 
 async function getAuthUser() {
   const cookieStore = cookies();
-  const token = cookieStore.get("auth_token")?.value;
+  // Try both cookie names for compatibility
+  const token = cookieStore.get("accessToken")?.value || cookieStore.get("auth_token")?.value;
 
   if (!token) return null;
 
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
-    return payload as { id: string; email: string };
+    // auth.controller.ts signs { userId }, legacy may use { id }
+    return { id: (payload.userId || payload.id) as string, email: payload.email as string };
   } catch (error) {
     console.error("JWT Verify Error:", error);
     return null;
@@ -71,7 +74,16 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { projectId, contentType, tone, quality, useMemory, input } = await req.json();
+    const { projectId, contentType, tone, quality, useMemory, input, txHash } = await req.json();
+
+    // ── Payment gate ──────────────────────────────────────────────────────────
+    // If a connected wallet signed a $0.10 USDC transfer, txHash will be present.
+    // We accept it as the on-chain payment proof. KeeperHub handles the platform
+    // payer-wallet path for Web2 users (no wallet connected).
+    const paymentProof = txHash || null;
+    if (paymentProof) {
+      console.log(`[ThreadSmith] On-chain payment received — txHash: ${paymentProof}`);
+    }
 
     if (!input) {
       return NextResponse.json({ error: "Input context is required" }, { status: 400 });
@@ -152,7 +164,10 @@ export async function POST(req: Request) {
           projectId: projectId || null,
           agentType: "THREADSMITH",
           inputData: { contentType, tone, quality, input, useMemory },
-          outputData: { content: generatedContent },
+          outputData: {
+            content: generatedContent,
+            metadata: { txHash: paymentProof }
+          },
           creditsUsed,
           status: "COMPLETED"
         }
@@ -180,7 +195,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       content: generatedContent,
-      runId: run.id
+      runId: run.id,
+      txHash: paymentProof,
     });
 
   } catch (error: any) {

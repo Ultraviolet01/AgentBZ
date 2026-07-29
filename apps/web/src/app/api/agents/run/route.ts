@@ -65,40 +65,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── 4. Retrieve API keys from CDR (server-side, using platform wallet) ─────────────
-    // The platform wallet owns the CDR vault — it retrieves the keys after the
-    // buyer's x402 payment is confirmed. Keys are in-memory only; never logged.
+    // ── 4. Execute via KeeperHub (Payment Gate — MUST run first) ─────────────
+    // Two paths:
+    //   A) Connected wallet: clientTxHash provided = buyer already paid on-chain directly.
+    //      Skip KeeperHub, treat clientTxHash as payment proof, proceed to CDR + LLM.
+    //   B) No wallet (Web2): No clientTxHash. KeeperHub platform payer wallet
+    //      auto-signs the x402 challenge and settles on Base.
     const logic = agent.readme || agent.description || '';
     let apiKeys: { name: string; value: string }[] = [];
-
-    if (agent.cdrKeysVaultUuid) {
-      try {
-        apiKeys = await retrieveAgentKeys(agent.cdrKeysVaultUuid);
-      } catch (cdrErr: any) {
-        console.error('[Run] CDR key retrieval failed, proceeding without keys:', cdrErr.message);
-        // Fallback: continue without keys (agent may still work via its own endpoint)
-      }
-    }
-
     let result: Awaited<ReturnType<typeof executeAgent>>;
     let txHash: string | null = clientTxHash || null;
 
-    // ── 4. Execute via KeeperHub ──────────────────────────────────────────────
-    const workflowSlug = agent.keeperhubSlug || agent.slug;
-    const keeperHubResult = await executeAgentViaKeeperHub(workflowSlug, input, clientTxHash);
+    if (clientTxHash) {
+      // ── Path A: Connected wallet paid directly — txHash is the payment proof ─
+      console.log(`[Run] Direct wallet payment confirmed — txHash: ${clientTxHash}`);
 
-    if (keeperHubResult.txHash || keeperHubResult.output?.skipped !== true) {
-      result = {
-        output: keeperHubResult.output,
-        model: agent.modelProvider,
-        provider: agent.modelProvider,
-        tokensUsed: 0,
-        estimatedCost: 0,
-        executionTime: 0,
-      } as Awaited<ReturnType<typeof executeAgent>>;
-      txHash = keeperHubResult.txHash || clientTxHash || null;
-    } else {
-      // Fallback: execute locally via Anthropic/configured LLM if KeeperHub is unconfigured/skipped
+      // Now safe to retrieve CDR keys (payment already settled on-chain)
+      if (agent.cdrKeysVaultUuid) {
+        try {
+          apiKeys = await retrieveAgentKeys(agent.cdrKeysVaultUuid);
+        } catch (cdrErr: any) {
+          console.error('[Run] CDR key retrieval failed:', cdrErr.message);
+        }
+      }
+
       result = await executeAgent({
         logic,
         apiKeys: apiKeys || [],
@@ -107,6 +97,51 @@ export async function POST(req: NextRequest) {
         apiEndpoint: agent.apiEndpoint || undefined,
         input,
       });
+    } else {
+      // ── Path B: KeeperHub platform payer wallet handles x402 payment ──────────
+      const workflowSlug = agent.keeperhubSlug || agent.slug;
+      const keeperHubResult = await executeAgentViaKeeperHub(workflowSlug, input, null);
+
+      if (keeperHubResult.txHash || keeperHubResult.output?.skipped !== true) {
+        // Payment confirmed by KeeperHub — now retrieve CDR keys
+        txHash = keeperHubResult.txHash || null;
+        console.log(`[Run] KeeperHub payment confirmed — txHash: ${txHash}`);
+
+        if (agent.cdrKeysVaultUuid) {
+          try {
+            apiKeys = await retrieveAgentKeys(agent.cdrKeysVaultUuid);
+          } catch (cdrErr: any) {
+            console.error('[Run] CDR key retrieval failed:', cdrErr.message);
+          }
+        }
+
+        result = {
+          output: keeperHubResult.output,
+          model: agent.modelProvider,
+          provider: agent.modelProvider,
+          tokensUsed: 0,
+          estimatedCost: 0,
+          executionTime: 0,
+        } as Awaited<ReturnType<typeof executeAgent>>;
+      } else {
+        // Fallback: KeeperHub unconfigured/skipped — execute directly
+        if (agent.cdrKeysVaultUuid) {
+          try {
+            apiKeys = await retrieveAgentKeys(agent.cdrKeysVaultUuid);
+          } catch (cdrErr: any) {
+            console.error('[Run] CDR key retrieval failed:', cdrErr.message);
+          }
+        }
+
+        result = await executeAgent({
+          logic,
+          apiKeys: apiKeys || [],
+          modelProvider: agent.modelProvider,
+          modelName: agent.modelName || undefined,
+          apiEndpoint: agent.apiEndpoint || undefined,
+          input,
+        });
+      }
     }
 
     // ── 5. Record Run + Buyer & Treasury Transactions ────────────────────────

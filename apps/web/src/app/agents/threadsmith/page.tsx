@@ -18,7 +18,9 @@ import {
   CheckCircle2,
   ArrowRight,
   Check,
-  ChevronDown
+  ChevronDown,
+  Wallet,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -36,6 +38,8 @@ import {
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "@/lib/api";
+import { useAccount, useSendTransaction } from "wagmi";
+import { payAgentFeeFromWallet } from "@/lib/x402-client";
 
 export default function ThreadSmithPage() {
   const [input, setInput] = useState('');
@@ -45,9 +49,15 @@ export default function ThreadSmithPage() {
   const [useMemory, setUseMemory] = useState(true);
   const [quality, setQuality] = useState('standard');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
   const [output, setOutput] = useState('');
   const [statusIdx, setStatusIdx] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [lastTxHash, setLastTxHash] = useState<string | null>(null);
+
+  // Wallet state
+  const { address, isConnected } = useAccount();
+  const { sendTransactionAsync } = useSendTransaction();
 
   const statusMessages = [
     "Initializing Neural Fabric...",
@@ -73,6 +83,33 @@ export default function ThreadSmithPage() {
   const handleGenerate = async () => {
     if (!input) return toast.error("Please enter some content or context");
 
+    let txHash: string | null = null;
+
+    // ── Payment Gate ────────────────────────────────────────────────────────
+    // If a wallet is connected, prompt the user to sign a $0.10 USDC transfer.
+    // This is the on-chain payment proof passed to the generate API.
+    // If no wallet is connected, the server uses KeeperHub's platform payer wallet.
+    if (isConnected && sendTransactionAsync) {
+      setIsPaying(true);
+      try {
+        toast.info("Confirm $0.10 USDC payment in your wallet…", { duration: 10000 });
+        txHash = await payAgentFeeFromWallet(sendTransactionAsync as any);
+        setLastTxHash(txHash);
+        toast.success("Payment confirmed on-chain ✓", {
+          description: `txHash: ${txHash.slice(0, 10)}…${txHash.slice(-6)}`,
+        });
+      } catch (payErr: any) {
+        setIsPaying(false);
+        if (payErr?.message?.includes("User rejected") || payErr?.message?.includes("denied")) {
+          return toast.error("Payment cancelled", { description: "You rejected the transaction in your wallet." });
+        }
+        return toast.error("Payment failed", { description: payErr.message });
+      } finally {
+        setIsPaying(false);
+      }
+    }
+
+    // ── Execute ─────────────────────────────────────────────────────────────
     setIsGenerating(true);
     setOutput("");
     
@@ -87,7 +124,8 @@ export default function ThreadSmithPage() {
           contentType,
           tone,
           quality,
-          useMemory
+          useMemory,
+          txHash,            // on-chain payment proof (null if no wallet → KeeperHub path)
         })
       });
       
@@ -99,7 +137,9 @@ export default function ThreadSmithPage() {
       const data = await response.json();
       setOutput(data.content);
       toast.success("Synthesis Complete", {
-        description: "Content synthesis finished.",
+        description: data.txHash
+          ? `Settled on-chain · ${data.txHash.slice(0, 10)}…`
+          : "Content synthesis finished.",
       });
     } catch (error: any) {
       console.error('Generation error:', error);
@@ -115,6 +155,7 @@ export default function ThreadSmithPage() {
     toast.success("Copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
   };
+
 
   return (
     <div className="p-10 max-w-7xl mx-auto min-h-screen space-y-12 pb-24 bg-transparent text-gray-900">
@@ -229,6 +270,35 @@ export default function ThreadSmithPage() {
                 </div>
               </div>
 
+              {/* Wallet Payment Banner */}
+              {isConnected && address ? (
+                <div className="flex items-center justify-between px-5 py-4 rounded-2xl bg-orange-50 border border-orange-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center">
+                      <Wallet size={16} className="text-white" strokeWidth={2.5} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-orange-700 uppercase tracking-widest leading-none">Wallet Connected</p>
+                      <p className="text-xs font-bold text-gray-700 mt-0.5 font-mono">{address.slice(0, 6)}…{address.slice(-4)}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Per Run</p>
+                    <p className="text-base font-bold text-orange-600 leading-none mt-0.5">$0.10 USDC</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 px-5 py-4 rounded-2xl bg-gray-50 border border-gray-100">
+                  <div className="w-9 h-9 rounded-xl bg-gray-200 flex items-center justify-center">
+                    <Zap size={16} className="text-gray-400" strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Payment via KeeperHub</p>
+                    <p className="text-xs font-bold text-gray-500 mt-0.5">Platform payer wallet · $0.10/run</p>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-4">
                 <Label htmlFor="input" className="text-[11px] font-bold text-gray-400 uppercase tracking-widest px-1">Raw Context / Project Notes</Label>
                 <textarea
@@ -243,10 +313,15 @@ export default function ThreadSmithPage() {
               <div className="space-y-4">
                 <Button
                   onClick={handleGenerate}
-                  disabled={!input || isGenerating}
+                  disabled={!input || isGenerating || isPaying}
                   className="w-full h-16 bg-orange-500 hover:bg-orange-600 text-white font-bold text-xl rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-4"
                 >
-                  {isGenerating ? (
+                  {isPaying ? (
+                    <>
+                      <Wallet className="w-6 h-6 animate-pulse" />
+                      AWAITING WALLET…
+                    </>
+                  ) : isGenerating ? (
                     <>
                       <RotateCcw className="w-6 h-6 animate-spin" />
                       SYNTHESIZING...
@@ -254,11 +329,13 @@ export default function ThreadSmithPage() {
                   ) : (
                     <>
                       <Sparkles className="w-7 h-7" strokeWidth={2.5} />
-                      INITIALIZE ENGINE
+                      {isConnected ? "PAY & INITIALIZE ENGINE" : "INITIALIZE ENGINE"}
                     </>
                   )}
                 </Button>
-                <p className="text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.25em]">Computation anchored on-chain</p>
+                <p className="text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.25em]">
+                  {isConnected ? "$0.10 USDC signed from your wallet" : "Computation anchored on-chain"}
+                </p>
               </div>
             </div>
           </Card>
