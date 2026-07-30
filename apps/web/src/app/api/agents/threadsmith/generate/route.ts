@@ -113,13 +113,11 @@ export async function POST(req: Request) {
     console.log(`[ThreadSmith] Key prefix: ${trimmedKey.substring(0, 15)}... len=${trimmedKey.length} quality=${quality}`);
 
     const modelsToTry = [
+      "claude-sonnet-4-5",
       "claude-sonnet-4-20250514",
       "claude-3-5-sonnet-20241022",
       "claude-3-5-haiku-20241022",
-      "claude-3-5-sonnet-20240620",
       "claude-3-haiku-20240307",
-      "claude-3-sonnet-20240229",
-      "claude-3-opus-20240229",
     ];
 
     const userMessage = `ContentType: ${contentType}\nTone: ${tone}\nContext: ${context}`;
@@ -135,6 +133,8 @@ export async function POST(req: Request) {
       } catch (err: any) {
         console.error(`[ThreadSmith] Failed with model ${model}:`, err.message);
         lastError = err;
+        // Don't retry on auth errors — key is wrong, no point trying other models
+        if (err.message?.includes("401") || err.message?.includes("invalid_api_key")) break;
       }
     }
 

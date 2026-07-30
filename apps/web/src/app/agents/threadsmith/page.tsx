@@ -38,7 +38,7 @@ import {
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "@/lib/api";
-import { useAccount, useSendTransaction } from "wagmi";
+import { useAccount, useSendTransaction, usePublicClient } from "wagmi";
 import { payAgentFeeFromWallet } from "@/lib/x402-client";
 
 export default function ThreadSmithPage() {
@@ -58,6 +58,7 @@ export default function ThreadSmithPage() {
   // Wallet state
   const { address, isConnected } = useAccount();
   const { sendTransactionAsync } = useSendTransaction();
+  const publicClient = usePublicClient();
 
   const statusMessages = [
     "Initializing Neural Fabric...",
@@ -87,13 +88,30 @@ export default function ThreadSmithPage() {
 
     // ── Payment Gate ────────────────────────────────────────────────────────
     // If a wallet is connected, prompt the user to sign a $0.10 USDC transfer.
-    // This is the on-chain payment proof passed to the generate API.
-    // If no wallet is connected, the server uses KeeperHub's platform payer wallet.
-    if (isConnected && sendTransactionAsync) {
+    // We wait for the tx to be MINED (receipt.status === 'success') before
+    // proceeding — broadcast alone is not enough, a reverted tx returns no deduction.
+    if (isConnected && sendTransactionAsync && publicClient) {
       setIsPaying(true);
       try {
-        toast.info("Confirm $0.10 USDC payment in your wallet…", { duration: 10000 });
-        txHash = await payAgentFeeFromWallet(sendTransactionAsync as any);
+        toast.info("Confirm $0.10 USDC payment in your wallet…", { duration: 15000 });
+        const broadcastHash = await payAgentFeeFromWallet(sendTransactionAsync as any);
+
+        // Wait for on-chain confirmation (mined block)
+        toast.info("Confirming payment on Base…", { duration: 30000 });
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: broadcastHash as `0x${string}`,
+          confirmations: 1,
+          timeout: 60_000,
+        });
+
+        if (receipt.status !== 'success') {
+          setIsPaying(false);
+          return toast.error("Payment reverted on-chain", {
+            description: "Your transaction was broadcast but reverted. Check your USDC balance on Base.",
+          });
+        }
+
+        txHash = broadcastHash;
         setLastTxHash(txHash);
         toast.success("Payment confirmed on-chain ✓", {
           description: `txHash: ${txHash.slice(0, 10)}…${txHash.slice(-6)}`,
@@ -102,6 +120,9 @@ export default function ThreadSmithPage() {
         setIsPaying(false);
         if (payErr?.message?.includes("User rejected") || payErr?.message?.includes("denied")) {
           return toast.error("Payment cancelled", { description: "You rejected the transaction in your wallet." });
+        }
+        if (payErr?.message?.includes("Timed out")) {
+          return toast.error("Payment timed out", { description: "Transaction was not confirmed within 60s. Check your wallet." });
         }
         return toast.error("Payment failed", { description: payErr.message });
       } finally {
