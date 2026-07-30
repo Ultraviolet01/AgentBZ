@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { jwtVerify } from 'jose';
 import { deployAgentCDR } from '@/lib/cdr-server';
 import type { ApiKey } from '@/lib/agent-executor';
@@ -20,7 +20,6 @@ export const dynamic = 'force-dynamic';
  * 3. Create DeployedAgent record (stores CDR vault UUIDs, NOT plaintext keys)
  */
 
-const prisma = new PrismaClient();
 const secret = new TextEncoder().encode(process.env.ACCESS_TOKEN_SECRET || 'at_super-secret-key');
 
 export async function POST(req: NextRequest) {
