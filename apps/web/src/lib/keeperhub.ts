@@ -136,7 +136,9 @@ export async function executeAgentViaKeeperHub(
   }
 
   try {
-    const payingFetch = getPayingFetch();
+    // If clientTxHash is already present, use standard fetch with payment header.
+    // Otherwise use payingFetch (@x402/fetch) to handle x402 challenge-response.
+    const fetchFn = clientTxHash ? fetch : getPayingFetch();
     const url = `${KEEPERHUB_BASE_URL}/api/workflows/${workflowSlug}/run`;
 
     const headers: Record<string, string> = {
@@ -148,7 +150,7 @@ export async function executeAgentViaKeeperHub(
       headers['x-payment-tx-hash'] = clientTxHash;
     }
 
-    const response = await payingFetch(url, {
+    const response = await fetchFn(url, {
       method: 'POST',
       headers,
       body: JSON.stringify({ inputs }),
