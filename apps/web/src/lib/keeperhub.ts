@@ -130,12 +130,16 @@ export async function registerAgentWorkflow(agent: {
   const treasuryFee = Number(process.env.TREASURY_FEE_PERCENT || '10');
 
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+
     const response = await fetch(`${KEEPERHUB_BASE_URL}/api/workflows`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${KEEPERHUB_API_KEY}`,
         'Content-Type': 'application/json',
       },
+      signal: controller.signal,
       body: JSON.stringify({
         name: agent.name,
         description: agent.description,
@@ -148,7 +152,7 @@ export async function registerAgentWorkflow(agent: {
           feePercent: treasuryFee,
         }),
       }),
-    });
+    }).finally(() => clearTimeout(timer));
 
     if (!response.ok) {
       const text = await response.text();

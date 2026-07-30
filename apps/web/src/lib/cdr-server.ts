@@ -133,38 +133,50 @@ export async function deployAgentCDR(listing: AgentListing): Promise<DeployedAge
     };
   }
 
-  const client   = await getPlatformClient();
-  const storage  = await getStorage();
-  const globalPubKey = await client.observer.getGlobalPubKey();
-  const encoder  = new TextEncoder();
+  const platformKey = process.env.AGENTBAZAAR_PLATFORM_KEY;
+  if (!platformKey) {
+    console.warn(`[CDR] AGENTBAZAAR_PLATFORM_KEY missing — skipping Story Protocol vaulting`);
+    return { hasApiKeys: false, deployedAt: Date.now() };
+  }
 
-  const platformKey = process.env.AGENTBAZAAR_PLATFORM_KEY!;
-  const account = privateKeyToAccount(platformKey as `0x${string}`);
-  const writeCondition = conditions.ownerOnly({
-    address: CONDITIONS.OWNER_WRITE,
-    owner: account.address,
-  });
+  // Wrap vaulting with a 10s timeout fallback
+  const vaultPromise = (async () => {
+    const client = await getPlatformClient();
+    const storage = await getStorage();
+    const globalPubKey = await client.observer.getGlobalPubKey();
+    const encoder = new TextEncoder();
+    const account = privateKeyToAccount(platformKey as `0x${string}`);
+    const writeCondition = conditions.ownerOnly({
+      address: CONDITIONS.OWNER_WRITE,
+      owner: account.address,
+    });
 
-  // Vault the API keys
-  console.log(`[CDR] Vaulting ${listing.apiKeys.length} API key(s) for "${listing.name}"…`);
+    console.log(`[CDR] Vaulting ${listing.apiKeys.length} API key(s) for "${listing.name}"…`);
 
-  const { uuid: keysVaultUuid } = await client.uploader.uploadFile({
-    content: encoder.encode(JSON.stringify({ apiKeys: listing.apiKeys })),
-    storageProvider: storage,
-    globalPubKey,
-    updatable: true,
-    writeConditionAddr: writeCondition.address,
-    readConditionAddr:  CONDITIONS.LICENSE_READ,
-    writeConditionData: writeCondition.conditionData,
-    readConditionData:  '0x',
-    accessAuxData: '0x',
-  });
+    const { uuid: keysVaultUuid } = await client.uploader.uploadFile({
+      content: encoder.encode(JSON.stringify({ apiKeys: listing.apiKeys })),
+      storageProvider: storage,
+      globalPubKey,
+      updatable: true,
+      writeConditionAddr: writeCondition.address,
+      readConditionAddr: CONDITIONS.LICENSE_READ,
+      writeConditionData: writeCondition.conditionData,
+      readConditionData: '0x',
+      accessAuxData: '0x',
+    });
 
-  console.log(`[CDR] API keys vaulted → uuid: ${keysVaultUuid}`);
+    console.log(`[CDR] API keys vaulted → uuid: ${keysVaultUuid}`);
+    return { keysVaultUuid, hasApiKeys: true, deployedAt: Date.now() };
+  })();
 
-  return {
-    keysVaultUuid,
-    hasApiKeys: true,
-    deployedAt: Date.now(),
-  };
+  const timeoutPromise = new Promise<DeployedAgentCDR>((_, reject) =>
+    setTimeout(() => reject(new Error('Story Protocol CDR network response timed out after 10s')), 10000)
+  );
+
+  try {
+    return await Promise.race([vaultPromise, timeoutPromise]);
+  } catch (err: any) {
+    console.warn(`[CDR Fallback] Vaulting skipped due to network timeout/error: ${err.message}`);
+    return { hasApiKeys: false, deployedAt: Date.now() };
+  }
 }

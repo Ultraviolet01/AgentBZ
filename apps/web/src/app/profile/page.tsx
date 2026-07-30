@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import api from "@/lib/api";import { isKeeperHubConfigured } from '@/lib/keeperhub';
 const shortenAddress = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
 
-type ProfileTab = "overview" | "activities";
+type ProfileTab = "overview" | "my_agents" | "activities";
 
 type MarketplaceActivity = {
   id: string;
@@ -36,18 +36,35 @@ type MarketplaceActivity = {
   } | null;
 };
 
+type DeployedAgentItem = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  status: string;
+  category: string;
+  icon?: string;
+  color?: string;
+  createdAt: string;
+};
+
 export default function ProfilePage() {
   const { user, isLoading, signOut } = useAuth();
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const [activeTab, setActiveTab] = useState<ProfileTab>("overview");
   const [activities, setActivities] = useState<MarketplaceActivity[]>([]);
-  const [activitiesLoading, setActivitiesLoading] = useState(false);  const keeperHubReady = isKeeperHubConfigured();
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
+  const [myAgents, setMyAgents] = useState<DeployedAgentItem[]>([]);
+  const [myAgentsLoading, setMyAgentsLoading] = useState(false);
+  const keeperHubReady = isKeeperHubConfigured();
+
   useEffect(() => {
     if (!user || !user.onboardingCompleted) return;
 
     let isMounted = true;
     setActivitiesLoading(true);
+    setMyAgentsLoading(true);
 
     api
       .get("/agents/runs")
@@ -65,6 +82,25 @@ export default function ProfilePage() {
       .finally(() => {
         if (isMounted) {
           setActivitiesLoading(false);
+        }
+      });
+
+    api
+      .get("/agents/my")
+      .then((response) => {
+        if (isMounted) {
+          setMyAgents(Array.isArray(response.data) ? response.data : []);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load custom agents", error);
+        if (isMounted) {
+          setMyAgents([]);
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setMyAgentsLoading(false);
         }
       });
 
@@ -180,6 +216,22 @@ export default function ProfilePage() {
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab("my_agents")}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors flex items-center gap-2 ${
+              activeTab === "my_agents"
+                ? "bg-orange-500 text-white shadow-sm"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            My Deployed Agents
+            {myAgents.length > 0 && (
+              <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === "my_agents" ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700"}`}>
+                {myAgents.length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab("activities")}
             className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
               activeTab === "activities"
@@ -204,6 +256,68 @@ export default function ProfilePage() {
               <ProfileLink href="/deploy" icon={Rocket} title="Deploy an agent" description="Launch a new agent workflow." />
               <ProfileLink href="/settings" icon={Settings} title="Preferences" description="Manage security and app settings." />
             </div>
+          </div>
+        ) : activeTab === "my_agents" ? (
+          <div className="space-y-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-xl font-bold">My Deployed Agents</h2>
+                <p className="text-sm text-gray-500 mt-1">Manage your listed custom agents and monitor verification status.</p>
+              </div>
+              <Button asChild variant="secondary" className="rounded-xl">
+                <Link href="/deploy">
+                  <Rocket className="w-4 h-4 mr-2" />Deploy new agent
+                </Link>
+              </Button>
+            </div>
+
+            {myAgentsLoading ? (
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-6 text-sm text-gray-500">Loading your deployed agents…</div>
+            ) : myAgents.length > 0 ? (
+              <div className="space-y-3">
+                {myAgents.map((agent) => (
+                  <div key={agent.id} className="rounded-[24px] border border-gray-100 bg-gray-50/70 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl font-bold shrink-0">
+                        {agent.icon || "🤖"}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-gray-900 truncate">{agent.name}</h3>
+                          <span className="px-2.5 py-0.5 rounded-full bg-gray-200 text-gray-700 text-[10px] font-bold uppercase tracking-wider">
+                            {agent.category}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1 line-clamp-1">{agent.description}</p>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 flex items-center gap-3">
+                      {agent.status === "pending" ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-xs font-bold text-amber-700">
+                          <Clock3 className="w-3.5 h-3.5" /> Waiting for admin verification
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-bold text-emerald-700">
+                          <BadgeCheck className="w-3.5 h-3.5" /> Deployed on AgentBazaar
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-[24px] border border-dashed border-gray-200 bg-gray-50/70 p-10 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-orange-500">
+                  <Rocket className="w-6 h-6" />
+                </div>
+                <h3 className="mt-4 text-lg font-semibold text-gray-900">No agents deployed yet</h3>
+                <p className="mt-2 text-sm text-gray-500">Deploy your first custom AI agent to list it on AgentBazaar.</p>
+                <Button asChild variant="secondary" className="mt-5 rounded-xl">
+                  <Link href="/deploy">Deploy an agent</Link>
+                </Button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-5">
