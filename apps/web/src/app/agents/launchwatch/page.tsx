@@ -25,6 +25,10 @@ import {
   X
 } from 'lucide-react';
 
+import { useAccount, useSendTransaction, usePublicClient } from 'wagmi';
+import { payAgentFeeFromWallet } from '@/lib/x402-client';
+import { ExternalLink, ShieldCheck, Wallet } from 'lucide-react';
+
 type MonitoringType = 'project' | 'token_milestone' | 'crypto_news';
 
 export default function LaunchWatchPage() {
@@ -32,27 +36,26 @@ export default function LaunchWatchPage() {
   const [monitoringType, setMonitoringType] = useState<MonitoringType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeMonitors, setActiveMonitors] = useState<any[]>([]);
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'broadcasting' | 'mined' | 'verifying' | 'done'>('idle');
+  const [lastTxHash, setLastTxHash] = useState<string | null>(null);
+
+  const { isConnected, address } = useAccount();
+  const { sendTransactionAsync } = useSendTransaction();
+  const publicClient = usePublicClient();
 
   // Form data
   const [formData, setFormData] = useState({
-    // Common fields
     email: '',
     notificationEmail: '',
-    
-    // Project monitoring
     projectUrl: '',
     monitorSocial: true,
     monitorWebsite: true,
     monitorSentiment: true,
     checkFrequency: 'daily',
-    
-    // Token milestone
     contractAddress: '',
     tokenSymbol: '',
     currentFDV: '',
     targetFDV: '',
-    
-    // Crypto news
     newsTopics: [] as string[],
     newsFrequency: 'daily'
   });
@@ -65,13 +68,29 @@ export default function LaunchWatchPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    let clientTxHash: string | undefined = undefined;
 
     try {
+      if (isConnected) {
+        setPaymentStatus('broadcasting');
+        const hash = await payAgentFeeFromWallet(sendTransactionAsync, 0.1);
+        clientTxHash = hash;
+        setLastTxHash(hash);
+
+        setPaymentStatus('mined');
+        if (publicClient) {
+          await publicClient.waitForTransactionReceipt({ hash: hash as `0x${string}` });
+        }
+      } else {
+        setPaymentStatus('verifying');
+      }
+
       const response = await fetch('/api/agents/launchwatch/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           monitoringType,
+          txHash: clientTxHash,
           ...formData
         })
       });
@@ -79,17 +98,16 @@ export default function LaunchWatchPage() {
       const data = await response.json();
 
       if (data.success) {
-        setActiveMonitors([...activeMonitors, data.monitor]);
+        setActiveMonitors([...activeMonitors, { ...data.monitor, txHash: data.txHash || clientTxHash }]);
         setStep('active');
-        
-        // Show success message
-        alert(`Monitoring activated! You'll receive notifications at ${formData.notificationEmail}`);
+        setPaymentStatus('done');
       } else {
         throw new Error(data.error || 'Setup failed');
       }
     } catch (error: any) {
       console.error('Setup error:', error);
       alert('Failed to setup monitoring: ' + error.message);
+      setPaymentStatus('idle');
     } finally {
       setIsLoading(false);
     }
@@ -492,15 +510,15 @@ export default function LaunchWatchPage() {
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Setting up...
+                      {paymentStatus === 'broadcasting' && 'Confirming in Wallet ($0.10 USDC)...'}
+                      {paymentStatus === 'mined' && 'Waiting for Base Confirmation...'}
+                      {paymentStatus === 'verifying' && 'KeeperHub Verifying Payment...'}
+                      {paymentStatus === 'idle' && 'Initializing Agent...'}
                     </>
                   ) : (
                     <>
                       <Play className="w-4 h-4 mr-2" />
-                      Start Monitoring
-                      {monitoringType === 'project' && ' (10 CRD)'}
-                      {monitoringType === 'token_milestone' && ' (5 CRD)'}
-                      {monitoringType === 'crypto_news' && ' (3 CRD)'}
+                      {isConnected ? 'PAY & INITIALIZE MONITOR ($0.10 USDC)' : 'START MONITORING ($0.10 USD)'}
                     </>
                   )}
                 </Button>
@@ -529,7 +547,7 @@ export default function LaunchWatchPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-sm font-medium text-green-600">Active</span>
+                    <span className="text-sm font-medium text-green-600">Active — Verified via KeeperHub</span>
                   </div>
                   
                   <h3 className="text-lg font-semibold text-gray-900 mb-1">
@@ -541,6 +559,21 @@ export default function LaunchWatchPage() {
                   <p className="text-sm text-gray-600 mb-3">
                     Notifications: {monitor.email}
                   </p>
+
+                  {monitor.txHash && (
+                    <div className="mb-3">
+                      <a
+                        href={`https://basescan.org/tx/${monitor.txHash}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline font-mono"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
+                        On-Chain Proof: {monitor.txHash.slice(0, 10)}...{monitor.txHash.slice(-8)}
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  )}
 
                   {monitor.type === 'token_milestone' && (
                     <div className="bg-gray-50 rounded-lg p-3 mb-3">
