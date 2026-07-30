@@ -41,40 +41,55 @@ export function keeperhubUrl(path: string): string {
   return `${KEEPERHUB_BASE_URL}/${path.replace(/^\//, '')}`;
 }
 
-import { createPublicClient, http } from 'viem';
+import { createPublicClient, http, fallback } from 'viem';
 import { base } from 'viem/chains';
 import { BASE_USDC_ADDRESS, TREASURY_WALLET_ADDRESS } from './x402-client';
 
 const basePublicClient = createPublicClient({
   chain: base,
-  transport: http('https://mainnet.base.org'),
+  transport: fallback([
+    http('https://mainnet.base.org', { timeout: 30_000, retryCount: 3 }),
+    http('https://base.llamarpc.com', { timeout: 30_000, retryCount: 3 }),
+    http('https://1rpc.io/base', { timeout: 30_000, retryCount: 3 }),
+    http('https://base.gateway.tenderly.co', { timeout: 30_000, retryCount: 3 }),
+  ]),
 });
 
 /**
  * Verifies that a transaction hash represents a confirmed USDC payment on Base Mainnet
- * to the AgentBazaar treasury wallet.
+ * to the AgentBazaar treasury wallet with automatic RPC failover and propagation retries.
  */
 export async function verifyKeeperHubPayment(txHash: string): Promise<{ valid: boolean; blockNumber?: bigint; error?: string }> {
-  try {
-    const receipt = await basePublicClient.getTransactionReceipt({
-      hash: txHash as `0x${string}`,
-    });
+  let lastError: string = 'Unknown error';
 
-    if (receipt.status !== 'success') {
-      return { valid: false, error: 'Transaction reverted on-chain' };
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      console.log(`[KeeperHub Verification] Attempt ${attempt}/4: Querying receipt for ${txHash}...`);
+      const receipt = await basePublicClient.getTransactionReceipt({
+        hash: txHash as `0x${string}`,
+      });
+
+      if (receipt.status !== 'success') {
+        return { valid: false, error: 'Transaction reverted on-chain' };
+      }
+
+      // Verify interaction was with the Base USDC contract
+      if (receipt.to?.toLowerCase() !== BASE_USDC_ADDRESS.toLowerCase()) {
+        return { valid: false, error: 'Transaction was not sent to Base USDC contract' };
+      }
+
+      console.log(`[KeeperHub Verification] Payment verified on Base Mainnet! txHash: ${txHash} | block: ${receipt.blockNumber}`);
+      return { valid: true, blockNumber: receipt.blockNumber };
+    } catch (error: any) {
+      lastError = error.message;
+      console.warn(`[KeeperHub Verification] Attempt ${attempt}/4 failed: ${error.message}`);
+      if (attempt < 4) {
+        await new Promise((resolve) => setTimeout(resolve, 2500));
+      }
     }
-
-    // Verify interaction was with the Base USDC contract
-    if (receipt.to?.toLowerCase() !== BASE_USDC_ADDRESS.toLowerCase()) {
-      return { valid: false, error: 'Transaction was not sent to Base USDC contract' };
-    }
-
-    console.log(`[KeeperHub Verification] Payment verified on Base Mainnet! txHash: ${txHash} | block: ${receipt.blockNumber}`);
-    return { valid: true, blockNumber: receipt.blockNumber };
-  } catch (error: any) {
-    console.error(`[KeeperHub Verification] On-chain check failed: ${error.message}`);
-    return { valid: false, error: error.message };
   }
+
+  return { valid: false, error: lastError };
 }
 
 // ─── x402-wrapped fetch ───────────────────────────────────────────────────────
