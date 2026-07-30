@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { PrismaClient, THREADSMITH_SYSTEM_PROMPT } from "@agentbazaar/database";
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
+import { executeAgentViaKeeperHub } from "@/lib/keeperhub";
 
 const prisma = new PrismaClient();
 // Must match ACCESS_TOKEN_SECRET used by auth.controller.ts
@@ -103,52 +104,65 @@ export async function POST(req: Request) {
       context += "\n\nProject History:\n" + memories.map((m: any) => `${m.memoryType}: ${JSON.stringify(m.content)}`).join("\n");
     }
 
-    // 3. AI Generation — Pure fetch, no SDK
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "AI configuration missing (API Key)" }, { status: 500 });
-    }
-
-    const trimmedKey = apiKey.trim();
-    console.log(`[ThreadSmith] Key prefix: ${trimmedKey.substring(0, 15)}... len=${trimmedKey.length} quality=${quality}`);
-
-    const modelsToTry = [
-      "claude-sonnet-4-5",
-      "claude-sonnet-4-20250514",
-      "claude-3-5-sonnet-20241022",
-      "claude-3-5-haiku-20241022",
-      "claude-3-haiku-20240307",
-    ];
-
-    const userMessage = `ContentType: ${contentType}\nTone: ${tone}\nContext: ${context}`;
+    // 3. Execution via KeeperHub
     let generatedContent = "";
-    let lastError: any = null;
+    console.log(`[ThreadSmith] Dispatching run to KeeperHub (slug: "threadsmith", txHash: ${paymentProof || 'none'})...`);
 
-    for (const model of modelsToTry) {
-      if (generatedContent) break;
-      try {
-        console.log(`[ThreadSmith] Trying model: ${model}`);
-        generatedContent = await callAnthropic(trimmedKey, model, THREADSMITH_SYSTEM_PROMPT, userMessage);
-        console.log(`[ThreadSmith] Success with model: ${model}`);
-      } catch (err: any) {
-        console.error(`[ThreadSmith] Failed with model ${model}:`, err.message);
-        lastError = err;
-        // Don't retry on auth errors — key is wrong, no point trying other models
-        if (err.message?.includes("401") || err.message?.includes("invalid_api_key")) break;
+    const keeperHubResult = await executeAgentViaKeeperHub(
+      "threadsmith",
+      { contentType, tone, quality, input, context },
+      paymentProof || undefined
+    );
+
+    if (keeperHubResult.output && typeof keeperHubResult.output === "object" && !(keeperHubResult.output as any)?.skipped) {
+      generatedContent = (keeperHubResult.output as any).content || JSON.stringify(keeperHubResult.output);
+      console.log(`[ThreadSmith] Successfully executed via KeeperHub`);
+    } else {
+      console.log(`[ThreadSmith] KeeperHub workflow skipped/unconfigured — using primary LLM provider...`);
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        return NextResponse.json({ error: "AI configuration missing (API Key)" }, { status: 500 });
       }
-    }
 
-    if (!generatedContent && lastError) {
-      return NextResponse.json({ 
-        error: `AI Engine Exhausted: ${lastError.message}`,
-        debug: {
-          keyPrefix: `${trimmedKey.substring(0, 15)}...`,
-          keyLength: trimmedKey.length,
-          attemptedModels: modelsToTry,
-          errorMessage: lastError.message,
-        },
-        suggestion: "Verify your Anthropic API key is valid and has sufficient credits at console.anthropic.com"
-      }, { status: 500 });
+      const trimmedKey = apiKey.trim();
+      console.log(`[ThreadSmith] Key prefix: ${trimmedKey.substring(0, 15)}... len=${trimmedKey.length} quality=${quality}`);
+
+      const modelsToTry = [
+        "claude-sonnet-4-5",
+        "claude-sonnet-4-20250514",
+        "claude-3-5-sonnet-20241022",
+        "claude-3-5-haiku-20241022",
+        "claude-3-haiku-20240307",
+      ];
+
+      const userMessage = `ContentType: ${contentType}\nTone: ${tone}\nContext: ${context}`;
+      let lastError: any = null;
+
+      for (const model of modelsToTry) {
+        if (generatedContent) break;
+        try {
+          console.log(`[ThreadSmith] Trying model: ${model}`);
+          generatedContent = await callAnthropic(trimmedKey, model, THREADSMITH_SYSTEM_PROMPT, userMessage);
+          console.log(`[ThreadSmith] Success with model: ${model}`);
+        } catch (err: any) {
+          console.error(`[ThreadSmith] Failed with model ${model}:`, err.message);
+          lastError = err;
+          if (err.message?.includes("401") || err.message?.includes("invalid_api_key")) break;
+        }
+      }
+
+      if (!generatedContent && lastError) {
+        return NextResponse.json({ 
+          error: `AI Engine Exhausted: ${lastError.message}`,
+          debug: {
+            keyPrefix: `${trimmedKey.substring(0, 15)}...`,
+            keyLength: trimmedKey.length,
+            attemptedModels: modelsToTry,
+            errorMessage: lastError.message,
+          },
+          suggestion: "Verify your Anthropic API key is valid and has sufficient credits at console.anthropic.com"
+        }, { status: 500 });
+      }
     }
 
     if (!generatedContent) {

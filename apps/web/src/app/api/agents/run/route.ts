@@ -65,22 +65,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── 4. Execute via KeeperHub (Payment Gate — MUST run first) ─────────────
-    // Two paths:
-    //   A) Connected wallet: clientTxHash provided = buyer already paid on-chain directly.
-    //      Skip KeeperHub, treat clientTxHash as payment proof, proceed to CDR + LLM.
-    //   B) No wallet (Web2): No clientTxHash. KeeperHub platform payer wallet
-    //      auto-signs the x402 challenge and settles on Base.
+    // ── 4. Execute via KeeperHub ──────────────────────────────────────────────
     const logic = agent.readme || agent.description || '';
     let apiKeys: { name: string; value: string }[] = [];
     let result: Awaited<ReturnType<typeof executeAgent>>;
     let txHash: string | null = clientTxHash || null;
 
-    if (clientTxHash) {
-      // ── Path A: Connected wallet paid directly — txHash is the payment proof ─
-      console.log(`[Run] Direct wallet payment confirmed — txHash: ${clientTxHash}`);
+    const workflowSlug = agent.keeperhubSlug || agent.slug;
+    console.log(`[Run] Executing agent "${agent.name}" via KeeperHub (slug: ${workflowSlug}, txHash: ${clientTxHash || 'none'})...`);
 
-      // Now safe to retrieve CDR keys (payment already settled on-chain)
+    const keeperHubResult = await executeAgentViaKeeperHub(workflowSlug, input, clientTxHash || undefined);
+
+    if (keeperHubResult.txHash || (keeperHubResult.output && !(keeperHubResult.output as any)?.skipped)) {
+      txHash = keeperHubResult.txHash || clientTxHash || null;
+      console.log(`[Run] KeeperHub execution succeeded — txHash: ${txHash}`);
+
+      if (agent.cdrKeysVaultUuid) {
+        try {
+          apiKeys = await retrieveAgentKeys(agent.cdrKeysVaultUuid);
+        } catch (cdrErr: any) {
+          console.error('[Run] CDR key retrieval failed:', cdrErr.message);
+        }
+      }
+
+      result = {
+        output: keeperHubResult.output,
+        model: agent.modelProvider,
+        provider: agent.modelProvider,
+        tokensUsed: 0,
+        estimatedCost: 0,
+        executionTime: 0,
+      } as Awaited<ReturnType<typeof executeAgent>>;
+    } else {
+      console.log(`[Run] KeeperHub unconfigured or skipped — executing agent via primary LLM provider...`);
       if (agent.cdrKeysVaultUuid) {
         try {
           apiKeys = await retrieveAgentKeys(agent.cdrKeysVaultUuid);
@@ -97,51 +114,6 @@ export async function POST(req: NextRequest) {
         apiEndpoint: agent.apiEndpoint || undefined,
         input,
       });
-    } else {
-      // ── Path B: KeeperHub platform payer wallet handles x402 payment ──────────
-      const workflowSlug = agent.keeperhubSlug || agent.slug;
-      const keeperHubResult = await executeAgentViaKeeperHub(workflowSlug, input, null);
-
-      if (keeperHubResult.txHash || keeperHubResult.output?.skipped !== true) {
-        // Payment confirmed by KeeperHub — now retrieve CDR keys
-        txHash = keeperHubResult.txHash || null;
-        console.log(`[Run] KeeperHub payment confirmed — txHash: ${txHash}`);
-
-        if (agent.cdrKeysVaultUuid) {
-          try {
-            apiKeys = await retrieveAgentKeys(agent.cdrKeysVaultUuid);
-          } catch (cdrErr: any) {
-            console.error('[Run] CDR key retrieval failed:', cdrErr.message);
-          }
-        }
-
-        result = {
-          output: keeperHubResult.output,
-          model: agent.modelProvider,
-          provider: agent.modelProvider,
-          tokensUsed: 0,
-          estimatedCost: 0,
-          executionTime: 0,
-        } as Awaited<ReturnType<typeof executeAgent>>;
-      } else {
-        // Fallback: KeeperHub unconfigured/skipped — execute directly
-        if (agent.cdrKeysVaultUuid) {
-          try {
-            apiKeys = await retrieveAgentKeys(agent.cdrKeysVaultUuid);
-          } catch (cdrErr: any) {
-            console.error('[Run] CDR key retrieval failed:', cdrErr.message);
-          }
-        }
-
-        result = await executeAgent({
-          logic,
-          apiKeys: apiKeys || [],
-          modelProvider: agent.modelProvider,
-          modelName: agent.modelName || undefined,
-          apiEndpoint: agent.apiEndpoint || undefined,
-          input,
-        });
-      }
     }
 
     // ── 5. Record Run + Buyer & Treasury Transactions ────────────────────────
