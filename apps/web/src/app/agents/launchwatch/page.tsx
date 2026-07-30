@@ -505,7 +505,7 @@ export default function LaunchWatchPage() {
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-48 bg-orange-500 hover:bg-orange-600 text-white shadow-md"
+                  className="w-full sm:w-auto px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white shadow-md font-semibold text-sm rounded-xl transition-all"
                 >
                   {isLoading ? (
                     <>
