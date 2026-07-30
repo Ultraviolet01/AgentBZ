@@ -33,6 +33,14 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 
+export function isKeeperHubConfigured(): boolean {
+  return Boolean(KEEPERHUB_BASE_URL && KEEPERHUB_API_KEY);
+}
+
+export function keeperhubUrl(path: string): string {
+  return `${KEEPERHUB_BASE_URL}/${path.replace(/^\//, '')}`;
+}
+
 import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
 import { BASE_USDC_ADDRESS, TREASURY_WALLET_ADDRESS } from './x402-client';
