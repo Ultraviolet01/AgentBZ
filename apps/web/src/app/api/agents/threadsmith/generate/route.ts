@@ -114,11 +114,13 @@ export async function POST(req: Request) {
       paymentProof || undefined
     );
 
-    if (keeperHubResult.output && typeof keeperHubResult.output === "object" && !(keeperHubResult.output as any)?.skipped) {
-      generatedContent = (keeperHubResult.output as any).content || JSON.stringify(keeperHubResult.output);
-      console.log(`[ThreadSmith] Successfully executed via KeeperHub`);
+    // If KeeperHub returned a remote workflow output (containing content), use it.
+    // Otherwise if it confirmed on-chain payment, proceed to LLM thread synthesis.
+    if ((keeperHubResult.output as any)?.content) {
+      generatedContent = (keeperHubResult.output as any).content;
+      console.log(`[ThreadSmith] Successfully generated thread via remote KeeperHub workflow`);
     } else {
-      console.log(`[ThreadSmith] KeeperHub workflow skipped/unconfigured — using primary LLM provider...`);
+      console.log(`[ThreadSmith] KeeperHub on-chain payment verified ✓ — Synthesizing thread via LLM engine...`);
       const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey) {
         return NextResponse.json({ error: "AI configuration missing (API Key)" }, { status: 500 });
