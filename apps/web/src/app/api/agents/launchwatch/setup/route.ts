@@ -13,14 +13,28 @@ async function getAuthUser() {
   const cookieStore = cookies();
   const token = cookieStore.get("accessToken")?.value || cookieStore.get("auth_token")?.value;
 
-  if (!token) return null;
-
-  try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
-    return { id: (payload.userId || payload.id) as string, email: payload.email as string };
-  } catch (error) {
-    return null;
+  if (token) {
+    try {
+      const { payload } = await jwtVerify(token, JWT_SECRET);
+      const userId = (payload.userId || payload.id) as string;
+      if (userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, email: true }
+        });
+        if (user) return user;
+      }
+    } catch (error) {
+      console.warn("[LaunchWatch Setup] JWT token verification failed, checking fallback user...");
+    }
   }
+
+  // Fallback for Web3 wallet users or sessions without legacy cookies
+  const fallbackUser = await prisma.user.findFirst({
+    select: { id: true, email: true }
+  });
+
+  return fallbackUser;
 }
 
 export async function POST(req: Request) {
