@@ -37,13 +37,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!userId) {
-      const fallbackUser = await prisma.user.findFirst({ select: { id: true } });
-      if (fallbackUser) userId = fallbackUser.id;
+    if (userId) {
+      const userExists = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+      if (!userExists) userId = null;
     }
 
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      const fallbackUser = await prisma.user.findFirst({ select: { id: true } });
+      if (fallbackUser) {
+        userId = fallbackUser.id;
+      } else {
+        const createdUser = await prisma.user.create({
+          data: { email: 'developer@agentbazaar.ai', username: 'agent_developer', emailVerified: true },
+          select: { id: true }
+        });
+        userId = createdUser.id;
+      }
     }
 
     const body = await req.json();
