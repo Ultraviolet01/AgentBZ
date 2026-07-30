@@ -325,7 +325,7 @@ export default function DeployAgentPage() {
         <Info className="w-4 h-4 text-blue-600" />
         <AlertDescription className="text-sm text-blue-900">
           <strong>Revenue Share:</strong> You earn 90% of all revenue from your agent. 
-          AgentBazaar takes 10% platform fee. Payouts in OG tokens monthly.
+          AgentBazaar takes 10% platform fee. Payouts in USDC monthly.
         </AlertDescription>
       </Alert>
 
@@ -610,31 +610,31 @@ X-AgentBazaar-Run-Id: <run-uuid>
             <div className="grid grid-cols-2 gap-6">
               <div>
                 <Label htmlFor="pricePerRun" className="text-sm font-medium text-gray-800">
-                  Price Per Run (CRD) *
+                  Price Per Run ($ USDC) *
                 </Label>
                 <Input
                   id="pricePerRun"
                   type="number"
-                  step="0.1"
-                  min="0.1"
-                  placeholder="1.0"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="0.10"
                   value={formData.pricePerRun}
                   onChange={(e) => handleInputChange('pricePerRun', e.target.value)}
                   className="mt-1"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  You earn: {formData.pricePerRun ? (parseFloat(formData.pricePerRun) * 0.9).toFixed(2) : '0.00'} CRD
+                  You earn: ${formData.pricePerRun ? (parseFloat(formData.pricePerRun) * 0.9).toFixed(2) : '0.00'} USDC
                 </p>
               </div>
               
               <div>
                 <Label htmlFor="setupFee" className="text-sm font-medium text-gray-800">
-                  Setup Fee (CRD)
+                  Setup Fee ($ USDC)
                 </Label>
                 <Input
                   id="setupFee"
                   type="number"
-                  step="1"
+                  step="0.01"
                   min="0"
                   placeholder="0"
                   value={formData.setupFee}
@@ -1026,7 +1026,7 @@ X-AgentBazaar-Run-Id: <run-uuid>
                     {CATEGORIES.find(c => c.value === formData.category)?.label || 'Category'}
                   </span>
                   <span className="text-orange-600 font-bold">
-                    {formData.pricePerRun || '0'} CRD per run
+                    ${formData.pricePerRun || '0'} USDC per run
                   </span>
                 </div>
               </div>
@@ -1051,13 +1051,13 @@ X-AgentBazaar-Run-Id: <run-uuid>
             
             <div className="flex justify-between py-2 border-b border-gray-200">
               <span className="text-gray-700">Price Per Run</span>
-              <span className="font-medium text-gray-900">{formData.pricePerRun} CRD</span>
+              <span className="font-medium text-gray-900">${formData.pricePerRun} USDC</span>
             </div>
             
             <div className="flex justify-between py-2 border-b border-gray-200">
               <span className="text-gray-700">Your Earnings (90%)</span>
               <span className="font-bold text-green-600">
-                {formData.pricePerRun ? (parseFloat(formData.pricePerRun) * 0.9).toFixed(2) : '0.00'} CRD
+                ${formData.pricePerRun ? (parseFloat(formData.pricePerRun) * 0.9).toFixed(2) : '0.00'} USDC
               </span>
             </div>
             
