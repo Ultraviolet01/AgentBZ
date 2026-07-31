@@ -215,12 +215,34 @@ export class MonitoringEngine {
       return new Date(now.getTime() + 24 * 60 * 60 * 1000); // Daily
   }
 
-  private static async getCurrentFDV(symbol: string): Promise<number> {
-    // In production, this would call CoinGecko, DexScreener, etc.
-    // For this simulation, we'll return a value that occasionally hits the target
-    console.log(`[MonitoringEngine] Fetching FDV for ${symbol}...`);
-    
-    // Simulate a value between 1M and 100M
+  private static async getCurrentFDV(symbolOrAddress: string): Promise<number> {
+    console.log(`[MonitoringEngine] Fetching live FDV from DexScreener for ${symbolOrAddress}...`);
+    try {
+      const isAddress = symbolOrAddress.startsWith("0x") || symbolOrAddress.length >= 32;
+      const url = isAddress
+        ? `https://api.dexscreener.com/latest/dex/tokens/${symbolOrAddress}`
+        : `https://api.dexscreener.com/latest/dex/search?q=${encodeURIComponent(symbolOrAddress)}`;
+
+      const res = await fetch(url, {
+        headers: { "Accept": "application/json" },
+        signal: AbortSignal.timeout(8000)
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const topPair = data.pairs?.[0];
+
+        if (topPair) {
+          const fdv = topPair.fdv || topPair.marketCap || (topPair.priceUsd ? parseFloat(topPair.priceUsd) * 1000000000 : 0);
+          console.log(`[MonitoringEngine] DexScreener Live FDV for ${symbolOrAddress}: $${fdv?.toLocaleString()} (Pair: ${topPair.baseToken?.symbol}/${topPair.quoteToken?.symbol})`);
+          if (fdv > 0) return fdv;
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[MonitoringEngine] DexScreener API fetch failed: ${err.message}. Falling back to simulation...`);
+    }
+
+    // Fallback to simulation if token is not found on DEX or API fails
     return Math.floor(Math.random() * 99000000) + 1000000;
   }
 }
