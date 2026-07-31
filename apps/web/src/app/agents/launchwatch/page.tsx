@@ -172,9 +172,6 @@ export default function LaunchWatchPage() {
                   <Badge variant="outline" className="text-xs">Sentiment Analysis</Badge>
                 </div>
               </div>
-              <div className="text-sm font-medium text-gray-500">
-                10 CRD setup + 1 CRD/check
-              </div>
             </div>
           </Card>
 
@@ -201,9 +198,6 @@ export default function LaunchWatchPage() {
                   <Badge variant="outline" className="text-xs">Real-time</Badge>
                 </div>
               </div>
-              <div className="text-sm font-medium text-gray-500">
-                5 CRD setup + 0.5 CRD/check
-              </div>
             </div>
           </Card>
 
@@ -229,9 +223,6 @@ export default function LaunchWatchPage() {
                   <Badge variant="outline" className="text-xs">DeFi Updates</Badge>
                   <Badge variant="outline" className="text-xs">Trending Topics</Badge>
                 </div>
-              </div>
-              <div className="text-sm font-medium text-gray-500">
-                3 CRD/week
               </div>
             </div>
           </Card>
@@ -345,9 +336,9 @@ export default function LaunchWatchPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="hourly">Every Hour (1 CRD/check)</SelectItem>
-                        <SelectItem value="daily">Daily (1 CRD/check)</SelectItem>
-                        <SelectItem value="weekly">Weekly (1 CRD/check)</SelectItem>
+                        <SelectItem value="hourly">Every Hour</SelectItem>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
