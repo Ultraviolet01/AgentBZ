@@ -105,71 +105,64 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* Navigation - show when authenticated OR on onboarding */}
-      {(user || pathname === '/onboarding') && (
-        <nav className="flex-1 px-4 py-4 space-y-4 overflow-y-auto custom-scrollbar">
+      {/* Navigation */}
+      <nav className="flex-1 px-4 py-4 space-y-4 overflow-y-auto custom-scrollbar">
+        <div className="space-y-0.5">
+          <span className="text-[10px] font-bold text-gray-400 uppercase px-3 mb-2 block tracking-[0.2em] opacity-80">
+            Global Console
+          </span>
           <div className="space-y-0.5">
-            <span className="text-[10px] font-bold text-gray-400 uppercase px-3 mb-2 block tracking-[0.2em] opacity-80">
-              Global Console
-            </span>
-            <div className="space-y-0.5">
-                {navItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = pathname === item.href;
-                  
-                  return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={cn(
-                            "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200",
-                            isActive 
-                            ? "bg-orange-50 text-orange-600 font-bold shadow-sm" 
-                            : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-                        )}
-                      >
-                        <Icon className={cn("w-4 h-4", isActive ? "text-orange-600" : "text-gray-400")} strokeWidth={isActive ? 2.5 : 2} />
-                        <span className="text-sm tracking-tight">{item.label}</span>
-                      </Link>
-                  );
-                })}
-            </div>
-
-
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                
+                return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                          "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200",
+                          isActive 
+                          ? "bg-orange-50 text-orange-600 font-bold shadow-sm" 
+                          : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                      )}
+                    >
+                      <Icon className={cn("w-4 h-4", isActive ? "text-orange-600" : "text-gray-400")} strokeWidth={isActive ? 2.5 : 2} />
+                      <span className="text-sm tracking-tight">{item.label}</span>
+                    </Link>
+                );
+              })}
           </div>
+        </div>
 
+        <div className="space-y-0.5">
+          <span className="text-[10px] font-bold text-gray-400 uppercase px-3 mb-2 block tracking-[0.2em] opacity-80">
+            Management
+          </span>
           <div className="space-y-0.5">
-            <span className="text-[10px] font-bold text-gray-400 uppercase px-3 mb-2 block tracking-[0.2em] opacity-80">
-              Management
-            </span>
-            <div className="space-y-0.5">
-                {accountItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = pathname === item.href;
-                  
-                  return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={cn(
-                            "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200",
-                            isActive 
-                            ? "bg-orange-50 text-orange-600 font-bold" 
-                            : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-                        )}
-                      >
-                        <Icon className={cn("w-4 h-4", isActive ? "text-orange-600" : "text-gray-400")} strokeWidth={isActive ? 2.5 : 2} />
-                        <span className="text-sm tracking-tight">{item.label}</span>
-                      </Link>
-                  );
-                })}
-            </div>
+              {accountItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                
+                return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                          "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200",
+                          isActive 
+                          ? "bg-orange-50 text-orange-600 font-bold" 
+                          : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                      )}
+                    >
+                      <Icon className={cn("w-4 h-4", isActive ? "text-orange-600" : "text-gray-400")} strokeWidth={isActive ? 2.5 : 2} />
+                      <span className="text-sm tracking-tight">{item.label}</span>
+                    </Link>
+                );
+              })}
           </div>
-        </nav>
-      )}
-
-      {/* Spacer for guest view to maintain logo and status positioning */}
-      {!user && <div className="flex-1" />}
+        </div>
+      </nav>
 
       {/* Bottom - User Profile / Auth Toggle */}
       <div className="p-4 border-t border-gray-200 mt-auto">
