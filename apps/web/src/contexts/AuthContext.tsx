@@ -34,10 +34,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!currentUser) setLoading(true);
     try {
       const response = await api.get('/auth/me');
-      setAuth(response.data.user);
-    } catch (error) {
+      if (response.data?.user) {
+        setAuth(response.data.user);
+      }
+    } catch (error: any) {
       console.error('Auth check failed:', error);
-      setAuth(null);
+      if (error?.response?.status === 401 && !currentUser) {
+        setAuth(null);
+      }
     } finally {
       setLoading(false);
     }
