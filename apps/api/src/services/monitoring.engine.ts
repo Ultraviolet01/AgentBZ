@@ -1,6 +1,8 @@
 import { PrismaClient, AlertSeverity } from "@agentbazaar/database";
 import * as EmailService from "./email.service";
-import { SimulatedSocialService } from "./social.service";
+import { SocialService } from "./social.service";
+import { NewsService } from "./news.service";
+import crypto from "crypto";
 
 const prisma = new PrismaClient();
 
@@ -54,35 +56,62 @@ export class MonitoringEngine {
       const alerts = [];
       const enabledAlerts = config.alertTypes as any;
       let socialSnapshot = null;
-      let websiteSnapshot = { status: "ONLINE", latency: "42ms" };
+      let websiteSnapshot: { status: string; latency: string; checksum?: string } = { status: "ONLINE", latency: "N/A" };
 
+      // ── A. Social Activity & Sentiment Check (Live CoinGecko Pulse) ─────────
       if (enabledAlerts?.social_activity) {
-        socialSnapshot = await SimulatedSocialService.getProjectActivity(config.project.twitterHandle || config.project.name);
+        socialSnapshot = await SocialService.getProjectActivity(config.project.twitterHandle || config.project.name);
         if (socialSnapshot.metrics.isSpike) {
           alerts.push({
             type: "SOCIAL_SPIKE",
             severity: AlertSeverity.HIGH,
-            message: `Detected activity spike for @${socialSnapshot.handle}. Metric factor: ${socialSnapshot.metrics.spikeFactor}x.`,
+            message: `Detected activity spike for @${socialSnapshot.handle}. Metric factor: ${socialSnapshot.metrics.spikeFactor}x${socialSnapshot.metrics.isTrending ? ` · Ranked #${socialSnapshot.metrics.rank} Trending` : ''}.`,
             metadata: socialSnapshot.metrics
           });
         }
       }
 
-      if (enabledAlerts?.website_changes) {
-        const hasChanges = Math.random() > 0.95;
-        if (hasChanges) {
-          websiteSnapshot.status = "MODIFIED";
+      // ── B. Live Website Uptime & Checksum Check ────────────────────────────
+      if (enabledAlerts?.website_changes && config.project.websiteUrl) {
+        try {
+          const startTime = Date.now();
+          const targetUrl = config.project.websiteUrl.startsWith('http') ? config.project.websiteUrl : `https://${config.project.websiteUrl}`;
+          const webRes = await fetch(targetUrl, {
+            headers: { 'User-Agent': 'AgentBazaar-LaunchWatch/1.0' },
+            signal: AbortSignal.timeout(5000)
+          });
+
+          const latency = `${Date.now() - startTime}ms`;
+          const htmlText = await webRes.text();
+          const checksum = crypto.createHash('sha256').update(htmlText).digest('hex').substring(0, 16);
+
+          websiteSnapshot = {
+            status: webRes.ok ? "ONLINE" : `HTTP_${webRes.status}`,
+            latency,
+            checksum
+          };
+
+          if (!webRes.ok) {
+            alerts.push({
+              type: "WEBSITE_CHANGE",
+              severity: AlertSeverity.CRITICAL,
+              message: `Website status alert on ${targetUrl}: HTTP ${webRes.status} returned. Latency: ${latency}.`,
+              metadata: websiteSnapshot
+            });
+          }
+        } catch (webErr: any) {
+          websiteSnapshot = { status: "UNREACHABLE", latency: "TIMEOUT" };
           alerts.push({
             type: "WEBSITE_CHANGE",
             severity: AlertSeverity.CRITICAL,
-            message: `Technical anomaly detected on ${config.project.websiteUrl}. Content checksum mismatch.`,
-            metadata: { detectedAt: new Date().toISOString() }
+            message: `Technical anomaly detected on ${config.project.websiteUrl}. Site unreachable (${webErr.message}).`,
+            metadata: { error: webErr.message, detectedAt: new Date().toISOString() }
           });
         }
       }
 
+      // ── C. Token Milestone Pump Alert (Live DexScreener API) ───────────────
       if (enabledAlerts?.token_milestone) {
-        // Milestone Tracking Logic
         const tokenSymbol = config.project.tokenAddress || config.project.name;
         const currentFDV = await this.getCurrentFDV(tokenSymbol);
         const targetFDV = (enabledAlerts as any).targetFDV;
@@ -97,15 +126,18 @@ export class MonitoringEngine {
         }
       }
 
+      // ── D. Crypto News Digest (Live RSS News Service) ──────────────────────
       if (enabledAlerts?.crypto_news) {
-        // Intelligence News Logic
-        const hasNews = Math.random() > 0.8;
-        if (hasNews) {
+        const selectedTopic = (enabledAlerts.newsTopics?.[0]) || config.project.name;
+        const articles = await NewsService.getLatestNews(selectedTopic);
+
+        if (articles.length > 0) {
+          const latest = articles[0];
           alerts.push({
             type: "INTELLIGENCE_UPDATE",
             severity: AlertSeverity.MEDIUM,
-            message: `New market intelligence detected for ${config.project.name}. Potential ecosystem expansion identified.`,
-            metadata: { source: "SimulatedNewsService", relevance: 0.92 }
+            message: `[${latest.source}] ${latest.title} — ${latest.description}`,
+            metadata: { newsUrl: latest.link, source: latest.source, pubDate: latest.pubDate }
           });
         }
       }
