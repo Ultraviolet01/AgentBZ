@@ -60,7 +60,9 @@ export async function POST(req: Request) {
     } else {
       console.log(`[LaunchWatch] No txHash provided — delegating payment to KeeperHub platform wallet...`);
       try {
-        const keeperResult = await executeAgentViaKeeperHub("launchwatch", { monitoringType, ...formData });
+        // "target" maps to {{ trigger.target }} in the KeeperHub email template
+        const target = formData.tokenSymbol || formData.projectUrl || monitoringType;
+        const keeperResult = await executeAgentViaKeeperHub("launchwatch", { target, monitoringType, ...formData });
         verifiedTxHash = keeperResult.txHash;
       } catch (khErr: any) {
         // KeeperHub failed (slug not registered yet or misconfigured).

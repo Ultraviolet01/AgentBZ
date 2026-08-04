@@ -111,7 +111,9 @@ export async function POST(req: Request) {
     try {
       const keeperHubResult = await executeAgentViaKeeperHub(
         "threadsmith",
-        { contentType, tone, quality, input, context },
+        // Keys map to {{ trigger.<key> }} in the KeeperHub email template.
+        // "input" is reserved/unresolvable — use "topic" instead.
+        { topic: input, contentType, tone, quality, txHash: paymentProof },
         paymentProof || undefined
       );
       const execId = (keeperHubResult.output as any)?.executionId;
