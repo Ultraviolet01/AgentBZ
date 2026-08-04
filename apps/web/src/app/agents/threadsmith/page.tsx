@@ -86,48 +86,55 @@ export default function ThreadSmithPage() {
 
     let txHash: string | null = null;
 
-    // ── Payment Gate ────────────────────────────────────────────────────────
-    // If a wallet is connected, prompt the user to sign a $0.10 USDC transfer.
-    // We wait for the tx to be MINED (receipt.status === 'success') before
-    // proceeding — broadcast alone is not enough, a reverted tx returns no deduction.
-    if (isConnected && sendTransactionAsync && publicClient) {
-      setIsPaying(true);
-      try {
-        toast.info("Confirm $0.10 USDC payment in your wallet…", { duration: 15000 });
-        const broadcastHash = await payAgentFeeFromWallet(sendTransactionAsync as any);
+    // ── Web3 Payment Gate ───────────────────────────────────────────────────
+    if (!isConnected) {
+      return toast.error("Web3 Wallet Required", {
+        description: "AgentBazaar is 100% Web3-native. Please connect your Web3 wallet to pay the $0.10 USDC fee on Base.",
+      });
+    }
 
-        // Wait for on-chain confirmation (mined block)
-        toast.info("Confirming payment on Base…", { duration: 30000 });
-        const receipt = await publicClient.waitForTransactionReceipt({
-          hash: broadcastHash as `0x${string}`,
-          confirmations: 1,
-          timeout: 60_000,
-        });
+    if (!sendTransactionAsync || !publicClient) {
+      return toast.error("Wallet Not Ready", {
+        description: "Please check your wallet connection.",
+      });
+    }
 
-        if (receipt.status !== 'success') {
-          setIsPaying(false);
-          return toast.error("Payment reverted on-chain", {
-            description: "Your transaction was broadcast but reverted. Check your USDC balance on Base.",
-          });
-        }
+    setIsPaying(true);
+    try {
+      toast.info("Confirm $0.10 USDC payment in your wallet…", { duration: 15000 });
+      const broadcastHash = await payAgentFeeFromWallet(sendTransactionAsync as any);
 
-        txHash = broadcastHash;
-        setLastTxHash(txHash);
-        toast.success("Payment confirmed on-chain ✓", {
-          description: `txHash: ${txHash.slice(0, 10)}…${txHash.slice(-6)}`,
-        });
-      } catch (payErr: any) {
+      // Wait for on-chain confirmation (mined block)
+      toast.info("Confirming payment on Base…", { duration: 30000 });
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: broadcastHash as `0x${string}`,
+        confirmations: 1,
+        timeout: 60_000,
+      });
+
+      if (receipt.status !== 'success') {
         setIsPaying(false);
-        if (payErr?.message?.includes("User rejected") || payErr?.message?.includes("denied")) {
-          return toast.error("Payment cancelled", { description: "You rejected the transaction in your wallet." });
-        }
-        if (payErr?.message?.includes("Timed out")) {
-          return toast.error("Payment timed out", { description: "Transaction was not confirmed within 60s. Check your wallet." });
-        }
-        return toast.error("Payment failed", { description: payErr.message });
-      } finally {
-        setIsPaying(false);
+        return toast.error("Payment reverted on-chain", {
+          description: "Your transaction was broadcast but reverted. Check your USDC balance on Base.",
+        });
       }
+
+      txHash = broadcastHash;
+      setLastTxHash(txHash);
+      toast.success("Payment confirmed on-chain ✓", {
+        description: `txHash: ${txHash.slice(0, 10)}…${txHash.slice(-6)}`,
+      });
+    } catch (payErr: any) {
+      setIsPaying(false);
+      if (payErr?.message?.includes("User rejected") || payErr?.message?.includes("denied")) {
+        return toast.error("Payment cancelled", { description: "You rejected the transaction in your wallet." });
+      }
+      if (payErr?.message?.includes("Timed out")) {
+        return toast.error("Payment timed out", { description: "Transaction was not confirmed within 60s. Check your wallet." });
+      }
+      return toast.error("Payment failed", { description: payErr.message });
+    } finally {
+      setIsPaying(false);
     }
 
     // ── Execute ─────────────────────────────────────────────────────────────

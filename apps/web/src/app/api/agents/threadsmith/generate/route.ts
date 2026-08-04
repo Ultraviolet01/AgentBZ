@@ -65,22 +65,19 @@ async function callAnthropic(apiKey: string, model: string, systemPrompt: string
 export async function POST(req: Request) {
   const authUser = await getAuthUser();
   if (!authUser) {
-    return NextResponse.json({ 
-      error: "Unauthorized", 
-      debug: { 
+    return NextResponse.json({
+      error: "Unauthorized",
+      debug: {
         hasToken: !!cookies().get("auth_token"),
-        hasSecret: !!process.env.JWT_SECRET 
-      } 
+        hasSecret: !!process.env.JWT_SECRET
+      }
     }, { status: 401 });
   }
 
   try {
     const { projectId, contentType, tone, quality, useMemory, input, txHash } = await req.json();
 
-    // ── Payment gate ──────────────────────────────────────────────────────────
-    // If a connected wallet signed a $0.10 USDC transfer, txHash will be present.
-    // We accept it as the on-chain payment proof. KeeperHub handles the platform
-    // payer-wallet path for Web2 users (no wallet connected).
+    // ── Payment gate ────────────────────────────────────────────────────────
     const paymentProof = txHash || null;
     if (paymentProof) {
       console.log(`[ThreadSmith] On-chain payment received — txHash: ${paymentProof}`);
@@ -104,26 +101,40 @@ export async function POST(req: Request) {
       context += "\n\nProject History:\n" + memories.map((m: any) => `${m.memoryType}: ${JSON.stringify(m.content)}`).join("\n");
     }
 
-    // 3. Execution via KeeperHub
+    // 3. Attempt KeeperHub remote workflow execution.
+    //    KeeperHub logs the run on the dashboard and triggers the email node.
+    //    It returns { executionId, status } — NOT content. The local LLM always
+    //    generates the thread. KeeperHub is purely for audit-logging + email.
     let generatedContent = "";
-    console.log(`[ThreadSmith] Dispatching run to KeeperHub (slug: "threadsmith", txHash: ${paymentProof || 'none'})...`);
+    console.log(`[ThreadSmith] Attempting KeeperHub dispatch (slug: "threadsmith", txHash: ${paymentProof || 'none'})...`);
 
-    const keeperHubResult = await executeAgentViaKeeperHub(
-      "threadsmith",
-      { contentType, tone, quality, input, context },
-      paymentProof || undefined
-    );
+    try {
+      const keeperHubResult = await executeAgentViaKeeperHub(
+        "threadsmith",
+        // Keys map to {{ trigger.<key> }} in the KeeperHub email template.
+        // "input" is reserved/unresolvable — use "topic" instead.
+        { topic: input, contentType, tone, quality, txHash: paymentProof },
+        paymentProof || undefined
+      );
+      const execId = (keeperHubResult.output as any)?.executionId;
+      const skipped = (keeperHubResult.output as any)?.skipped;
+      if (skipped) {
+        console.log(`[ThreadSmith] KeeperHub skipped (not configured) — continuing to LLM engine`);
+      } else {
+        console.log(`[ThreadSmith] KeeperHub dispatched ✓ executionId: ${execId} — continuing to LLM engine for content`);
+      }
+    } catch (khErr: any) {
+      // KeeperHub failed (wrong ID, network error, etc.).
+      // Log clearly but NEVER surface this to the user — they've already paid.
+      console.warn(`[ThreadSmith] KeeperHub dispatch failed: ${khErr.message} — continuing to LLM engine`);
+    }
 
-    // If KeeperHub returned a remote workflow output (containing content), use it.
-    // Otherwise if it confirmed on-chain payment, proceed to LLM thread synthesis.
-    if ((keeperHubResult.output as any)?.content) {
-      generatedContent = (keeperHubResult.output as any).content;
-      console.log(`[ThreadSmith] Successfully generated thread via remote KeeperHub workflow`);
-    } else {
-      console.log(`[ThreadSmith] KeeperHub on-chain payment verified ✓ — Synthesizing thread via LLM engine...`);
+    // 4. Local LLM execution (fallback or primary when KeeperHub skipped/failed)
+    if (!generatedContent) {
+      console.log(`[ThreadSmith] Synthesizing thread via local LLM engine...`);
       const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey) {
-        return NextResponse.json({ error: "AI configuration missing (API Key)" }, { status: 500 });
+        return NextResponse.json({ error: "AI configuration missing (ANTHROPIC_API_KEY not set)" }, { status: 500 });
       }
 
       const trimmedKey = apiKey.trim();
@@ -154,7 +165,7 @@ export async function POST(req: Request) {
       }
 
       if (!generatedContent && lastError) {
-        return NextResponse.json({ 
+        return NextResponse.json({
           error: `AI Engine Exhausted: ${lastError.message}`,
           debug: {
             keyPrefix: `${trimmedKey.substring(0, 15)}...`,
@@ -171,10 +182,11 @@ export async function POST(req: Request) {
       throw new Error("Empty response from AI engine");
     }
 
-    // 4. Persistence
-    let run;
+    // 5. Persistence — safe: run may be undefined if DB write fails, we still
+    //    return content so the user doesn't lose their paid result.
+    let runId: string | undefined;
     try {
-      run = await prisma.agentRun.create({
+      const run = await prisma.agentRun.create({
         data: {
           userId: authUser.id,
           projectId: projectId || null,
@@ -188,30 +200,32 @@ export async function POST(req: Request) {
           status: "COMPLETED"
         }
       });
+      runId = run.id;
     } catch (dbError) {
-      console.error("Failed to persist agent run", dbError);
-      return NextResponse.json({ 
-        content: generatedContent, 
-        warning: "Persistence failed" 
-      });
+      console.error("Failed to persist agent run:", dbError);
+      // Don't return an error — user still gets their content
     }
 
     // 6. Project Memory
     if (projectId) {
-      await prisma.projectMemory.create({
-        data: {
-          projectId,
-          sourceAgent: "THREADSMITH",
-          memoryType: "CONTENT_GENERATION",
-          content: { contentType, tone, excerpt: generatedContent.substring(0, 200) },
-          storageCid: ""
-        }
-      });
+      try {
+        await prisma.projectMemory.create({
+          data: {
+            projectId,
+            sourceAgent: "THREADSMITH",
+            memoryType: "CONTENT_GENERATION",
+            content: { contentType, tone, excerpt: generatedContent.substring(0, 200) },
+            storageCid: ""
+          }
+        });
+      } catch (memErr) {
+        console.error("Failed to write project memory:", memErr);
+      }
     }
 
     return NextResponse.json({
       content: generatedContent,
-      runId: run.id,
+      runId,               // may be undefined if DB failed — frontend handles gracefully
       txHash: paymentProof,
     });
 

@@ -59,8 +59,16 @@ export async function POST(req: Request) {
       console.log(`[LaunchWatch] Payment verified on Base Mainnet (Block #${verification.blockNumber}) ✓`);
     } else {
       console.log(`[LaunchWatch] No txHash provided — delegating payment to KeeperHub platform wallet...`);
-      const keeperResult = await executeAgentViaKeeperHub("launchwatch-setup", { monitoringType, ...formData });
-      verifiedTxHash = keeperResult.txHash;
+      try {
+        // "target" maps to {{ trigger.target }} in the KeeperHub email template
+        const target = formData.tokenSymbol || formData.projectUrl || monitoringType;
+        const keeperResult = await executeAgentViaKeeperHub("launchwatch", { target, monitoringType, ...formData });
+        verifiedTxHash = keeperResult.txHash;
+      } catch (khErr: any) {
+        // KeeperHub failed (slug not registered yet or misconfigured).
+        // Log and continue — setup should always succeed so users aren't blocked.
+        console.warn(`[LaunchWatch] KeeperHub dispatch failed: ${khErr.message} — continuing with setup`);
+      }
     }
 
     // 1. Resolve Project

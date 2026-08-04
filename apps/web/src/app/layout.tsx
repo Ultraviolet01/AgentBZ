@@ -24,9 +24,9 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProvider>
           <Web3Provider>
-            <div className="flex flex-col lg:flex-row h-screen bg-gray-50 overflow-hidden">
+            <div className="flex flex-col lg:flex-row h-screen overflow-hidden bg-gray-50">
               <Sidebar />
-              <main className="flex-1 overflow-y-auto bg-gray-50 custom-scrollbar px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+              <main className="flex-1 overflow-y-auto custom-scrollbar">
                 {children}
               </main>
             </div>

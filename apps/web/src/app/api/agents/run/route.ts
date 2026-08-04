@@ -76,9 +76,14 @@ export async function POST(req: NextRequest) {
 
     const keeperHubResult = await executeAgentViaKeeperHub(workflowSlug, input, clientTxHash || undefined);
 
-    if (keeperHubResult.txHash || (keeperHubResult.output && !(keeperHubResult.output as any)?.skipped)) {
-      txHash = keeperHubResult.txHash || clientTxHash || null;
-      console.log(`[Run] KeeperHub execution succeeded — txHash: ${txHash}`);
+    // A real KeeperHub run always returns a txHash from the x402 payment layer.
+    // If txHash is null the API key was missing or the call failed — fall through
+    // to the direct LLM path so the user still gets a result.
+    const keeperhubSucceeded = !!keeperHubResult.txHash;
+
+    if (keeperhubSucceeded) {
+      txHash = keeperHubResult.txHash;
+      console.log(`[Run] KeeperHub execution succeeded (metered via x402) — txHash: ${txHash}`);
 
       if (agent.cdrKeysVaultUuid) {
         try {
@@ -97,7 +102,7 @@ export async function POST(req: NextRequest) {
         executionTime: 0,
       } as Awaited<ReturnType<typeof executeAgent>>;
     } else {
-      console.log(`[Run] KeeperHub unconfigured or skipped — executing agent via primary LLM provider...`);
+      console.log(`[Run] KeeperHub did not return a txHash (skipped/misconfigured) — falling back to direct LLM provider...`);
       if (agent.cdrKeysVaultUuid) {
         try {
           apiKeys = await retrieveAgentKeys(agent.cdrKeysVaultUuid);

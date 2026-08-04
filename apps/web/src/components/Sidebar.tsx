@@ -34,9 +34,27 @@ export default function Sidebar() {
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
-  // Hide sidebar on auth pages but show on onboarding
-  const isAuthPage = pathname === '/login' || pathname === '/register';
-  if (isAuthPage) return null;
+  // Pages that never show the sidebar regardless of auth state
+  const noSidebarPages = [
+    '/login',
+    '/register',
+    '/forgot-password',
+    '/reset-password',
+    '/verify-email',
+  ];
+  const isNoSidebarPage = noSidebarPages.some((p) => pathname.startsWith(p));
+  if (isNoSidebarPage) return null;
+
+  // Root path ("/") — sidebar only when user is authenticated and onboarded.
+  // Unauthenticated visitors see the landing page which has its own nav.
+  const isLandingPage = pathname === '/';
+  if (isLandingPage && !user) return null;
+
+  // While auth is still resolving, don't flash the sidebar
+  if (isLoading) return null;
+
+  // For all other app pages, require authentication
+  if (!user) return null;
 
   const navItems = [
     { 
@@ -236,11 +254,13 @@ export default function Sidebar() {
 
       {/* Desktop & Mobile Sidebar */}
       <aside className={cn(
-        "bg-white border-r border-gray-200 flex flex-col h-screen z-50 transition-all duration-300 ease-in-out shadow-[1px_0_10px_rgba(0,0,0,0.02)]",
-        "lg:relative lg:w-64 lg:translate-x-0",
-        isMobileMenuOpen 
-          ? "fixed inset-y-0 left-0 translate-x-0 w-64 shadow-2xl" 
-          : "fixed inset-y-0 left-0 -translate-x-full lg:translate-x-0"
+        "bg-white border-r border-gray-200 flex flex-col z-50 transition-all duration-300 ease-in-out shadow-[1px_0_10px_rgba(0,0,0,0.02)]",
+        // Desktop: sticky column that fills the viewport height
+        "lg:relative lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:translate-x-0 lg:flex-shrink-0",
+        // Mobile: slide-in drawer
+        isMobileMenuOpen
+          ? "fixed inset-y-0 left-0 translate-x-0 w-64 shadow-2xl h-screen"
+          : "fixed inset-y-0 left-0 -translate-x-full h-screen"
       )}>
         {sidebarContent}
       </aside>

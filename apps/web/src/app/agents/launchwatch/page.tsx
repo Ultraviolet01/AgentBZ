@@ -71,18 +71,20 @@ export default function LaunchWatchPage() {
     let clientTxHash: string | undefined = undefined;
 
     try {
-      if (isConnected) {
-        setPaymentStatus('broadcasting');
-        const hash = await payAgentFeeFromWallet(sendTransactionAsync, 0.1);
-        clientTxHash = hash;
-        setLastTxHash(hash);
+      if (!isConnected) {
+        alert("Web3 Wallet Required: Please connect your Web3 wallet to activate 24/7 monitoring on Base.");
+        setIsLoading(false);
+        return;
+      }
 
-        setPaymentStatus('mined');
-        if (publicClient) {
-          await publicClient.waitForTransactionReceipt({ hash: hash as `0x${string}` });
-        }
-      } else {
-        setPaymentStatus('verifying');
+      setPaymentStatus('broadcasting');
+      const hash = await payAgentFeeFromWallet(sendTransactionAsync, 0.1);
+      clientTxHash = hash;
+      setLastTxHash(hash);
+
+      setPaymentStatus('mined');
+      if (publicClient) {
+        await publicClient.waitForTransactionReceipt({ hash: hash as `0x${string}` });
       }
 
       const response = await fetch('/api/agents/launchwatch/setup', {
