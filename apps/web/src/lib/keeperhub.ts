@@ -13,7 +13,7 @@
  * Docs: https://docs.keeperhub.com/ai-tools/agentic-wallet
  */
 
-import { wrapFetchWithPaymentFromConfig } from '@x402/fetch';
+// x402/fetch removed — users pay directly via Web3 wallet; plain fetch used for KeeperHub API calls
 
 // Guard: secrets must only be read server-side. Do NOT import this module
 // directly into 'use client' components — use only isKeeperHubConfigured().
@@ -92,24 +92,15 @@ export async function verifyKeeperHubPayment(txHash: string): Promise<{ valid: b
   return { valid: false, error: lastError };
 }
 
-// ─── x402-wrapped fetch ───────────────────────────────────────────────────────
-// Uses @x402/fetch to intercept HTTP 402 challenges and auto-pay via Base USDC.
-// The payment config is sourced from KEEPERHUB_API_KEY (platform wallet).
+// ─── Plain fetch helper ───────────────────────────────────────────────────────
+// Users pay directly via their Web3 wallet (txHash verified on-chain).
+// No x402 payment interception needed — plain Bearer auth is sufficient
+// for KeeperHub Free plan API calls to log and meter workflow runs.
 
-function getPayingFetch() {
-  if (!KEEPERHUB_API_KEY) {
-    // No payment config — return plain fetch (will fail on paid endpoints)
-    return fetch;
-  }
-
-  // wrapFetchWithPaymentFromConfig intercepts HTTP 402 challenges and
-  // auto-pays via KeeperHub's Turnkey proxy using Base USDC.
-  return wrapFetchWithPaymentFromConfig(fetch, {
-    apiKey: KEEPERHUB_API_KEY,
-    baseUrl: KEEPERHUB_BASE_URL,
-    // Payer wallet managed via KeeperHub Turnkey — holds USDC on Base
-    payerWallet: process.env.KEEPERHUB_PAYER_WALLET || '0x0FE372d039d14D60486A7f78c59BB6360B7d7530',
-  } as any);
+function getKeeperHubFetch() {
+  // Always return plain fetch — x402 is a Pro plan feature and causes
+  // 'Cannot read properties of undefined (reading forEach)' on Free plan.
+  return fetch;
 }
 
 // ─── Register Agent Workflow ──────────────────────────────────────────────────
@@ -228,12 +219,11 @@ export async function executeAgentViaKeeperHub(
     console.log(`[KeeperHub] Payment VERIFIED on Base Mainnet (Block #${verification.blockNumber}) ✓`);
   }
 
-  // ── 3. Remote Workflow Execution via x402-wrapped fetch ────────────────────
-  // ALWAYS use getPayingFetch() so every call is routed through the KeeperHub
-  // x402 payment layer and appears in the KeeperHub dashboard.
-  // When a clientTxHash is provided it is forwarded as a proof header only —
-  // the platform wallet still pays via x402 so the API key usage is metered.
-  const fetchFn = getPayingFetch();
+  // ── 3. Remote Workflow Execution via plain Bearer fetch ───────────────────
+  // Users pay via Web3 wallet (verified above). We call KeeperHub purely to
+  // log the run and trigger the workflow graph (e.g. Send Email node).
+  // x402 wrapper is NOT used — it is a Pro plan feature.
+  const fetchFn = getKeeperHubFetch();
   const url = `${KEEPERHUB_BASE_URL}/api/workflows/${workflowSlug}/run`;
 
   const headers: Record<string, string> = {
@@ -242,7 +232,6 @@ export async function executeAgentViaKeeperHub(
   };
 
   if (clientTxHash) {
-    // Forward buyer's on-chain proof; KeeperHub may honour it to waive x402 charge
     headers['x-payment-tx-hash'] = clientTxHash;
   }
 
@@ -250,7 +239,7 @@ export async function executeAgentViaKeeperHub(
     const response = await fetchFn(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ inputs }),
+      body: JSON.stringify({ inputs, txHash: clientTxHash }),
     });
 
     const responseTxHash = response.headers.get('x-payment-tx-hash') || clientTxHash || null;
