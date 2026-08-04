@@ -115,6 +115,9 @@ function getPayingFetch() {
 // ─── Register Agent Workflow ──────────────────────────────────────────────────
 // Called at deploy time to create a paid workflow listing on KeeperHub.
 // Returns the workflow slug used for subsequent execution calls.
+// IMPORTANT: Throws on failure so callers know the slug is not registered on
+// KeeperHub. Silently returning a local slug means execution calls hit a 404
+// and bypass the payment meter entirely.
 
 export async function registerAgentWorkflow(agent: {
   name: string;
@@ -122,18 +125,21 @@ export async function registerAgentWorkflow(agent: {
   priceUsd: number;
 }): Promise<{ slug: string }> {
   if (!KEEPERHUB_API_KEY) {
-    console.warn('[KeeperHub] KEEPERHUB_API_KEY not set — skipping workflow registration');
-    return { slug: slugify(agent.name) };
+    const msg = '[KeeperHub] KEEPERHUB_API_KEY is not set — workflow registration cannot proceed. ' +
+      'Set KEEPERHUB_API_KEY in your environment variables (Vercel → Settings → Environment Variables).';
+    console.error(msg);
+    throw new Error(msg);
   }
 
   const treasuryAddress = process.env.TREASURY_WALLET_ADDRESS;
   const treasuryFee = Number(process.env.TREASURY_FEE_PERCENT || '10');
 
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
 
-    const response = await fetch(`${KEEPERHUB_BASE_URL}/api/workflows`, {
+  let response: Response;
+  try {
+    response = await fetch(`${KEEPERHUB_BASE_URL}/api/workflows`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${KEEPERHUB_API_KEY}`,
@@ -152,21 +158,33 @@ export async function registerAgentWorkflow(agent: {
           feePercent: treasuryFee,
         }),
       }),
-    }).finally(() => clearTimeout(timer));
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`KeeperHub registration failed (${response.status}): ${text}`);
-    }
-
-    const data = await response.json();
-    const slug = data?.slug || slugify(agent.name);
-    console.log(`[KeeperHub] Workflow registered → slug: ${slug} | treasury: ${treasuryAddress} (${treasuryFee}%)`);
-    return { slug };
-  } catch (error: any) {
-    console.warn('[KeeperHub] Workflow registration skipped:', error.message);
-    return { slug: slugify(agent.name) };
+    });
+  } catch (err: any) {
+    clearTimeout(timer);
+    const msg = `[KeeperHub] Workflow registration network error: ${err.message}`;
+    console.error(msg);
+    throw new Error(msg);
+  } finally {
+    clearTimeout(timer);
   }
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '(no body)');
+    const msg = `[KeeperHub] Workflow registration failed (HTTP ${response.status}): ${text}`;
+    console.error(msg);
+    throw new Error(msg);
+  }
+
+  const data = await response.json();
+  const slug = data?.slug;
+  if (!slug) {
+    const msg = `[KeeperHub] Registration succeeded but response contained no slug. Full response: ${JSON.stringify(data)}`;
+    console.error(msg);
+    throw new Error(msg);
+  }
+
+  console.log(`[KeeperHub] ✓ Workflow registered → slug: "${slug}" | treasury: ${treasuryAddress} (${treasuryFee}%)`);
+  return { slug };
 }
 
 // ─── Execute Agent via KeeperHub ─────────────────────────────────────────────
@@ -174,16 +192,32 @@ export async function registerAgentWorkflow(agent: {
 // challenge automatically — intercepts HTTP 402, signs via Turnkey proxy,
 // retries the call. The txHash is returned in the x-payment-tx-hash header.
 //
-// Returns { output, txHash } on success, or { output: { skipped }, txHash: null }
-// if KeeperHub is not configured or the call fails, so the caller can fall back
-// to direct LLM execution.
+// clientTxHash (optional): on-chain USDC payment already made by the buyer's
+// wallet. It is forwarded as the `x-payment-tx-hash` proof header AND used as
+// the fallback txHash in the response. It does NOT bypass the x402 fetch layer —
+// the platform payer wallet still goes through KeeperHub so the API key usage
+// is recorded on the KeeperHub dashboard.
+//
+// Returns { output, txHash } on success.
+// Returns { output: { skipped }, txHash: null } ONLY when KEEPERHUB_API_KEY is
+// absent — callers should then fall back to direct LLM execution.
 
 export async function executeAgentViaKeeperHub(
   workflowSlug: string,
   inputs: Record<string, unknown>,
   clientTxHash?: string
 ): Promise<{ output: unknown; txHash: string | null }> {
-  // ── 1. On-Chain KeeperHub Payment Verification Gate ───────────────────────
+  // ── 1. Guard: API key must be present ─────────────────────────────────────
+  if (!KEEPERHUB_API_KEY) {
+    console.error(
+      '[KeeperHub] KEEPERHUB_API_KEY is not configured. ' +
+      'Set it in Vercel → Settings → Environment Variables and redeploy. ' +
+      'Skipping KeeperHub — falling back to direct LLM execution.'
+    );
+    return { output: { skipped: true, reason: 'KEEPERHUB_API_KEY not configured' }, txHash: null };
+  }
+
+  // ── 2. On-Chain Payment Verification (when buyer supplied a txHash) ────────
   if (clientTxHash) {
     console.log(`[KeeperHub] Verifying on-chain payment for txHash: ${clientTxHash}...`);
     const verification = await verifyKeeperHubPayment(clientTxHash);
@@ -194,54 +228,56 @@ export async function executeAgentViaKeeperHub(
     console.log(`[KeeperHub] Payment VERIFIED on Base Mainnet (Block #${verification.blockNumber}) ✓`);
   }
 
-  // ── 2. Remote Workflow Execution ──────────────────────────────────────────
+  // ── 3. Remote Workflow Execution via x402-wrapped fetch ────────────────────
+  // ALWAYS use getPayingFetch() so every call is routed through the KeeperHub
+  // x402 payment layer and appears in the KeeperHub dashboard.
+  // When a clientTxHash is provided it is forwarded as a proof header only —
+  // the platform wallet still pays via x402 so the API key usage is metered.
+  const fetchFn = getPayingFetch();
+  const url = `${KEEPERHUB_BASE_URL}/api/workflows/${workflowSlug}/run`;
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${KEEPERHUB_API_KEY}`,
+    'Content-Type': 'application/json',
+  };
+
+  if (clientTxHash) {
+    // Forward buyer's on-chain proof; KeeperHub may honour it to waive x402 charge
+    headers['x-payment-tx-hash'] = clientTxHash;
+  }
+
   try {
-    const fetchFn = clientTxHash ? fetch : getPayingFetch();
-    const url = `${KEEPERHUB_BASE_URL}/api/workflows/${workflowSlug}/run`;
-
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${KEEPERHUB_API_KEY}`,
-      'Content-Type': 'application/json',
-    };
-
-    if (clientTxHash) {
-      headers['x-payment-tx-hash'] = clientTxHash;
-    }
-
     const response = await fetchFn(url, {
       method: 'POST',
       headers,
       body: JSON.stringify({ inputs }),
     });
 
-    const txHash = response.headers.get('x-payment-tx-hash') || clientTxHash || null;
+    const responseTxHash = response.headers.get('x-payment-tx-hash') || clientTxHash || null;
 
     if (!response.ok) {
-      const text = await response.text();
-      // If remote slug is not registered on app.keeperhub.com, return verified status so local engine completes run
-      if (response.status === 404 && clientTxHash) {
-        console.log(`[KeeperHub] Payment verified via KeeperHub. Remote workflow "${workflowSlug}" using local execution engine.`);
-        return {
-          output: { verifiedByKeeperHub: true, txHash: clientTxHash, note: 'Payment verified on Base via KeeperHub gate' },
-          txHash: clientTxHash,
-        };
+      const text = await response.text().catch(() => '(no body)');
+
+      // 404 means the slug was never registered on KeeperHub — this should not
+      // silently succeed. Surface the error so it gets fixed at deploy time.
+      if (response.status === 404) {
+        const msg =
+          `[KeeperHub] Workflow slug "${workflowSlug}" not found on KeeperHub (404). ` +
+          'Re-deploy the agent to trigger registerAgentWorkflow() and create the slug on KeeperHub.';
+        console.error(msg);
+        throw new Error(msg);
       }
-      throw new Error(`KeeperHub execution failed (${response.status}): ${text}`);
+
+      throw new Error(`KeeperHub execution failed (HTTP ${response.status}): ${text}`);
     }
 
     const data = await response.json();
-    console.log(`[KeeperHub] Workflow "${workflowSlug}" executed via KeeperHub → txHash: ${txHash}`);
-
-    return { output: data, txHash };
+    console.log(`[KeeperHub] ✓ Workflow "${workflowSlug}" executed → txHash: ${responseTxHash}`);
+    return { output: data, txHash: responseTxHash };
   } catch (error: any) {
-    if (clientTxHash) {
-      // Payment was verified on-chain by KeeperHub gate — allow execution engine to complete run
-      return {
-        output: { verifiedByKeeperHub: true, txHash: clientTxHash },
-        txHash: clientTxHash,
-      };
-    }
-    console.warn('[KeeperHub] Execution fallback triggered:', error.message);
+    // Only fall back to skipped (LLM direct) for transient/network errors,
+    // never for 404 (slug missing) — those re-throw above.
+    console.error(`[KeeperHub] Execution error for slug "${workflowSlug}": ${error.message}`);
     return {
       output: { skipped: true, reason: `KeeperHub execution failed: ${error.message}` },
       txHash: null,

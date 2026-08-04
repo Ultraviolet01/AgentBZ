@@ -21,11 +21,16 @@ export function getPayingClient(walletClient?: any) {
 
 export async function registerAgentWorkflow(agent: { name: string; description: string; priceUsd: number }) {
   if (!process.env.KEEPERHUB_API_KEY) {
-    return { slug: slugify(agent.name) };
+    const msg =
+      '[KeeperHub] KEEPERHUB_API_KEY is not set — workflow registration cannot proceed. ' +
+      'Add it to your environment variables and redeploy.';
+    console.error(msg);
+    throw new Error(msg);
   }
 
+  let response;
   try {
-    const response = await axios.post(
+    response = await axios.post(
       `${KEEPERHUB_BASE.replace(/\/+$/, '')}/api/workflows`,
       {
         name: agent.name,
@@ -39,14 +44,24 @@ export async function registerAgentWorkflow(agent: { name: string; description: 
           Authorization: `Bearer ${process.env.KEEPERHUB_API_KEY}`,
           'Content-Type': 'application/json',
         },
+        timeout: 8000,
       }
     );
-
-    return { slug: response.data?.slug || slugify(agent.name) };
-  } catch (error) {
-    console.warn('[KeeperHub] Workflow registration skipped:', error);
-    return { slug: slugify(agent.name) };
+  } catch (error: any) {
+    const msg = `[KeeperHub] Workflow registration failed: ${error.message}`;
+    console.error(msg);
+    throw new Error(msg);
   }
+
+  const slug = response.data?.slug;
+  if (!slug) {
+    const msg = `[KeeperHub] Registration succeeded but response contained no slug. Response: ${JSON.stringify(response.data)}`;
+    console.error(msg);
+    throw new Error(msg);
+  }
+
+  console.log(`[KeeperHub] ✓ Workflow registered → slug: "${slug}"`);
+  return { slug };
 }
 
 export async function executeAgentViaKeeperHub(
@@ -55,18 +70,22 @@ export async function executeAgentViaKeeperHub(
   inputs: Record<string, unknown>
 ) {
   if (!process.env.KEEPERHUB_API_KEY) {
-    return { output: { skipped: true, reason: 'KeeperHub is not configured' }, txHash: null };
+    console.error(
+      '[KeeperHub] KEEPERHUB_API_KEY is not configured. ' +
+      'Set it in your environment variables and redeploy. ' +
+      'Falling back to direct LLM execution.'
+    );
+    return { output: { skipped: true, reason: 'KEEPERHUB_API_KEY not configured' }, txHash: null };
   }
 
   try {
     const client = getPayingClient(walletClient);
     const response = await client.post(`/api/workflows/${workflowSlug}/run`, { inputs });
-    return {
-      output: response.data,
-      txHash: response.headers?.['x-payment-tx-hash'] || null,
-    };
-  } catch (error) {
-    console.warn('[KeeperHub] Execution fallback triggered:', error);
-    return { output: { skipped: true, reason: 'KeeperHub execution failed' }, txHash: null };
+    const txHash = response.headers?.['x-payment-tx-hash'] || null;
+    console.log(`[KeeperHub] ✓ Workflow "${workflowSlug}" executed → txHash: ${txHash}`);
+    return { output: response.data, txHash };
+  } catch (error: any) {
+    console.error(`[KeeperHub] Execution error for slug "${workflowSlug}": ${error.message}`);
+    return { output: { skipped: true, reason: `KeeperHub execution failed: ${error.message}` }, txHash: null };
   }
 }

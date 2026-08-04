@@ -86,25 +86,25 @@ export default function OnboardingPage() {
   const StepIcon = steps[step - 1].icon;
 
   return (
-    <div className="min-h-screen bg-[#fcfcfd] flex items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-[#fcfcfd] flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
       {/* Background Decor */}
       <div className="absolute inset-0 opacity-[0.4] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #e5e7eb 1px, transparent 0)', backgroundSize: '32px 32px' }} />
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-[600px] bg-orange-100/30 blur-[130px] rounded-full pointer-events-none" />
       <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-blue-50/50 blur-[120px] rounded-full pointer-events-none" />
 
-      <Card className="w-full max-w-2xl bg-white border-gray-100/80 p-12 relative overflow-hidden group shadow-[0_20px_60px_rgba(0,0,0,0.05)] rounded-[48px] backdrop-blur-sm z-10">
+      <Card className="w-full max-w-2xl bg-white border-gray-100/80 p-6 sm:p-10 md:p-12 relative overflow-hidden group shadow-[0_20px_60px_rgba(0,0,0,0.05)] rounded-[32px] sm:rounded-[48px] backdrop-blur-sm z-10">
         <div className="absolute top-0 right-0 w-96 h-96 bg-orange-50/40 blur-[100px] rounded-full pointer-events-none group-hover:bg-orange-100/40 transition-colors duration-700" />
         
         {/* Progress */}
-        <div className="mb-14 relative z-10">
-          <div className="flex justify-between items-end mb-5 px-1">
+        <div className="mb-8 sm:mb-14 relative z-10">
+          <div className="flex justify-between items-end mb-4 sm:mb-5 px-1">
             <div className="space-y-1">
-                <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">Onboarding Sequence</span>
-                <p className="text-sm font-bold text-gray-900 uppercase tracking-tight">Phase {step} of 3</p>
+                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">Onboarding Sequence</span>
+                <p className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-tight">Phase {step} of 3</p>
             </div>
-            <span className="text-xl font-black text-orange-500 tracking-tighter">{Math.round((step / 3) * 100)}% <span className="text-[10px] font-bold text-gray-300 ml-1">SYNC</span></span>
+            <span className="text-lg sm:text-xl font-black text-orange-500 tracking-tighter">{Math.round((step / 3) * 100)}% <span className="text-[10px] font-bold text-gray-300 ml-1">SYNC</span></span>
           </div>
-          <div className="h-2.5 w-full bg-gray-50 rounded-full border border-gray-100 overflow-hidden shadow-inner">
+          <div className="h-2 sm:h-2.5 w-full bg-gray-50 rounded-full border border-gray-100 overflow-hidden shadow-inner">
             <motion.div 
                 initial={{ width: 0 }}
                 animate={{ width: `${(step / 3) * 100}%` }}
@@ -114,19 +114,19 @@ export default function OnboardingPage() {
         </div>
 
         {/* Step Content */}
-        <div className="text-center py-8 relative z-10">
+        <div className="text-center py-4 sm:py-8 relative z-10">
           <motion.div 
             key={step}
             initial={{ opacity: 0, scale: 0.9, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="w-28 h-28 rounded-[36px] bg-orange-50 border border-orange-100 flex items-center justify-center mx-auto mb-10 shadow-sm relative group-hover:scale-105 transition-all duration-500"
+            className="w-20 h-20 sm:w-28 sm:h-28 rounded-[28px] sm:rounded-[36px] bg-orange-50 border border-orange-100 flex items-center justify-center mx-auto mb-6 sm:mb-10 shadow-sm relative group-hover:scale-105 transition-all duration-500"
           >
             <div className="absolute inset-0 bg-white/50 rounded-[36px] blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
-            <StepIcon className="w-12 h-12 text-orange-500 relative z-10" strokeWidth={2.5} />
+            <StepIcon className="w-9 h-9 sm:w-12 sm:h-12 text-orange-500 relative z-10" strokeWidth={2.5} />
           </motion.div>
 
-          <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4 tracking-tight leading-none uppercase">{steps[step - 1].title}</h2>
-          <p className="text-gray-500 font-semibold text-lg mb-12 max-w-md mx-auto leading-relaxed">{steps[step - 1].description}</p>
+          <h2 className="text-2xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-3 sm:mb-4 tracking-tight leading-none uppercase">{steps[step - 1].title}</h2>
+          <p className="text-gray-500 font-semibold text-base sm:text-lg mb-8 sm:mb-12 max-w-md mx-auto leading-relaxed">{steps[step - 1].description}</p>
 
           {/* Step-specific content */}
           {step === 1 && (
@@ -160,17 +160,17 @@ export default function OnboardingPage() {
           )}
 
           {step === 3 && (
-            <div className="grid grid-cols-3 gap-6 mb-12">
-              <div className="bg-gray-50/50 border border-gray-100 p-8 rounded-3xl shadow-inner hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all duration-500 group/feature">
-                <div className="text-4xl font-bold text-orange-500 mb-2 tracking-tighter group-hover/feature:scale-110 transition-transform">3</div>
+            <div className="grid grid-cols-1 xs:grid-cols-3 sm:grid-cols-3 gap-3 sm:gap-6 mb-8 sm:mb-12">
+              <div className="bg-gray-50/50 border border-gray-100 p-5 sm:p-8 rounded-3xl shadow-inner hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all duration-500 group/feature">
+                <div className="text-3xl sm:text-4xl font-bold text-orange-500 mb-2 tracking-tighter group-hover/feature:scale-110 transition-transform">3</div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-tight">Native<br/>Agents</p>
               </div>
-              <div className="bg-gray-50/50 border border-gray-100 p-8 rounded-3xl shadow-inner hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all duration-500 group/feature">
-                <div className="text-4xl font-bold text-orange-500 mb-2 tracking-tighter group-hover/feature:scale-110 transition-transform">Web3</div>
+              <div className="bg-gray-50/50 border border-gray-100 p-5 sm:p-8 rounded-3xl shadow-inner hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all duration-500 group/feature">
+                <div className="text-3xl sm:text-4xl font-bold text-orange-500 mb-2 tracking-tighter group-hover/feature:scale-110 transition-transform">Web3</div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-tight">Decentralized<br/>Data</p>
               </div>
-              <div className="bg-gray-50/50 border border-gray-100 p-8 rounded-3xl shadow-inner hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all duration-500 group/feature">
-                <div className="text-4xl font-bold text-orange-500 mb-2 tracking-tighter group-hover/feature:scale-110 transition-transform">24/7</div>
+              <div className="bg-gray-50/50 border border-gray-100 p-5 sm:p-8 rounded-3xl shadow-inner hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all duration-500 group/feature">
+                <div className="text-3xl sm:text-4xl font-bold text-orange-500 mb-2 tracking-tighter group-hover/feature:scale-110 transition-transform">24/7</div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-tight">Autonomous<br/>Nodes</p>
               </div>
             </div>
@@ -178,8 +178,8 @@ export default function OnboardingPage() {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-between relative z-10 border-t border-gray-100 pt-10">
-          <div className="w-1/3">
+        <div className="flex flex-col sm:flex-row items-center justify-between relative z-10 border-t border-gray-100 pt-6 sm:pt-10 gap-4 sm:gap-0">
+          <div className="w-full sm:w-1/3 flex sm:block justify-center">
             {(step === 2 || step === 1) && (
               <Button
                 variant="ghost"
@@ -194,10 +194,10 @@ export default function OnboardingPage() {
           <Button
             onClick={handleNext}
             disabled={isSubmitting}
-            className="h-16 px-12 bg-orange-500 hover:bg-orange-600 text-white rounded-[24px] font-bold text-lg shadow-xl shadow-orange-100 group/btn transition-all transform hover:-translate-y-1 active:scale-[0.98]"
+            className="w-full sm:w-auto h-14 sm:h-16 px-8 sm:px-12 bg-orange-500 hover:bg-orange-600 text-white rounded-[20px] sm:rounded-[24px] font-bold text-base sm:text-lg shadow-xl shadow-orange-100 group/btn transition-all transform hover:-translate-y-1 active:scale-[0.98]"
           >
             <span className="uppercase tracking-wider">{isSubmitting ? 'Finalizing...' : (step === 3 ? 'Initialize Console' : 'Continue Protocol')}</span>
-            <ArrowRight className="w-6 h-6 ml-4 group-hover/btn:translate-x-1.5 transition-transform" strokeWidth={3} />
+            <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6 ml-3 sm:ml-4 group-hover/btn:translate-x-1.5 transition-transform" strokeWidth={3} />
           </Button>
         </div>
       </Card>
