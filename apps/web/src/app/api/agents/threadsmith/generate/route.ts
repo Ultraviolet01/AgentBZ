@@ -102,10 +102,9 @@ export async function POST(req: Request) {
     }
 
     // 3. Attempt KeeperHub remote workflow execution.
-    //    If the slug isn't registered or KeeperHub isn't configured, we catch
-    //    the error and fall through to the local LLM engine so the user always
-    //    gets their content — especially critical when they've already paid via
-    //    their wallet (paymentProof is set).
+    //    KeeperHub logs the run on the dashboard and triggers the email node.
+    //    It returns { executionId, status } — NOT content. The local LLM always
+    //    generates the thread. KeeperHub is purely for audit-logging + email.
     let generatedContent = "";
     console.log(`[ThreadSmith] Attempting KeeperHub dispatch (slug: "threadsmith", txHash: ${paymentProof || 'none'})...`);
 
@@ -115,18 +114,17 @@ export async function POST(req: Request) {
         { contentType, tone, quality, input, context },
         paymentProof || undefined
       );
-
-      if ((keeperHubResult.output as any)?.content) {
-        generatedContent = (keeperHubResult.output as any).content;
-        console.log(`[ThreadSmith] Successfully generated thread via remote KeeperHub workflow`);
-      } else if ((keeperHubResult.output as any)?.skipped) {
-        console.log(`[ThreadSmith] KeeperHub skipped (not configured) — falling through to LLM engine`);
+      const execId = (keeperHubResult.output as any)?.executionId;
+      const skipped = (keeperHubResult.output as any)?.skipped;
+      if (skipped) {
+        console.log(`[ThreadSmith] KeeperHub skipped (not configured) — continuing to LLM engine`);
+      } else {
+        console.log(`[ThreadSmith] KeeperHub dispatched ✓ executionId: ${execId} — continuing to LLM engine for content`);
       }
     } catch (khErr: any) {
-      // KeeperHub failed (e.g. slug not registered on app.keeperhub.com yet).
-      // Log it but NEVER surface this as a failure to the user — especially
-      // when they've already paid. Fall through to the local LLM engine below.
-      console.warn(`[ThreadSmith] KeeperHub dispatch failed: ${khErr.message} — falling through to LLM engine`);
+      // KeeperHub failed (wrong ID, network error, etc.).
+      // Log clearly but NEVER surface this to the user — they've already paid.
+      console.warn(`[ThreadSmith] KeeperHub dispatch failed: ${khErr.message} — continuing to LLM engine`);
     }
 
     // 4. Local LLM execution (fallback or primary when KeeperHub skipped/failed)

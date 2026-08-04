@@ -193,6 +193,54 @@ export async function registerAgentWorkflow(agent: {
 // Returns { output: { skipped }, txHash: null } ONLY when KEEPERHUB_API_KEY is
 // absent — callers should then fall back to direct LLM execution.
 
+/**
+ * Resolve a workflow slug to its KeeperHub numeric/string ID.
+ *
+ * Priority:
+ *   1. Env var  KEEPERHUB_WORKFLOW_ID_<SLUG_UPPER>  (e.g. KEEPERHUB_WORKFLOW_ID_THREADSMITH)
+ *   2. Live lookup — GET /api/workflows, find by name (case-insensitive).
+ *
+ * The KeeperHub REST API uses opaque IDs like "glj0xzuvyi01z732m8cs3", NOT
+ * human-readable slugs.  Calling /api/workflows/{slug}/execute results in a 404.
+ */
+async function resolveWorkflowId(slug: string): Promise<string> {
+  // 1. Env-var shortcut (fastest, no extra HTTP round-trip)
+  const envKey = `KEEPERHUB_WORKFLOW_ID_${slug.toUpperCase().replace(/-/g, '_')}`;
+  const envId = process.env[envKey];
+  if (envId) {
+    console.log(`[KeeperHub] Resolved workflow ID for "${slug}" from env (${envKey}): ${envId}`);
+    return envId;
+  }
+
+  // 2. Live lookup — list all workflows and find by name
+  console.log(`[KeeperHub] ${envKey} not set — querying /api/workflows to resolve "${slug}"...`);
+  const listResp = await fetch(`${KEEPERHUB_BASE_URL}/api/workflows`, {
+    headers: { Authorization: `Bearer ${KEEPERHUB_API_KEY}` },
+  });
+
+  if (!listResp.ok) {
+    throw new Error(`[KeeperHub] Failed to list workflows (HTTP ${listResp.status}) while resolving slug "${slug}"`);
+  }
+
+  const workflows: Array<{ id: string; name: string; deletedAt: string | null }> = await listResp.json();
+  const normalised = slug.toLowerCase().replace(/-/g, '');
+  // Match active (non-deleted) workflows whose name normalises to the slug
+  const match = workflows.find(
+    (w) => !w.deletedAt && w.name.toLowerCase().replace(/[^a-z0-9]/g, '') === normalised
+  );
+
+  if (!match) {
+    throw new Error(
+      `[KeeperHub] No active workflow named "${slug}" found on KeeperHub. ` +
+      `Active workflows: [${workflows.filter(w => !w.deletedAt).map(w => `"${w.name}"`).join(', ')}]. ` +
+      `Set ${envKey}=<id> in your env vars to bypass the lookup.`
+    );
+  }
+
+  console.log(`[KeeperHub] Resolved workflow ID for "${slug}" via name match: ${match.id} ("${match.name}")`);
+  return match.id;
+}
+
 export async function executeAgentViaKeeperHub(
   workflowSlug: string,
   inputs: Record<string, unknown>,
@@ -219,12 +267,23 @@ export async function executeAgentViaKeeperHub(
     console.log(`[KeeperHub] Payment VERIFIED on Base Mainnet (Block #${verification.blockNumber}) ✓`);
   }
 
-  // ── 3. Remote Workflow Execution via plain Bearer fetch ───────────────────
-  // Users pay via Web3 wallet (verified above). We call KeeperHub purely to
+  // ── 3. Resolve human slug → KeeperHub workflow ID ─────────────────────────
+  // KeeperHub REST API uses opaque IDs (e.g. "glj0xzuvyi01z732m8cs3").
+  // The /execute endpoint does NOT accept slugs — using a slug returns 404.
+  let workflowId: string;
+  try {
+    workflowId = await resolveWorkflowId(workflowSlug);
+  } catch (resolveErr: any) {
+    console.error(`[KeeperHub] Cannot resolve workflow ID for "${workflowSlug}": ${resolveErr.message}`);
+    throw resolveErr; // Bubble up — callers catch and fall through to LLM
+  }
+
+  // ── 4. Remote Workflow Execution via plain Bearer fetch ───────────────────
+  // Users pay via Web3 wallet (verified above). We call KeeperHub to
   // log the run and trigger the workflow graph (e.g. Send Email node).
-  // x402 wrapper is NOT used — it is a Pro plan feature.
+  // Correct endpoint: POST /api/workflows/{id}/execute  (NOT /run)
   const fetchFn = getKeeperHubFetch();
-  const url = `${KEEPERHUB_BASE_URL}/api/workflows/${workflowSlug}/run`;
+  const url = `${KEEPERHUB_BASE_URL}/api/workflows/${workflowId}/execute`;
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${KEEPERHUB_API_KEY}`,
@@ -234,6 +293,8 @@ export async function executeAgentViaKeeperHub(
   if (clientTxHash) {
     headers['x-payment-tx-hash'] = clientTxHash;
   }
+
+  console.log(`[KeeperHub] Dispatching POST ${url}`);
 
   try {
     const response = await fetchFn(url, {
@@ -246,30 +307,16 @@ export async function executeAgentViaKeeperHub(
 
     if (!response.ok) {
       const text = await response.text().catch(() => '(no body)');
-
-      // 404 means the slug was never registered on KeeperHub — this should not
-      // silently succeed. Surface the error so it gets fixed at deploy time.
-      if (response.status === 404) {
-        const msg =
-          `[KeeperHub] Workflow slug "${workflowSlug}" not found on KeeperHub (404). ` +
-          'Re-deploy the agent to trigger registerAgentWorkflow() and create the slug on KeeperHub.';
-        console.error(msg);
-        throw new Error(msg);
-      }
-
-      throw new Error(`KeeperHub execution failed (HTTP ${response.status}): ${text}`);
+      const msg = `[KeeperHub] Execution HTTP ${response.status} for workflow ID "${workflowId}" (slug: "${workflowSlug}"): ${text}`;
+      console.error(msg);
+      throw new Error(msg);
     }
 
     const data = await response.json();
-    console.log(`[KeeperHub] ✓ Workflow "${workflowSlug}" executed → txHash: ${responseTxHash}`);
+    console.log(`[KeeperHub] ✓ Workflow "${workflowSlug}" (ID: ${workflowId}) dispatched → executionId: ${(data as any)?.executionId} | txHash: ${responseTxHash}`);
     return { output: data, txHash: responseTxHash };
   } catch (error: any) {
-    // Only fall back to skipped (LLM direct) for transient/network errors,
-    // never for 404 (slug missing) — those re-throw above.
-    console.error(`[KeeperHub] Execution error for slug "${workflowSlug}": ${error.message}`);
-    return {
-      output: { skipped: true, reason: `KeeperHub execution failed: ${error.message}` },
-      txHash: null,
-    };
+    console.error(`[KeeperHub] Execution error for slug "${workflowSlug}" (ID: ${workflowId}): ${error.message}`);
+    throw error; // Re-throw — generate/route.ts catches and falls through to LLM
   }
 }
