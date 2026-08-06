@@ -559,20 +559,32 @@ export default function LaunchWatchPage() {
                     Notifications: {monitor.email}
                   </p>
 
-                  {monitor.txHash && (
-                    <div className="mb-3">
-                      <a
-                        href={`https://basescan.org/tx/${monitor.txHash}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline font-mono"
-                      >
-                        <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
-                        On-Chain Proof: {monitor.txHash.slice(0, 10)}...{monitor.txHash.slice(-8)}
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
-                  )}
+                  {(() => {
+                    let displayTx = monitor.txHash;
+                    if (typeof displayTx === 'string' && displayTx.trim().startsWith('{')) {
+                      try {
+                        const parsed = JSON.parse(displayTx);
+                        displayTx = parsed.nonce || parsed.txHash || null;
+                      } catch {
+                        displayTx = null;
+                      }
+                    }
+                    if (!displayTx) return null;
+                    return (
+                      <div className="mb-3">
+                        <a
+                          href={`https://basescan.org/tx/${displayTx}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline font-mono"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
+                          On-Chain Proof: {displayTx.slice(0, 10)}...{displayTx.slice(-8)}
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    );
+                  })()}
 
                   {monitor.type === 'token_milestone' && (
                     <div className="bg-gray-50 rounded-lg p-3 mb-3">
@@ -580,13 +592,15 @@ export default function LaunchWatchPage() {
                         <div>
                           <span className="text-gray-500">Contract:</span>
                           <p className="font-mono text-xs text-gray-900 mt-1">
-                            {monitor.contractAddress?.slice(0, 10)}...{monitor.contractAddress?.slice(-8)}
+                            {monitor.contractAddress ? `${monitor.contractAddress.slice(0, 10)}...${monitor.contractAddress.slice(-8)}` : 'N/A'}
                           </p>
                         </div>
                         <div>
                           <span className="text-gray-500">Target FDV:</span>
                           <p className="font-semibold text-gray-900 mt-1">
-                            ${parseInt(monitor.targetFDV).toLocaleString()}
+                            {monitor.targetFDV && !isNaN(Number(monitor.targetFDV)) 
+                              ? `$${Number(monitor.targetFDV).toLocaleString()}` 
+                              : 'N/A'}
                           </p>
                         </div>
                       </div>

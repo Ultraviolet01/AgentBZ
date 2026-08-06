@@ -49,6 +49,7 @@ export async function POST(req: Request) {
 
     // ── Payment Verification Gate ─────────────────────────────────────────────
     let verifiedTxHash = txHash || null;
+    const target = formData.tokenSymbol || formData.contractAddress || formData.projectUrl || monitoringType;
 
     if (txHash) {
       console.log(`[LaunchWatch] Verifying on-chain payment proof: ${txHash}`);
@@ -57,16 +58,21 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: `Payment verification failed: ${verification.error}` }, { status: 402 });
       }
       console.log(`[LaunchWatch] Payment verified on Base Mainnet (Block #${verification.blockNumber}) ✓`);
+      verifiedTxHash = verification.relayedTxHash || verification.effectiveTxHash || txHash;
+
+      // Always dispatch to KeeperHub so execution analytics and workflow runs are recorded on app.keeperhub.com
+      try {
+        await executeAgentViaKeeperHub("launchwatch", { target, monitoringType, ...formData, txHash: verifiedTxHash }, verifiedTxHash);
+        console.log(`[LaunchWatch] Dispatched run to KeeperHub → txHash: ${verifiedTxHash}`);
+      } catch (khErr: any) {
+        console.warn(`[LaunchWatch] KeeperHub dispatch warning: ${khErr.message}`);
+      }
     } else {
       console.log(`[LaunchWatch] No txHash provided — delegating payment to KeeperHub platform wallet...`);
       try {
-        // "target" maps to {{ trigger.target }} in the KeeperHub email template
-        const target = formData.tokenSymbol || formData.projectUrl || monitoringType;
         const keeperResult = await executeAgentViaKeeperHub("launchwatch", { target, monitoringType, ...formData });
         verifiedTxHash = keeperResult.txHash;
       } catch (khErr: any) {
-        // KeeperHub failed (slug not registered yet or misconfigured).
-        // Log and continue — setup should always succeed so users aren't blocked.
         console.warn(`[LaunchWatch] KeeperHub dispatch failed: ${khErr.message} — continuing with setup`);
       }
     }
@@ -75,7 +81,6 @@ export async function POST(req: Request) {
     let projectId = formData.projectId;
 
     if (!projectId) {
-      // Create a project automatically for this monitor
       const projectName = formData.tokenSymbol || formData.projectUrl || "LaunchWatch Project";
       const newProject = await prisma.project.create({
         data: {
@@ -131,7 +136,10 @@ export async function POST(req: Request) {
         type: monitoringType,
         email: formData.notificationEmail || authUser.email,
         projectUrl: config.project.websiteUrl || config.project.name,
-        tokenSymbol: config.project.tokenAddress,
+        tokenSymbol: formData.tokenSymbol || config.project.tokenAddress,
+        contractAddress: formData.contractAddress || config.project.tokenAddress,
+        targetFDV: formData.targetFDV || (config.alertTypes as any)?.targetFDV,
+        txHash: verifiedTxHash,
         frequency: config.frequency,
         createdAt: config.createdAt
       } 
