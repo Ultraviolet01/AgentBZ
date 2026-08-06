@@ -13,7 +13,7 @@
  * Docs: https://docs.keeperhub.com/ai-tools/agentic-wallet
  */
 
-// x402/fetch removed — users pay directly via Web3 wallet; plain fetch used for KeeperHub API calls
+import { wrapFetchWithPaymentFromConfig } from '@x402/fetch';
 
 // Guard: secrets must only be read server-side. Do NOT import this module
 // directly into 'use client' components — use only isKeeperHubConfigured().
@@ -43,7 +43,7 @@ export function keeperhubUrl(path: string): string {
 
 import { createPublicClient, http, fallback } from 'viem';
 import { base } from 'viem/chains';
-import { BASE_USDC_ADDRESS, TREASURY_WALLET_ADDRESS } from './x402-client';
+import { BASE_USDC_ADDRESS, TREASURY_WALLET_ADDRESS, verifyX402Authorization, relayX402PaymentOnChain, X402AuthorizationPayload } from './x402-client';
 
 const basePublicClient = createPublicClient({
   chain: base,
@@ -56,17 +56,49 @@ const basePublicClient = createPublicClient({
 });
 
 /**
- * Verifies that a transaction hash represents a confirmed USDC payment on Base Mainnet
- * to the AgentBazaar treasury wallet with automatic RPC failover and propagation retries.
+ * Verifies that a payment proof (on-chain transaction hash OR off-chain x402 EIP-3009 signature)
+ * is valid for KeeperHub execution.
  */
-export async function verifyKeeperHubPayment(txHash: string): Promise<{ valid: boolean; blockNumber?: bigint; error?: string }> {
+export async function verifyKeeperHubPayment(txHashOrAuth: string): Promise<{ valid: boolean; blockNumber?: bigint; relayedTxHash?: string; error?: string }> {
+  // 1. Check for off-chain x402 pre-authorization (JSON signature payload)
+  if (txHashOrAuth && txHashOrAuth.trim().startsWith('{')) {
+    try {
+      const payload = JSON.parse(txHashOrAuth) as X402AuthorizationPayload;
+      const isValidSig = await verifyX402Authorization(payload);
+      if (!isValidSig) {
+        return { valid: false, error: 'Invalid off-chain x402 EIP-3009 signature' };
+      }
+
+      const now = BigInt(Math.floor(Date.now() / 1000));
+      if (payload.validBefore && BigInt(payload.validBefore) < now) {
+        return { valid: false, error: 'x402 pre-authorization payload expired' };
+      }
+
+      console.log(`[KeeperHub Verification] Off-chain x402 pre-authorization verified for wallet ${payload.from} ✓`);
+      
+      // Immediate Server Relayer Submission: Broadcast EIP-3009 transfer to Base Mainnet immediately
+      try {
+        console.log(`[KeeperHub Verification] Executing Immediate Server Relayer Submission to Base Mainnet...`);
+        const relayedTxHash = await relayX402PaymentOnChain(payload);
+        console.log(`[KeeperHub Verification] Relayed successfully on Base Mainnet! txHash: ${relayedTxHash} ✓`);
+        return { valid: true, relayedTxHash };
+      } catch (relayErr: any) {
+        console.error(`[KeeperHub Verification] Server relayer submission failed: ${relayErr.message}`);
+        return { valid: false, error: `Server relayer submission failed: ${relayErr.message}` };
+      }
+    } catch (err: any) {
+      return { valid: false, error: `Malformed x402 payload: ${err.message}` };
+    }
+  }
+
+  // 2. On-chain transaction receipt verification on Base Mainnet
   let lastError: string = 'Unknown error';
 
   for (let attempt = 1; attempt <= 4; attempt++) {
     try {
-      console.log(`[KeeperHub Verification] Attempt ${attempt}/4: Querying receipt for ${txHash}...`);
+      console.log(`[KeeperHub Verification] Attempt ${attempt}/4: Querying receipt for ${txHashOrAuth}...`);
       const receipt = await basePublicClient.getTransactionReceipt({
-        hash: txHash as `0x${string}`,
+        hash: txHashOrAuth as `0x${string}`,
       });
 
       if (receipt.status !== 'success') {
@@ -78,7 +110,7 @@ export async function verifyKeeperHubPayment(txHash: string): Promise<{ valid: b
         return { valid: false, error: 'Transaction was not sent to Base USDC contract' };
       }
 
-      console.log(`[KeeperHub Verification] Payment verified on Base Mainnet! txHash: ${txHash} | block: ${receipt.blockNumber}`);
+      console.log(`[KeeperHub Verification] Payment verified on Base Mainnet! txHash: ${txHashOrAuth} | block: ${receipt.blockNumber}`);
       return { valid: true, blockNumber: receipt.blockNumber };
     } catch (error: any) {
       lastError = error.message;
@@ -92,16 +124,33 @@ export async function verifyKeeperHubPayment(txHash: string): Promise<{ valid: b
   return { valid: false, error: lastError };
 }
 
-// ─── Plain fetch helper ───────────────────────────────────────────────────────
-// Users pay directly via their Web3 wallet (txHash verified on-chain).
-// No x402 payment interception needed — plain Bearer auth is sufficient
-// for KeeperHub Free plan API calls to log and meter workflow runs.
+// ─── Fetch helper with KeeperHub Pro x402 support ──────────────────────────────
+// Plain Bearer fetch is used by default. When KeeperHub Pro is active
+// (KEEPERHUB_PLAN=pro or KEEPERHUB_USE_X402=true), @x402/fetch wraps the call to
+// automatically handle EIP-3009/x402 payment challenges via Turnkey proxy.
 
 function getKeeperHubFetch() {
-  // Always return plain fetch — x402 is a Pro plan feature and causes
-  // 'Cannot read properties of undefined (reading forEach)' on Free plan.
+  const isPro = process.env.KEEPERHUB_PLAN === 'pro' || process.env.KEEPERHUB_USE_X402 === 'true';
+  if (isPro && KEEPERHUB_API_KEY) {
+    try {
+      return wrapFetchWithPaymentFromConfig(fetch, {
+        schemes: [],
+        routes: [
+          {
+            match: `${KEEPERHUB_BASE_URL}/*`,
+            apiKey: KEEPERHUB_API_KEY,
+            payerWallet: process.env.KEEPERHUB_PAYER_WALLET || '0x0FE372d039d14D60486A7f78c59BB6360B7d7530',
+          }
+        ]
+      } as any);
+    } catch (err: any) {
+      console.warn('[KeeperHub Pro] Failed to initialize x402 wrapped fetch, using standard fetch:', err.message);
+      return fetch;
+    }
+  }
   return fetch;
 }
+
 
 // ─── Register Agent Workflow ──────────────────────────────────────────────────
 // Called at deploy time to create a paid workflow listing on KeeperHub.
@@ -291,6 +340,9 @@ export async function executeAgentViaKeeperHub(
   };
 
   if (clientTxHash) {
+    if (clientTxHash.trim().startsWith('{')) {
+      headers['x-payment-authorization'] = clientTxHash;
+    }
     headers['x-payment-tx-hash'] = clientTxHash;
   }
 
@@ -300,7 +352,24 @@ export async function executeAgentViaKeeperHub(
     const response = await fetchFn(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ inputs, txHash: clientTxHash }),
+      body: JSON.stringify({
+        ...(typeof inputs === 'object' ? inputs : {}),
+        inputs,
+        payload: {
+          ...(typeof inputs === 'object' ? inputs : {}),
+          txHash: clientTxHash,
+        },
+        data: {
+          ...(typeof inputs === 'object' ? inputs : {}),
+          txHash: clientTxHash,
+        },
+        params: {
+          ...(typeof inputs === 'object' ? inputs : {}),
+          txHash: clientTxHash,
+        },
+        txHash: clientTxHash,
+        paymentTxHash: clientTxHash,
+      }),
     });
 
     const responseTxHash = response.headers.get('x-payment-tx-hash') || clientTxHash || null;

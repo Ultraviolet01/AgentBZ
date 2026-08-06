@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@agentbazaar/database';
 import { jwtVerify } from 'jose';
 
+export const dynamic = 'force-dynamic';
+
 const prisma = new PrismaClient();
 // Must match ACCESS_TOKEN_SECRET used by auth.controller.ts
 const secret = new TextEncoder().encode(process.env.ACCESS_TOKEN_SECRET || 'at_super-secret-key');

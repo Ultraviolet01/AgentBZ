@@ -62,10 +62,10 @@ graph TD
 | Component | Detail | Description |
 |---|---|---|
 | **Flat Pricing** | **$0.10 USDC per run** | Standardized pricing across all marketplace agents and deployment forms. |
-| **Treasury Wallet** | `TREASURY_WALLET_ADDRESS` | Platform treasury address that automatically receives 100% of execution fees. |
-| **Payer Wallet** | `KEEPERHUB_PAYER_WALLET` | Platform agentic wallet managed via Turnkey proxy to auto-sign x402 payment challenges. |
-| **Direct Buyer Payments** | Web3 Connected Wallets | Connected buyers sign $0.10 USDC transfers directly on Base via RainbowKit/wagmi to the treasury. |
-| **x402 Protocol** | EIP-3009 on Base Mainnet | Standardized micropayments settled on-chain with auditable transaction hashes (`x-payment-tx-hash`). |
+| **Treasury Wallet** | `TREASURY_WALLET_ADDRESS` | Configured platform treasury address  receiving 100% of execution fees. |
+| **Gasless Buyer UX** | EIP-3009 Pre-Authorization | Buyers sign off-chain authorization payloads in MetaMask at **$0 gas cost**. |
+| **Server Relayer** | `AGENTBAZAAR_PLATFORM_KEY` | Platform server relayer instantly submits `transferWithAuthorization` on Base Mainnet. |
+| **KeeperHub Integration** | `@x402/fetch` (`^2.20.0`) | On-chain execution verification and audit trail forwarded via HTTP header interception. |
 
 ## 🎨 IP Protection — Story Protocol CDR
 
@@ -93,35 +93,32 @@ KeeperHub is the **workflow orchestration and notification layer**. Buyers pay d
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Buyer as Buyer
-    participant App as Web Frontend
-    participant Server as "Next.js Server<br/>(/api/agents/*/generate)"
-    participant Base as Base Blockchain
-    participant KH as KeeperHub
-    participant SendGrid as SendGrid (Email)
-    participant LLM as Anthropic Claude
+    actor Buyer as Buyer (MetaMask)
+    participant App as Web Frontend (Next.js 14)
+    participant Server as Server Relayer (/api/agents/*/generate)
+    participant Base as Base Mainnet (USDC / Safe Treasury)
+    participant KH as KeeperHub Pro Layer
+    participant LLM as Anthropic Claude Engine
 
-    Buyer->>App: Click "Generate" — submits topic + pays $0.10 USDC
-    App->>Base: Sign & broadcast USDC transfer to Treasury
-    Base-->>App: txHash confirmed on Base Mainnet
-    App->>Server: POST /api/agents/threadsmith/generate {input, txHash}
+    Buyer->>App: 1. Click "Pay & Initialize" (Topic + Options)
+    App->>Buyer: 2. Request EIP-3009 Pre-Authorization ($0 Gas)
+    Buyer-->>App: 3. Return Off-Chain Signature Payload
+    App->>Server: 4. POST /api/agents/threadsmith/generate {input, txHash}
 
-    Note over Server: verifyKeeperHubPayment(txHash)
-    Server->>Base: getTransactionReceipt(txHash)
-    Base-->>Server: Receipt — status: success, block confirmed
+    Note over Server: Server Relayer Broadcasts transferWithAuthorization
+    Server->>Base: 5. Broadcast EIP-3009 transfer to Treasury
+    Base-->>Server: 6. On-Chain Receipt Confirmed (Block #49620665)
 
-    Note over Server: ✅ Payment verified — execution authorised
+    Note over Server: verifyKeeperHubPayment(txHash) & @x402/fetch Wrapper
 
-    Server->>KH: POST /api/workflows/{id}/execute (Bearer auth)
-    KH-->>Server: {executionId, status: "running"}
-    KH->>SendGrid: Trigger email node
-    SendGrid-->>Buyer: "ThreadSmith Agent Executed Successfully"
+    Server->>KH: 7. POST /api/workflows/{id}/execute (via @x402/fetch)
+    KH-->>Server: 8. {executionId: "01df5l9browkowul9srkn", status: "completed"}
 
-    Server->>LLM: Execute agent prompt (Anthropic Claude)
-    LLM-->>Server: Generated thread content
+    Server->>LLM: 9. Synthesize Thread (Claude 4.5 / 3.5 Sonnet)
+    LLM-->>Server: 10. Generated Thread Content
 
-    Server-->>App: {content, txHash, runId}
-    App-->>Buyer: Thread displayed in UI
+    Server-->>App: 11. Return Content + Verified BaseScan Tx Hash
+    App-->>Buyer: 12. Display Content + Clickable Explorer Badge
 ```
 
 #### 1. Developer Agent Listing (Deploy Flow)

@@ -2,18 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { useAccount, useSendTransaction } from 'wagmi';
+import { useAccount, useSendTransaction, useSignTypedData } from 'wagmi';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check, AlertCircle, Clock, ShieldCheck, Wallet } from 'lucide-react';
-import { payAgentFeeFromWallet } from '@/lib/x402-client';
+import { payAgentFeeFromWallet, signX402PaymentAuthorization } from '@/lib/x402-client';
 
 export default function DeployedAgentPage() {
   const params = useParams();
   const searchParams = useSearchParams();
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
   const { sendTransactionAsync } = useSendTransaction();
+  const { signTypedDataAsync } = useSignTypedData();
 
   const [agent, setAgent] = useState<any>(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -45,17 +46,23 @@ export default function DeployedAgentPage() {
     try {
       let clientTxHash: string | undefined = undefined;
 
-      // If buyer has connected their Web3 wallet, pay $0.10 USDC directly to Treasury
-      if (isConnected && sendTransactionAsync) {
+      // Off-chain gasless x402 pre-authorization or direct on-chain USDC payment
+      if (isConnected && address && signTypedDataAsync) {
         try {
-          clientTxHash = await payAgentFeeFromWallet(
-            sendTransactionAsync as any,
-            agent.pricePerRun || 0.1
-          );
-          setTxHash(clientTxHash);
+          const payload = await signX402PaymentAuthorization(address, signTypedDataAsync as any, agent.pricePerRun || 0.1);
+          clientTxHash = JSON.stringify(payload);
+          setTxHash(payload.nonce);
         } catch (walletErr: any) {
-          throw new Error(`Wallet payment canceled or failed: ${walletErr.message || walletErr}`);
+          if (sendTransactionAsync) {
+            clientTxHash = await payAgentFeeFromWallet(sendTransactionAsync as any, agent.pricePerRun || 0.1);
+            setTxHash(clientTxHash);
+          } else {
+            throw new Error(`Wallet payment canceled or failed: ${walletErr.message || walletErr}`);
+          }
         }
+      } else if (isConnected && sendTransactionAsync) {
+        clientTxHash = await payAgentFeeFromWallet(sendTransactionAsync as any, agent.pricePerRun || 0.1);
+        setTxHash(clientTxHash);
       }
 
       const response = await fetch('/api/agents/run', {

@@ -13,7 +13,7 @@ import '@rainbow-me/rainbowkit/styles.css';
 
 const config = getDefaultConfig({
   appName: 'AgentBazaar',
-  projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || '00000000000000000000000000000000',
+  projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'ba563c1e05865a8e3ed72b898791260f',
   // Base is the primary payment chain — must be listed first so RainbowKit
   // prompts users to switch to Base by default when connecting.
   chains: [base, mainnet],
