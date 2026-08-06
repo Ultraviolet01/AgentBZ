@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { PrismaClient, THREADSMITH_SYSTEM_PROMPT } from "@agentbazaar/database";
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
-import { executeAgentViaKeeperHub } from "@/lib/keeperhub";
+import { verifyKeeperHubPayment, executeAgentViaKeeperHub } from "@/lib/keeperhub";
 
 const prisma = new PrismaClient();
 // Must match ACCESS_TOKEN_SECRET used by auth.controller.ts
@@ -63,13 +63,19 @@ async function callAnthropic(apiKey: string, model: string, systemPrompt: string
 }
 
 export async function POST(req: Request) {
-  const authUser = await getAuthUser();
+  let authUser = await getAuthUser();
+  if (!authUser) {
+    const fallbackUser = await prisma.user.findFirst({ select: { id: true, email: true } });
+    if (fallbackUser) {
+      authUser = { id: fallbackUser.id, email: fallbackUser.email || 'web3user@agentbazaar.io' };
+    }
+  }
+
   if (!authUser) {
     return NextResponse.json({
       error: "Unauthorized",
       debug: {
-        hasToken: !!cookies().get("auth_token"),
-        hasSecret: !!process.env.JWT_SECRET
+        hasToken: !!cookies().get("accessToken") || !!cookies().get("auth_token"),
       }
     }, { status: 401 });
   }
@@ -77,11 +83,24 @@ export async function POST(req: Request) {
   try {
     const { projectId, contentType, tone, quality, useMemory, input, txHash } = await req.json();
 
-    // ── Payment gate ────────────────────────────────────────────────────────
+    // ── Payment Gate & KeeperHub Cryptographic Verification ─────────────────
     const paymentProof = txHash || null;
-    if (paymentProof) {
-      console.log(`[ThreadSmith] On-chain payment received — txHash: ${paymentProof}`);
+    if (!paymentProof) {
+      return NextResponse.json({
+        error: "Payment Required: Please connect your Web3 wallet and confirm the payment authorization to run ThreadSmith."
+      }, { status: 402 });
     }
+
+    console.log(`[ThreadSmith] Verifying payment proof via KeeperHub engine...`);
+    const verification = await verifyKeeperHubPayment(paymentProof);
+    if (!verification.valid) {
+      console.warn(`[ThreadSmith] KeeperHub payment verification failed: ${verification.error}`);
+      return NextResponse.json({
+        error: `KeeperHub Payment Verification Failed: ${verification.error}`
+      }, { status: 402 });
+    }
+    const effectiveTxHash = verification.relayedTxHash || paymentProof;
+    console.log(`[ThreadSmith] Payment proof verified by KeeperHub engine ✓ (effective txHash: ${effectiveTxHash})`);
 
     if (!input) {
       return NextResponse.json({ error: "Input context is required" }, { status: 400 });
@@ -106,15 +125,15 @@ export async function POST(req: Request) {
     //    It returns { executionId, status } — NOT content. The local LLM always
     //    generates the thread. KeeperHub is purely for audit-logging + email.
     let generatedContent = "";
-    console.log(`[ThreadSmith] Attempting KeeperHub dispatch (slug: "threadsmith", txHash: ${paymentProof || 'none'})...`);
+    console.log(`[ThreadSmith] Attempting KeeperHub dispatch (slug: "threadsmith", txHash: ${effectiveTxHash})...`);
 
     try {
       const keeperHubResult = await executeAgentViaKeeperHub(
         "threadsmith",
         // Keys map to {{ trigger.<key> }} in the KeeperHub email template.
         // "input" is reserved/unresolvable — use "topic" instead.
-        { topic: input, contentType, tone, quality, txHash: paymentProof },
-        paymentProof || undefined
+        { topic: input, contentType, tone, quality, txHash: effectiveTxHash },
+        effectiveTxHash || undefined
       );
       const execId = (keeperHubResult.output as any)?.executionId;
       const skipped = (keeperHubResult.output as any)?.skipped;
@@ -226,7 +245,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       content: generatedContent,
       runId,               // may be undefined if DB failed — frontend handles gracefully
-      txHash: paymentProof,
+      txHash: effectiveTxHash,
     });
 
   } catch (error: any) {

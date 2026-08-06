@@ -21,6 +21,7 @@ import {
   ChevronDown,
   Wallet,
   Zap,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -38,8 +39,8 @@ import {
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "@/lib/api";
-import { useAccount, useSendTransaction, usePublicClient } from "wagmi";
-import { payAgentFeeFromWallet } from "@/lib/x402-client";
+import { useAccount, useSendTransaction, useSignTypedData, usePublicClient } from "wagmi";
+import { payAgentFeeFromWallet, signX402PaymentAuthorization } from "@/lib/x402-client";
 
 export default function ThreadSmithPage() {
   const [input, setInput] = useState('');
@@ -58,6 +59,7 @@ export default function ThreadSmithPage() {
   // Wallet state
   const { address, isConnected } = useAccount();
   const { sendTransactionAsync } = useSendTransaction();
+  const { signTypedDataAsync } = useSignTypedData();
   const publicClient = usePublicClient();
 
   const statusMessages = [
@@ -101,38 +103,68 @@ export default function ThreadSmithPage() {
 
     setIsPaying(true);
     try {
-      toast.info("Confirm $0.10 USDC payment in your wallet…", { duration: 15000 });
-      const broadcastHash = await payAgentFeeFromWallet(sendTransactionAsync as any);
-
-      // Wait for on-chain confirmation (mined block)
-      toast.info("Confirming payment on Base…", { duration: 30000 });
-      const receipt = await publicClient.waitForTransactionReceipt({
-        hash: broadcastHash as `0x${string}`,
-        confirmations: 1,
-        timeout: 60_000,
-      });
-
-      if (receipt.status !== 'success') {
-        setIsPaying(false);
-        return toast.error("Payment reverted on-chain", {
-          description: "Your transaction was broadcast but reverted. Check your USDC balance on Base.",
+      if (signTypedDataAsync && address) {
+        toast.info("Sign $0.10 USDC pre-authorization in your wallet (Gasless)…", { duration: 15000 });
+        const payload = await signX402PaymentAuthorization(address, signTypedDataAsync as any, 0.1);
+        txHash = JSON.stringify(payload);
+        setLastTxHash(payload.nonce);
+        toast.success("x402 Pre-authorization Signed (Instant) ✓", {
+          description: `Nonce: ${payload.nonce.slice(0, 10)}… · Off-chain settlement via KeeperHub Pro`,
         });
-      }
+      } else if (sendTransactionAsync && publicClient) {
+        toast.info("Confirm $0.10 USDC payment in your wallet…", { duration: 15000 });
+        const broadcastHash = await payAgentFeeFromWallet(sendTransactionAsync as any);
+        toast.info("Confirming payment on Base…", { duration: 30000 });
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: broadcastHash as `0x${string}`,
+          confirmations: 1,
+          timeout: 60_000,
+        });
 
-      txHash = broadcastHash;
-      setLastTxHash(txHash);
-      toast.success("Payment confirmed on-chain ✓", {
-        description: `txHash: ${txHash.slice(0, 10)}…${txHash.slice(-6)}`,
-      });
+        if (receipt.status !== 'success') {
+          setIsPaying(false);
+          return toast.error("Payment reverted on-chain", {
+            description: "Your transaction was broadcast but reverted. Check your USDC balance on Base.",
+          });
+        }
+
+        txHash = broadcastHash;
+        setLastTxHash(txHash);
+        toast.success("Payment confirmed on-chain ✓", {
+          description: `txHash: ${txHash.slice(0, 10)}…${txHash.slice(-6)}`,
+        });
+      } else {
+        return toast.error("Wallet Not Ready", { description: "Please check your wallet connection." });
+      }
     } catch (payErr: any) {
-      setIsPaying(false);
       if (payErr?.message?.includes("User rejected") || payErr?.message?.includes("denied")) {
+        setIsPaying(false);
         return toast.error("Payment cancelled", { description: "You rejected the transaction in your wallet." });
       }
-      if (payErr?.message?.includes("Timed out")) {
-        return toast.error("Payment timed out", { description: "Transaction was not confirmed within 60s. Check your wallet." });
+
+      // If off-chain signing fails, fall back to standard on-chain transfer
+      if (signTypedDataAsync && sendTransactionAsync && publicClient) {
+        try {
+          console.warn("[x402] Off-chain signing failed/fallback: ", payErr.message);
+          toast.info("Falling back to standard on-chain transfer…");
+          const broadcastHash = await payAgentFeeFromWallet(sendTransactionAsync as any);
+          const receipt = await publicClient.waitForTransactionReceipt({
+            hash: broadcastHash as `0x${string}`,
+            confirmations: 1,
+            timeout: 60_000,
+          });
+          if (receipt.status === 'success') {
+            txHash = broadcastHash;
+            setLastTxHash(txHash);
+          }
+        } catch (fallbackErr: any) {
+          setIsPaying(false);
+          return toast.error("Payment failed", { description: fallbackErr.message });
+        }
+      } else {
+        setIsPaying(false);
+        return toast.error("Payment failed", { description: payErr.message });
       }
-      return toast.error("Payment failed", { description: payErr.message });
     } finally {
       setIsPaying(false);
     }
@@ -164,6 +196,9 @@ export default function ThreadSmithPage() {
 
       const data = await response.json();
       setOutput(data.content);
+      if (data.txHash) {
+        setLastTxHash(data.txHash);
+      }
       toast.success("Synthesis Complete", {
         description: data.txHash
           ? `Settled on-chain · ${data.txHash.slice(0, 10)}…`
@@ -491,9 +526,25 @@ export default function ThreadSmithPage() {
                    </div>
                 </div>
                 
-                <div className="hidden sm:flex items-center space-x-4 px-6 py-4 bg-green-50 rounded-[22px] border border-green-100 shadow-sm">
-                   <CheckCircle2 size={18} className="text-green-600" strokeWidth={2.5} />
-                   <span className="text-[10px] font-bold text-green-700 uppercase tracking-widest leading-none">NARRATIVE PROOF ANCHORED</span>
+                <div className="flex items-center space-x-3">
+                  {lastTxHash ? (
+                    <a
+                      href={`https://basescan.org/tx/${lastTxHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center space-x-3 px-6 py-4 bg-orange-50 hover:bg-orange-100 rounded-[22px] border border-orange-200 shadow-sm transition-all cursor-pointer group"
+                    >
+                      <ExternalLink size={16} className="text-orange-600 group-hover:scale-110 transition-transform" />
+                      <span className="text-[10px] font-bold text-orange-700 uppercase tracking-widest leading-none">
+                        KEEPERHUB TX: {lastTxHash.slice(0, 6)}...{lastTxHash.slice(-4)}
+                      </span>
+                    </a>
+                  ) : (
+                    <div className="hidden sm:flex items-center space-x-4 px-6 py-4 bg-green-50 rounded-[22px] border border-green-100 shadow-sm">
+                      <CheckCircle2 size={18} className="text-green-600" strokeWidth={2.5} />
+                      <span className="text-[10px] font-bold text-green-700 uppercase tracking-widest leading-none">NARRATIVE PROOF ANCHORED</span>
+                    </div>
+                  )}
                 </div>
             </div>
           </Card>

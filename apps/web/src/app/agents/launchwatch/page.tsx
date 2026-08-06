@@ -25,8 +25,8 @@ import {
   X
 } from 'lucide-react';
 
-import { useAccount, useSendTransaction, usePublicClient } from 'wagmi';
-import { payAgentFeeFromWallet } from '@/lib/x402-client';
+import { useAccount, useSendTransaction, useSignTypedData, usePublicClient } from 'wagmi';
+import { payAgentFeeFromWallet, signX402PaymentAuthorization } from '@/lib/x402-client';
 import { ExternalLink, ShieldCheck, Wallet } from 'lucide-react';
 
 type MonitoringType = 'project' | 'token_milestone' | 'crypto_news';
@@ -41,6 +41,7 @@ export default function LaunchWatchPage() {
 
   const { isConnected, address } = useAccount();
   const { sendTransactionAsync } = useSendTransaction();
+  const { signTypedDataAsync } = useSignTypedData();
   const publicClient = usePublicClient();
 
   // Form data
@@ -78,13 +79,18 @@ export default function LaunchWatchPage() {
       }
 
       setPaymentStatus('broadcasting');
-      const hash = await payAgentFeeFromWallet(sendTransactionAsync, 0.1);
-      clientTxHash = hash;
-      setLastTxHash(hash);
-
-      setPaymentStatus('mined');
-      if (publicClient) {
-        await publicClient.waitForTransactionReceipt({ hash: hash as `0x${string}` });
+      if (signTypedDataAsync && address) {
+        const payload = await signX402PaymentAuthorization(address, signTypedDataAsync as any, 0.1);
+        clientTxHash = JSON.stringify(payload);
+        setLastTxHash(payload.nonce);
+      } else if (sendTransactionAsync) {
+        const hash = await payAgentFeeFromWallet(sendTransactionAsync, 0.1);
+        clientTxHash = hash;
+        setLastTxHash(hash);
+        setPaymentStatus('mined');
+        if (publicClient) {
+          await publicClient.waitForTransactionReceipt({ hash: hash as `0x${string}` });
+        }
       }
 
       const response = await fetch('/api/agents/launchwatch/setup', {
