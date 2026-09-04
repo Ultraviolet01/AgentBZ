@@ -301,3 +301,40 @@ model Execution {
   createdAt         DateTime @default(now())
 }
 
+model Vault {
+  id              String         @id @default(cuid())
+  hederaAccountId String         @unique  // buyer's Hedera account ID e.g. 0.0.XXXXX
+  balanceHbar     Float          @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  deposits        Deposit[]
+  deductions      Deduction[]
+}
+
+model Deposit {
+  id                String   @id @default(cuid())
+  vaultId           String
+  vault             Vault    @relation(fields: [vaultId], references: [id])
+  amountHbar        Float
+  hederaTransaction String   @unique  // transaction ID from Hedera
+  fromAccountId     String            // buyer's Hedera account
+  hcsTxId           String?           // HCS audit log tx ID
+  verifiedAt        DateTime
+  createdAt         DateTime @default(now())
+}
+
+model Deduction {
+  id                String   @id @default(cuid())
+  vaultId           String
+  vault             Vault    @relation(fields: [vaultId], references: [id])
+  agentId           String
+  amountHbar        Float             // agent price + platform fee
+  agentFeeHbar      Float             // goes to builder
+  platformFeeHbar   Float             // goes to AgentBazaar
+  hederaTransaction String?           // payout tx to builder
+  hcsTxId           String?           // HCS audit log tx ID
+  executedAt        DateTime
+  createdAt         DateTime @default(now())
+}
+
+
