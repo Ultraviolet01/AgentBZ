@@ -8,9 +8,9 @@ const App = () => {
   const [isActivating, setIsActivating] = useState(false);
 
   useEffect(() => {
-    chrome.storage.local.get(["token", "runsRemaining"], (data) => {
-      setToken(data.token || "");
-      setRunsRemaining(data.runsRemaining || 0);
+    chrome.storage.local.get(["token", "runsRemaining"], (data: Record<string, any>) => {
+      setToken(typeof data.token === "string" ? data.token : "");
+      setRunsRemaining(typeof data.runsRemaining === "number" ? data.runsRemaining : 0);
     });
   }, []);
 

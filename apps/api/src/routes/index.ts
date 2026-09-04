@@ -38,6 +38,56 @@ router.get("/agents/my", authMiddleware, agentsController.getMyAgents);
 router.post("/agents/scamsniff/run", authMiddleware, agentsController.runScamSniff);
 router.post("/agents/threadsmith/run", authMiddleware, agentsController.runThreadSmith);
 router.post("/agents/launchwatch/setup", authMiddleware, agentsController.setupLaunchWatch);
+router.post("/agents/run", async (req, res) => {
+  try {
+    const { POST: handleRun } = await import("./agents/run");
+    const webReq = new Request(`http://${req.headers.host || "localhost"}${req.originalUrl}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
+    const webRes = await handleRun(webReq);
+    const data = await webRes.json();
+    const xPayment = webRes.headers.get("X-Payment");
+    if (xPayment) res.setHeader("X-Payment", xPayment);
+    res.status(webRes.status).json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to run agent" });
+  }
+});
+
+router.post("/agents/deploy", async (req, res) => {
+  try {
+    const { POST: handleDeploy } = await import("./agents/deploy");
+    const webReq = new Request(`http://${req.headers.host || "localhost"}${req.originalUrl}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
+    const webRes = await handleDeploy(webReq);
+    const data = await webRes.json();
+    res.status(webRes.status).json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to deploy agent" });
+  }
+});
+
+// Chat Orchestrator Routes
+router.post("/chat/orchestrate", async (req, res) => {
+  try {
+    const { POST: handleOrchestrate } = await import("./chat/orchestrate");
+    const webReq = new Request(`http://${req.headers.host || "localhost"}${req.originalUrl}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
+    const webRes = await handleOrchestrate(webReq);
+    const data = await webRes.json();
+    res.status(webRes.status).json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Orchestration failed" });
+  }
+});
 
 // Wallet Routes
 router.post("/wallet/connect", authMiddleware, walletController.connectWallet);

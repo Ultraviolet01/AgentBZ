@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma';
 import { jwtVerify } from 'jose';
 import { deployAgentCDR } from '@/lib/cdr-server';
 import type { ApiKey } from '@/lib/agent-executor';
-import { registerAgentWorkflow } from '@/lib/keeperhub';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,11 +100,8 @@ export async function POST(req: NextRequest) {
     }
 
     // ── CDR API Key Vault (deploy-time only) ──────────────────────────────────
-    // CDR is used solely to securely store the developer's API keys at listing
-    // time. Agent logic / system prompts are NOT stored in CDR.
     let cdrKeysVaultUuid: number | null = null;
     let hasCredentials = false;
-    let keeperhubSlug: string | null = null;
 
     try {
       const normalizedKeys: ApiKey[] = (apiKeys as ApiKey[] | undefined) ?? [];
@@ -114,14 +110,7 @@ export async function POST(req: NextRequest) {
       cdrKeysVaultUuid = cdrResult.keysVaultUuid ?? null;
       hasCredentials   = cdrResult.hasApiKeys;
 
-      const workflow = await registerAgentWorkflow({
-        name,
-        description,
-        priceUsd: Number(pricePerRun || 0.1),
-      });
-      keeperhubSlug = workflow.slug;
-
-      console.log(`[Deploy] CDR keys vault: ${cdrKeysVaultUuid ?? 'none'} | KeeperHub: ${keeperhubSlug}`);
+      console.log(`[Deploy] CDR keys vault: ${cdrKeysVaultUuid ?? 'none'}`);
     } catch (cdrError: any) {
       console.error('[Deploy] CDR vaulting failed:', cdrError.message);
       return NextResponse.json(
@@ -162,7 +151,6 @@ export async function POST(req: NextRequest) {
         credentialSchema: credentialSchema || null,
         cdrVaultUuid: null,
         cdrKeysVaultUuid,
-        keeperhubSlug,
         cdrDeployedAt: new Date(),
       },
     });
@@ -176,7 +164,6 @@ export async function POST(req: NextRequest) {
         status: agent.status,
         hasCredentials,
         cdrKeysVaultUuid,
-        keeperhubSlug,
       },
     });
   } catch (error: any) {

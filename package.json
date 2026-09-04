@@ -22,9 +22,15 @@
   },
   "packageManager": "pnpm@9.0.0",
   "dependencies": {
+    "@hashgraph/hedera-agent-kit": "^4.1.0",
+    "@hashgraph/hedera-agent-kit-langchain": "^2.0.0",
+    "@hiero-ledger/sdk": "^2.31.0",
+    "@langchain/anthropic": "^0.3.15",
+    "@x402/core": "^2.25.0",
+    "@x402/hedera": "^2.25.0",
     "axios": "^1.15.0",
     "dotenv": "^17.4.2",
     "ethers": "^6.16.0",
-    "x402-axios": "1.2.0"
+    "langchain": "^0.3.15"
   }
 }

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { PrismaClient } from "@agentbazaar/database";
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
-import { verifyKeeperHubPayment, executeAgentViaKeeperHub } from "@/lib/keeperhub";
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +28,7 @@ async function getAuthUser() {
     }
   }
 
-  // Fallback for Web3 wallet users or sessions without legacy cookies
+  // Fallback for sessions without legacy cookies
   const fallbackUser = await prisma.user.findFirst({
     select: { id: true, email: true }
   });
@@ -46,36 +45,6 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { monitoringType, txHash, ...formData } = body;
-
-    // ── Payment Verification Gate ─────────────────────────────────────────────
-    let verifiedTxHash = txHash || null;
-    const target = formData.tokenSymbol || formData.contractAddress || formData.projectUrl || monitoringType;
-
-    if (txHash) {
-      console.log(`[LaunchWatch] Verifying on-chain payment proof: ${txHash}`);
-      const verification = await verifyKeeperHubPayment(txHash);
-      if (!verification.valid) {
-        return NextResponse.json({ error: `Payment verification failed: ${verification.error}` }, { status: 402 });
-      }
-      console.log(`[LaunchWatch] Payment verified on Base Mainnet (Block #${verification.blockNumber}) ✓`);
-      verifiedTxHash = verification.relayedTxHash || verification.effectiveTxHash || txHash;
-
-      // Always dispatch to KeeperHub so execution analytics and workflow runs are recorded on app.keeperhub.com
-      try {
-        await executeAgentViaKeeperHub("launchwatch", { target, monitoringType, ...formData, txHash: verifiedTxHash }, verifiedTxHash);
-        console.log(`[LaunchWatch] Dispatched run to KeeperHub → txHash: ${verifiedTxHash}`);
-      } catch (khErr: any) {
-        console.warn(`[LaunchWatch] KeeperHub dispatch warning: ${khErr.message}`);
-      }
-    } else {
-      console.log(`[LaunchWatch] No txHash provided — delegating payment to KeeperHub platform wallet...`);
-      try {
-        const keeperResult = await executeAgentViaKeeperHub("launchwatch", { target, monitoringType, ...formData });
-        verifiedTxHash = keeperResult.txHash;
-      } catch (khErr: any) {
-        console.warn(`[LaunchWatch] KeeperHub dispatch failed: ${khErr.message} — continuing with setup`);
-      }
-    }
 
     // 1. Resolve Project
     let projectId = formData.projectId;
@@ -95,7 +64,7 @@ export async function POST(req: Request) {
       projectId = newProject.id;
     }
 
-    // 3. Create or Update LaunchWatchConfig
+    // 2. Create or Update LaunchWatchConfig
     const alertTypes = {
       social_activity: formData.monitorSocial ?? false,
       website_changes: formData.monitorWebsite ?? false,
@@ -105,7 +74,7 @@ export async function POST(req: Request) {
       targetFDV: formData.targetFDV ? parseFloat(formData.targetFDV) : null,
       newsTopics: formData.newsTopics || [],
       notificationEmail: formData.notificationEmail || null,
-      txHash: verifiedTxHash
+      txHash: txHash || null
     };
 
     const config = await prisma.launchWatchConfig.upsert({
@@ -130,7 +99,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ 
       success: true, 
       message: "Monitoring activated successfully", 
-      txHash: verifiedTxHash,
+      txHash: txHash || null,
       monitor: {
         id: config.id,
         type: monitoringType,
@@ -139,7 +108,7 @@ export async function POST(req: Request) {
         tokenSymbol: formData.tokenSymbol || config.project.tokenAddress,
         contractAddress: formData.contractAddress || config.project.tokenAddress,
         targetFDV: formData.targetFDV || (config.alertTypes as any)?.targetFDV,
-        txHash: verifiedTxHash,
+        txHash: txHash || null,
         frequency: config.frequency,
         createdAt: config.createdAt
       } 

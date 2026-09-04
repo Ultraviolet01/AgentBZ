@@ -2,8 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useDisconnect } from "wagmi";
 import {
   Activity,
   BadgeCheck,
@@ -16,12 +14,11 @@ import {
   Rocket,
   Settings,
   ShieldCheck,
-  WalletCards,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import api from "@/lib/api";import { isKeeperHubConfigured } from '@/lib/keeperhub';
-const shortenAddress = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
+import api from "@/lib/api";
 
 type ProfileTab = "overview" | "my_agents" | "activities";
 
@@ -50,14 +47,11 @@ type DeployedAgentItem = {
 
 export default function ProfilePage() {
   const { user, isLoading, signOut } = useAuth();
-  const { address, isConnected } = useAccount();
-  const { disconnect } = useDisconnect();
   const [activeTab, setActiveTab] = useState<ProfileTab>("overview");
   const [activities, setActivities] = useState<MarketplaceActivity[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [myAgents, setMyAgents] = useState<DeployedAgentItem[]>([]);
   const [myAgentsLoading, setMyAgentsLoading] = useState(false);
-  const keeperHubReady = isKeeperHubConfigured();
 
   useEffect(() => {
     if (!user || !user.onboardingCompleted) return;
@@ -159,12 +153,11 @@ export default function ProfilePage() {
           tone="orange"
         />
         <ProfileStatus
-          icon={WalletCards}
-          label="Wallet"
-          value={isConnected && address ? shortenAddress(address) : "Not connected"}
-          detail={isConnected ? "Ready to approve transactions." : "Connect a wallet to approve transactions."}
-          extra={keeperHubReady ? "KeeperHub payments enabled" : "KeeperHub payments not configured"}
-          tone={isConnected ? "green" : "gray"}
+          icon={Sparkles}
+          label="Execution Engine"
+          value="Hedera x402"
+          detail="Decentralized micro-payments & verifiable agent runs."
+          tone="green"
         />
         <ProfileStatus
           icon={KeyRound}
@@ -173,32 +166,6 @@ export default function ProfilePage() {
           detail="Your session is active on this device."
           tone="blue"
         />
-      </section>
-
-      <section className="rounded-[32px] border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-[24px] border border-gray-100 bg-gray-50/70 p-5">
-          <div className="max-w-2xl">
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">Wallet access</p>
-            <h2 className="mt-2 text-xl font-bold text-gray-900">Connect your wallet for transaction approvals</h2>
-            <p className="mt-2 text-sm text-gray-500">
-              {isConnected && address
-                ? `Your wallet ${shortenAddress(address)} is connected and ready for approvals.`
-                : "Connect a wallet to approve marketplace actions and sign transactions securely."}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <ConnectButton showBalance={false} />
-            {isConnected ? (
-              <button
-                type="button"
-                onClick={() => disconnect()}
-                className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100"
-              >
-                Disconnect
-              </button>
-            ) : null}
-          </div>
-        </div>
       </section>
 
       <section className="bg-white border border-gray-100 rounded-[32px] p-6 sm:p-8 shadow-sm">

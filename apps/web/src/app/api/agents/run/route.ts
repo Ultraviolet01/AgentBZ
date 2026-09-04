@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@agentbazaar/database';
 import { jwtVerify } from 'jose';
 import { executeAgent } from '@/lib/agent-executor';
-import { executeAgentViaKeeperHub } from '@/lib/keeperhub';
 import { retrieveAgentKeys } from '@/lib/cdr-server';
 
 export const dynamic = 'force-dynamic';
@@ -16,9 +15,8 @@ export const dynamic = 'force-dynamic';
  * 1. Authenticate buyer via JWT
  * 2. Find the agent record in DB
  * 3. If the agent has CDR-vaulted API keys, retrieve them server-side
- *    using the platform wallet (no buyer wallet signature required —
- *    the x402 payment is the authorisation proof)
- * 4. Execute via KeeperHub (x402 payment) or fallback to direct LLM call
+ *    using the platform wallet
+ * 4. Execute via agent executor
  * 5. Discard keys, record the run, return result + txHash
  */
 
@@ -29,14 +27,12 @@ const JWT_SECRET = new TextEncoder().encode(process.env.ACCESS_TOKEN_SECRET || '
 export async function POST(req: NextRequest) {
   try {
     // ── 1. Authenticate ───────────────────────────────────────────────────────
-    // Cookie name matches what auth.controller.ts sets: 'accessToken'
     const token = req.cookies.get('accessToken')?.value;
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { payload } = await jwtVerify(token, JWT_SECRET);
-    // JWT is signed with { userId } — matches auth.controller.ts generateTokens()
     const userId = payload.userId as string;
 
     const body = await req.json();
@@ -49,7 +45,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── 3. Find Agent ─────────────────────────────────────────────────────────
+    // ── 2. Find Agent ─────────────────────────────────────────────────────────
     const agent = await prisma.deployedAgent.findUnique({
       where: { slug: agentSlug },
     });
@@ -65,67 +61,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── 4. Execute via KeeperHub ──────────────────────────────────────────────
+    // ── 3. Execute Agent ──────────────────────────────────────────────────────
     const logic = agent.readme || agent.description || '';
     let apiKeys: { name: string; value: string }[] = [];
-    let result: Awaited<ReturnType<typeof executeAgent>>;
     let txHash: string | null = clientTxHash || null;
 
-    const workflowSlug = agent.keeperhubSlug || agent.slug;
-    console.log(`[Run] Executing agent "${agent.name}" via KeeperHub (slug: ${workflowSlug}, txHash: ${clientTxHash || 'none'})...`);
-
-    const keeperHubResult = await executeAgentViaKeeperHub(workflowSlug, input, clientTxHash || undefined);
-
-    // A real KeeperHub run always returns a txHash from the x402 payment layer.
-    // If txHash is null the API key was missing or the call failed — fall through
-    // to the direct LLM path so the user still gets a result.
-    const keeperhubSucceeded = !!keeperHubResult.txHash;
-
-    if (keeperhubSucceeded) {
-      txHash = keeperHubResult.txHash;
-      console.log(`[Run] KeeperHub execution succeeded (metered via x402) — txHash: ${txHash}`);
-
-      if (agent.cdrKeysVaultUuid) {
-        try {
-          apiKeys = await retrieveAgentKeys(agent.cdrKeysVaultUuid);
-        } catch (cdrErr: any) {
-          console.error('[Run] CDR key retrieval failed:', cdrErr.message);
-        }
+    if (agent.cdrKeysVaultUuid) {
+      try {
+        apiKeys = await retrieveAgentKeys(agent.cdrKeysVaultUuid);
+      } catch (cdrErr: any) {
+        console.error('[Run] CDR key retrieval failed:', cdrErr.message);
       }
-
-      result = {
-        output: keeperHubResult.output,
-        model: agent.modelProvider,
-        provider: agent.modelProvider,
-        tokensUsed: 0,
-        estimatedCost: 0,
-        executionTime: 0,
-      } as Awaited<ReturnType<typeof executeAgent>>;
-    } else {
-      console.log(`[Run] KeeperHub did not return a txHash (skipped/misconfigured) — falling back to direct LLM provider...`);
-      if (agent.cdrKeysVaultUuid) {
-        try {
-          apiKeys = await retrieveAgentKeys(agent.cdrKeysVaultUuid);
-        } catch (cdrErr: any) {
-          console.error('[Run] CDR key retrieval failed:', cdrErr.message);
-        }
-      }
-
-      result = await executeAgent({
-        logic,
-        apiKeys: apiKeys || [],
-        modelProvider: agent.modelProvider,
-        modelName: agent.modelName || undefined,
-        apiEndpoint: agent.apiEndpoint || undefined,
-        input,
-      });
     }
 
-    // ── 5. Record Run + Buyer & Treasury Transactions ────────────────────────
+    const result = await executeAgent({
+      logic,
+      apiKeys: apiKeys || [],
+      modelProvider: agent.modelProvider,
+      modelName: agent.modelName || undefined,
+      apiEndpoint: agent.apiEndpoint || undefined,
+      input,
+    });
+
+    // ── 4. Record Run + Buyer & Treasury Transactions ────────────────────────
     const feePercent = Number(process.env.TREASURY_FEE_PERCENT || '10') / 100;
     const creatorShare = agent.pricePerRun * (1 - feePercent); // 90%
     const treasuryShare = agent.pricePerRun * feePercent;       // 10%
-    const treasuryAddress = process.env.TREASURY_WALLET_ADDRESS || '0xd6C48a201B275A21966Aef9D6C1bc087e754D848';
+    const treasuryAddress = process.env.TREASURY_WALLET_ADDRESS || '0.0.XXXXXX';
 
     await prisma.$transaction([
       // Update agent analytics
@@ -170,7 +132,7 @@ export async function POST(req: NextRequest) {
           txHash: txHash || undefined,
         },
       }),
-      // Record treasury fee (10% platform cut → 0xd6C48a201B275A21966Aef9D6C1bc087e754D848)
+      // Record treasury fee (10% platform cut)
       prisma.transaction.create({
         data: {
           userId,
@@ -183,7 +145,7 @@ export async function POST(req: NextRequest) {
       }),
     ]);
 
-    // ── 7. Return Result ──────────────────────────────────────────────────────
+    // ── 5. Return Result ──────────────────────────────────────────────────────
     return NextResponse.json({
       success: true,
       output: result.output,
@@ -195,7 +157,6 @@ export async function POST(req: NextRequest) {
         executionTime: result.executionTime,
         creditsUsed: agent.pricePerRun,
         creatorEarned: creatorShare,
-        keeperhubSlug: agent.keeperhubSlug,
         txHash,
       },
       txHash,

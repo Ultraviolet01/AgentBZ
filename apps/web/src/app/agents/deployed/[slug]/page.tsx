@@ -2,25 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { useAccount, useSendTransaction, useSignTypedData } from 'wagmi';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Check, AlertCircle, Clock, ShieldCheck, Wallet } from 'lucide-react';
-import { payAgentFeeFromWallet, signX402PaymentAuthorization } from '@/lib/x402-client';
+import { Check, AlertCircle, Clock, ShieldCheck } from 'lucide-react';
+import { RunAgentButton } from '@/components/RunAgentButton';
 
 export default function DeployedAgentPage() {
   const params = useParams();
   const searchParams = useSearchParams();
-  const { isConnected, address } = useAccount();
-  const { sendTransactionAsync } = useSendTransaction();
-  const { signTypedDataAsync } = useSignTypedData();
 
   const [agent, setAgent] = useState<any>(null);
-  const [isRunning, setIsRunning] = useState(false);
-  const [runError, setRunError] = useState<string | null>(null);
-  const [txHash, setTxHash] = useState<string | null>(null);
-  const [runOutput, setRunOutput] = useState<any>(null);
   const isNewlyDeployed = searchParams?.get('deployed') === 'true';
 
   useEffect(() => {
@@ -32,60 +24,6 @@ export default function DeployedAgentPage() {
     if (response.ok) {
       const data = await response.json();
       setAgent(data.agent);
-    }
-  };
-
-  const handleRunAgent = async () => {
-    if (!agent) return;
-
-    setIsRunning(true);
-    setRunError(null);
-    setTxHash(null);
-    setRunOutput(null);
-
-    try {
-      let clientTxHash: string | undefined = undefined;
-
-      // Off-chain gasless x402 pre-authorization or direct on-chain USDC payment
-      if (isConnected && address && signTypedDataAsync) {
-        try {
-          const payload = await signX402PaymentAuthorization(address, signTypedDataAsync as any, agent.pricePerRun || 0.1);
-          clientTxHash = JSON.stringify(payload);
-          setTxHash(payload.nonce);
-        } catch (walletErr: any) {
-          if (sendTransactionAsync) {
-            clientTxHash = await payAgentFeeFromWallet(sendTransactionAsync as any, agent.pricePerRun || 0.1);
-            setTxHash(clientTxHash);
-          } else {
-            throw new Error(`Wallet payment canceled or failed: ${walletErr.message || walletErr}`);
-          }
-        }
-      } else if (isConnected && sendTransactionAsync) {
-        clientTxHash = await payAgentFeeFromWallet(sendTransactionAsync as any, agent.pricePerRun || 0.1);
-        setTxHash(clientTxHash);
-      }
-
-      const response = await fetch('/api/agents/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agentSlug: agent.slug,
-          input: { prompt: 'Run this agent' },
-          txHash: clientTxHash,
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to run agent');
-      }
-
-      setRunOutput(data.output);
-      setTxHash(data.txHash || clientTxHash || null);
-    } catch (err: any) {
-      setRunError(err.message || 'Failed to run agent');
-    } finally {
-      setIsRunning(false);
     }
   };
 
@@ -164,39 +102,33 @@ export default function DeployedAgentPage() {
                   </span>
                 </div>
               )}
+
+              {agent.hcs14TopicId && (
+                <div className="mt-2">
+                  <a
+                    href={agent.hcs14HashscanUrl || `https://hashscan.io/testnet/topic/${agent.hcs14TopicId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-500 hover:text-blue-600 underline font-medium flex items-center gap-1"
+                  >
+                    ↗ Verify on-chain identity (HCS-14) — HashScan
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         <div className="mt-8 rounded-2xl border border-gray-200 bg-gray-50/70 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Run this agent</h2>
-              <p className="text-sm text-gray-600">This signs a wallet message and submits the execution request with KeeperHub support.</p>
-            </div>
-            <Button onClick={handleRunAgent} disabled={isRunning}>
-              {isRunning ? 'Running…' : 'Run agent'}
-            </Button>
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Run this agent</h2>
+            <p className="text-sm text-gray-600">Hedera testnet x402 payment settled via Blocky402.</p>
           </div>
-
-          {runError ? <p className="mt-3 text-sm text-red-600">{runError}</p> : null}
-
-          {txHash ? (
-            <a
-              href={`https://x402scan.com/tx/${txHash}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-3 inline-flex text-sm font-medium text-orange-600 underline"
-            >
-              View execution on x402scan ↗
-            </a>
-          ) : null}
-
-          {runOutput ? (
-            <pre className="mt-3 overflow-x-auto rounded-xl bg-white p-4 text-xs text-gray-700">
-              {JSON.stringify(runOutput, null, 2)}
-            </pre>
-          ) : null}
+          <RunAgentButton
+            agentId={agent.id}
+            agentName={agent.name}
+            priceHbar={agent.priceHbar ?? agent.pricePerRun ?? 1.0}
+          />
         </div>
 
         {/* Documentation */}

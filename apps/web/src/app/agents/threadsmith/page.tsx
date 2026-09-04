@@ -39,8 +39,6 @@ import {
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "@/lib/api";
-import { useAccount, useSendTransaction, useSignTypedData, usePublicClient } from "wagmi";
-import { payAgentFeeFromWallet, signX402PaymentAuthorization } from "@/lib/x402-client";
 
 export default function ThreadSmithPage() {
   const [input, setInput] = useState('');
@@ -55,12 +53,6 @@ export default function ThreadSmithPage() {
   const [statusIdx, setStatusIdx] = useState(0);
   const [copied, setCopied] = useState(false);
   const [lastTxHash, setLastTxHash] = useState<string | null>(null);
-
-  // Wallet state
-  const { address, isConnected } = useAccount();
-  const { sendTransactionAsync } = useSendTransaction();
-  const { signTypedDataAsync } = useSignTypedData();
-  const publicClient = usePublicClient();
 
   const statusMessages = [
     "Initializing Neural Fabric...",
@@ -87,87 +79,6 @@ export default function ThreadSmithPage() {
     if (!input) return toast.error("Please enter some content or context");
 
     let txHash: string | null = null;
-
-    // ── Web3 Payment Gate ───────────────────────────────────────────────────
-    if (!isConnected) {
-      return toast.error("Web3 Wallet Required", {
-        description: "AgentBazaar is 100% Web3-native. Please connect your Web3 wallet to pay the $0.10 USDC fee on Base.",
-      });
-    }
-
-    if (!sendTransactionAsync || !publicClient) {
-      return toast.error("Wallet Not Ready", {
-        description: "Please check your wallet connection.",
-      });
-    }
-
-    setIsPaying(true);
-    try {
-      if (signTypedDataAsync && address) {
-        toast.info("Sign $0.10 USDC pre-authorization in your wallet (Gasless)…", { duration: 15000 });
-        const payload = await signX402PaymentAuthorization(address, signTypedDataAsync as any, 0.1);
-        txHash = JSON.stringify(payload);
-        setLastTxHash(payload.nonce);
-        toast.success("x402 Pre-authorization Signed (Instant) ✓", {
-          description: `Nonce: ${payload.nonce.slice(0, 10)}… · Off-chain settlement via KeeperHub Pro`,
-        });
-      } else if (sendTransactionAsync && publicClient) {
-        toast.info("Confirm $0.10 USDC payment in your wallet…", { duration: 15000 });
-        const broadcastHash = await payAgentFeeFromWallet(sendTransactionAsync as any);
-        toast.info("Confirming payment on Base…", { duration: 30000 });
-        const receipt = await publicClient.waitForTransactionReceipt({
-          hash: broadcastHash as `0x${string}`,
-          confirmations: 1,
-          timeout: 60_000,
-        });
-
-        if (receipt.status !== 'success') {
-          setIsPaying(false);
-          return toast.error("Payment reverted on-chain", {
-            description: "Your transaction was broadcast but reverted. Check your USDC balance on Base.",
-          });
-        }
-
-        txHash = broadcastHash;
-        setLastTxHash(txHash);
-        toast.success("Payment confirmed on-chain ✓", {
-          description: `txHash: ${txHash.slice(0, 10)}…${txHash.slice(-6)}`,
-        });
-      } else {
-        return toast.error("Wallet Not Ready", { description: "Please check your wallet connection." });
-      }
-    } catch (payErr: any) {
-      if (payErr?.message?.includes("User rejected") || payErr?.message?.includes("denied")) {
-        setIsPaying(false);
-        return toast.error("Payment cancelled", { description: "You rejected the transaction in your wallet." });
-      }
-
-      // If off-chain signing fails, fall back to standard on-chain transfer
-      if (signTypedDataAsync && sendTransactionAsync && publicClient) {
-        try {
-          console.warn("[x402] Off-chain signing failed/fallback: ", payErr.message);
-          toast.info("Falling back to standard on-chain transfer…");
-          const broadcastHash = await payAgentFeeFromWallet(sendTransactionAsync as any);
-          const receipt = await publicClient.waitForTransactionReceipt({
-            hash: broadcastHash as `0x${string}`,
-            confirmations: 1,
-            timeout: 60_000,
-          });
-          if (receipt.status === 'success') {
-            txHash = broadcastHash;
-            setLastTxHash(txHash);
-          }
-        } catch (fallbackErr: any) {
-          setIsPaying(false);
-          return toast.error("Payment failed", { description: fallbackErr.message });
-        }
-      } else {
-        setIsPaying(false);
-        return toast.error("Payment failed", { description: payErr.message });
-      }
-    } finally {
-      setIsPaying(false);
-    }
 
     // ── Execute ─────────────────────────────────────────────────────────────
     setIsGenerating(true);
@@ -333,34 +244,22 @@ export default function ThreadSmithPage() {
                 </div>
               </div>
 
-              {/* Wallet Payment Banner */}
-              {isConnected && address ? (
-                <div className="flex items-center justify-between px-5 py-4 rounded-2xl bg-orange-50 border border-orange-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center">
-                      <Wallet size={16} className="text-white" strokeWidth={2.5} />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-orange-700 uppercase tracking-widest leading-none">Wallet Connected</p>
-                      <p className="text-xs font-bold text-gray-700 mt-0.5 font-mono">{address.slice(0, 6)}…{address.slice(-4)}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Per Run</p>
-                    <p className="text-base font-bold text-orange-600 leading-none mt-0.5">$0.10 USDC</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3 px-5 py-4 rounded-2xl bg-gray-50 border border-gray-100">
-                  <div className="w-9 h-9 rounded-xl bg-gray-200 flex items-center justify-center">
-                    <Zap size={16} className="text-gray-400" strokeWidth={2.5} />
+              {/* Execution Engine Banner */}
+              <div className="flex items-center justify-between px-5 py-4 rounded-2xl bg-orange-50 border border-orange-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center">
+                    <Sparkles size={16} className="text-white" strokeWidth={2.5} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Payment via KeeperHub</p>
-                    <p className="text-xs font-bold text-gray-500 mt-0.5">Platform payer wallet · $0.10/run</p>
+                    <p className="text-[10px] font-bold text-orange-700 uppercase tracking-widest leading-none">Hedera x402 Engine</p>
+                    <p className="text-xs font-bold text-gray-700 mt-0.5 font-mono">Micro-settlement per run</p>
                   </div>
                 </div>
-              )}
+                <div className="text-right">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Rate</p>
+                  <p className="text-base font-bold text-orange-600 leading-none mt-0.5">Pay-per-run</p>
+                </div>
+              </div>
 
               <div className="space-y-4">
                 <Label htmlFor="input" className="text-[11px] font-bold text-gray-400 uppercase tracking-widest px-1">Raw Context / Project Notes</Label>
@@ -381,8 +280,8 @@ export default function ThreadSmithPage() {
                 >
                   {isPaying ? (
                     <>
-                      <Wallet className="w-6 h-6 animate-pulse" />
-                      AWAITING WALLET…
+                      <RotateCcw className="w-6 h-6 animate-spin" />
+                      PROCESSING…
                     </>
                   ) : isGenerating ? (
                     <>
@@ -392,12 +291,12 @@ export default function ThreadSmithPage() {
                   ) : (
                     <>
                       <Sparkles className="w-7 h-7" strokeWidth={2.5} />
-                      {isConnected ? "PAY & INITIALIZE ENGINE" : "INITIALIZE ENGINE"}
+                      INITIALIZE ENGINE
                     </>
                   )}
                 </Button>
                 <p className="text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.25em]">
-                  {isConnected ? "$0.10 USDC signed from your wallet" : "Computation anchored on-chain"}
+                  Computation anchored on-chain
                 </p>
               </div>
             </div>

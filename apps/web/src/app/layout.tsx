@@ -3,8 +3,8 @@ export const dynamic = "force-dynamic";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
-import { Web3Provider } from "@/components/Web3Provider";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { HashConnectProvider } from "@/context/HashConnectContext";
 import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -23,7 +23,7 @@ export default function RootLayout({
     <html lang="en" className="light">
       <body className={inter.className}>
         <AuthProvider>
-          <Web3Provider>
+          <HashConnectProvider>
             <div className="flex flex-col lg:flex-row h-screen overflow-hidden bg-gray-50">
               <Sidebar />
               <main className="flex-1 overflow-y-auto custom-scrollbar">
@@ -37,7 +37,7 @@ export default function RootLayout({
                 className: "bg-white border-gray-200 text-gray-900 rounded-2xl shadow-lg",
               }} 
             />
-          </Web3Provider>
+          </HashConnectProvider>
         </AuthProvider>
       </body>
     </html>

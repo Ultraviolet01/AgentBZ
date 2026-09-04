@@ -207,7 +207,6 @@ model DeployedAgent {
   // Story Protocol CDR Vaults
   cdrVaultUuid      Int?      // CDR vault UUID for agent logic (system prompt)
   cdrKeysVaultUuid  Int?      // CDR vault UUID for API keys (optional)
-  keeperhubSlug     String?   // KeeperHub workflow slug for x402/MPP execution
   cdrDeployedAt     DateTime? // Timestamp when CDR vaulting completed
 
   // Cost Tracking
@@ -245,6 +244,8 @@ model DeployedAgent {
   // Decentralized storage references
   storageNodeId String? // storage node where encrypted blob is stored
   memoryHash    String? // memory reference
+  hcs14TopicId     String? // HCS-14 on-chain agent identity topic
+  hcs14HashscanUrl String? // HCS-14 HashScan verification URL
 
   // Timestamps
   createdAt  DateTime  @default(now())
@@ -271,5 +272,32 @@ model AgentReview {
   updatedAt DateTime @updatedAt
 }
 
-// CDR access events are recorded on-chain by the Story Protocol network
-// and do not require a separate DB model.
+// Agent and Execution models for Hedera x402
+model Agent {
+  id               String      @id @default(cuid())
+  name             String
+  description      String?
+  logic            String      @db.Text
+  priceHbar        Float       @default(1.0)
+  isActive         Boolean     @default(true)
+  hcs14TopicId     String?
+  hcs14HashscanUrl String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  executions       Execution[]
+}
+
+model Execution {
+  id                String   @id @default(cuid())
+  agentId           String
+  agent             Agent    @relation(fields: [agentId], references: [id])
+  buyerAccountId    String
+  hederaTransaction String   // transaction ID from Blocky402 settlement
+  hcsTxId           String   // HCS message tx ID for audit trail
+  priceHbar         Float
+  platformFeeHbar   Float    @default(0.5)
+  network           String   @default("hedera:testnet")
+  executedAt        DateTime
+  createdAt         DateTime @default(now())
+}
+

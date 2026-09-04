@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { PrismaClient, THREADSMITH_SYSTEM_PROMPT } from "@agentbazaar/database";
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
-import { verifyKeeperHubPayment, executeAgentViaKeeperHub } from "@/lib/keeperhub";
 
 const prisma = new PrismaClient();
 // Must match ACCESS_TOKEN_SECRET used by auth.controller.ts
@@ -83,25 +82,6 @@ export async function POST(req: Request) {
   try {
     const { projectId, contentType, tone, quality, useMemory, input, txHash } = await req.json();
 
-    // ── Payment Gate & KeeperHub Cryptographic Verification ─────────────────
-    const paymentProof = txHash || null;
-    if (!paymentProof) {
-      return NextResponse.json({
-        error: "Payment Required: Please connect your Web3 wallet and confirm the payment authorization to run ThreadSmith."
-      }, { status: 402 });
-    }
-
-    console.log(`[ThreadSmith] Verifying payment proof via KeeperHub engine...`);
-    const verification = await verifyKeeperHubPayment(paymentProof);
-    if (!verification.valid) {
-      console.warn(`[ThreadSmith] KeeperHub payment verification failed: ${verification.error}`);
-      return NextResponse.json({
-        error: `KeeperHub Payment Verification Failed: ${verification.error}`
-      }, { status: 402 });
-    }
-    const effectiveTxHash = verification.relayedTxHash || paymentProof;
-    console.log(`[ThreadSmith] Payment proof verified by KeeperHub engine ✓ (effective txHash: ${effectiveTxHash})`);
-
     if (!input) {
       return NextResponse.json({ error: "Input context is required" }, { status: 400 });
     }
@@ -120,89 +100,59 @@ export async function POST(req: Request) {
       context += "\n\nProject History:\n" + memories.map((m: any) => `${m.memoryType}: ${JSON.stringify(m.content)}`).join("\n");
     }
 
-    // 3. Attempt KeeperHub remote workflow execution.
-    //    KeeperHub logs the run on the dashboard and triggers the email node.
-    //    It returns { executionId, status } — NOT content. The local LLM always
-    //    generates the thread. KeeperHub is purely for audit-logging + email.
+    // 3. Local LLM execution
     let generatedContent = "";
-    console.log(`[ThreadSmith] Attempting KeeperHub dispatch (slug: "threadsmith", txHash: ${effectiveTxHash})...`);
-
-    try {
-      const keeperHubResult = await executeAgentViaKeeperHub(
-        "threadsmith",
-        // Keys map to {{ trigger.<key> }} in the KeeperHub email template.
-        // "input" is reserved/unresolvable — use "topic" instead.
-        { topic: input, contentType, tone, quality, txHash: effectiveTxHash },
-        effectiveTxHash || undefined
-      );
-      const execId = (keeperHubResult.output as any)?.executionId;
-      const skipped = (keeperHubResult.output as any)?.skipped;
-      if (skipped) {
-        console.log(`[ThreadSmith] KeeperHub skipped (not configured) — continuing to LLM engine`);
-      } else {
-        console.log(`[ThreadSmith] KeeperHub dispatched ✓ executionId: ${execId} — continuing to LLM engine for content`);
-      }
-    } catch (khErr: any) {
-      // KeeperHub failed (wrong ID, network error, etc.).
-      // Log clearly but NEVER surface this to the user — they've already paid.
-      console.warn(`[ThreadSmith] KeeperHub dispatch failed: ${khErr.message} — continuing to LLM engine`);
+    console.log(`[ThreadSmith] Synthesizing thread via LLM engine...`);
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: "AI configuration missing (ANTHROPIC_API_KEY not set)" }, { status: 500 });
     }
 
-    // 4. Local LLM execution (fallback or primary when KeeperHub skipped/failed)
-    if (!generatedContent) {
-      console.log(`[ThreadSmith] Synthesizing thread via local LLM engine...`);
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey) {
-        return NextResponse.json({ error: "AI configuration missing (ANTHROPIC_API_KEY not set)" }, { status: 500 });
+    const trimmedKey = apiKey.trim();
+    console.log(`[ThreadSmith] Key prefix: ${trimmedKey.substring(0, 15)}... len=${trimmedKey.length} quality=${quality}`);
+
+    const modelsToTry = [
+      "claude-sonnet-4-5",
+      "claude-sonnet-4-20250514",
+      "claude-3-5-sonnet-20241022",
+      "claude-3-5-haiku-20241022",
+      "claude-3-haiku-20240307",
+    ];
+
+    const userMessage = `ContentType: ${contentType}\nTone: ${tone}\nContext: ${context}`;
+    let lastError: any = null;
+
+    for (const model of modelsToTry) {
+      if (generatedContent) break;
+      try {
+        console.log(`[ThreadSmith] Trying model: ${model}`);
+        generatedContent = await callAnthropic(trimmedKey, model, THREADSMITH_SYSTEM_PROMPT, userMessage);
+        console.log(`[ThreadSmith] Success with model: ${model}`);
+      } catch (err: any) {
+        console.error(`[ThreadSmith] Failed with model ${model}:`, err.message);
+        lastError = err;
+        if (err.message?.includes("401") || err.message?.includes("invalid_api_key")) break;
       }
+    }
 
-      const trimmedKey = apiKey.trim();
-      console.log(`[ThreadSmith] Key prefix: ${trimmedKey.substring(0, 15)}... len=${trimmedKey.length} quality=${quality}`);
-
-      const modelsToTry = [
-        "claude-sonnet-4-5",
-        "claude-sonnet-4-20250514",
-        "claude-3-5-sonnet-20241022",
-        "claude-3-5-haiku-20241022",
-        "claude-3-haiku-20240307",
-      ];
-
-      const userMessage = `ContentType: ${contentType}\nTone: ${tone}\nContext: ${context}`;
-      let lastError: any = null;
-
-      for (const model of modelsToTry) {
-        if (generatedContent) break;
-        try {
-          console.log(`[ThreadSmith] Trying model: ${model}`);
-          generatedContent = await callAnthropic(trimmedKey, model, THREADSMITH_SYSTEM_PROMPT, userMessage);
-          console.log(`[ThreadSmith] Success with model: ${model}`);
-        } catch (err: any) {
-          console.error(`[ThreadSmith] Failed with model ${model}:`, err.message);
-          lastError = err;
-          if (err.message?.includes("401") || err.message?.includes("invalid_api_key")) break;
-        }
-      }
-
-      if (!generatedContent && lastError) {
-        return NextResponse.json({
-          error: `AI Engine Exhausted: ${lastError.message}`,
-          debug: {
-            keyPrefix: `${trimmedKey.substring(0, 15)}...`,
-            keyLength: trimmedKey.length,
-            attemptedModels: modelsToTry,
-            errorMessage: lastError.message,
-          },
-          suggestion: "Verify your Anthropic API key is valid and has sufficient credits at console.anthropic.com"
-        }, { status: 500 });
-      }
+    if (!generatedContent && lastError) {
+      return NextResponse.json({
+        error: `AI Engine Exhausted: ${lastError.message}`,
+        debug: {
+          keyPrefix: `${trimmedKey.substring(0, 15)}...`,
+          keyLength: trimmedKey.length,
+          attemptedModels: modelsToTry,
+          errorMessage: lastError.message,
+        },
+        suggestion: "Verify your Anthropic API key is valid and has sufficient credits at console.anthropic.com"
+      }, { status: 500 });
     }
 
     if (!generatedContent) {
       throw new Error("Empty response from AI engine");
     }
 
-    // 5. Persistence — safe: run may be undefined if DB write fails, we still
-    //    return content so the user doesn't lose their paid result.
+    // 4. Persistence
     let runId: string | undefined;
     try {
       const run = await prisma.agentRun.create({
@@ -213,7 +163,7 @@ export async function POST(req: Request) {
           inputData: { contentType, tone, quality, input, useMemory },
           outputData: {
             content: generatedContent,
-            metadata: { txHash: paymentProof }
+            metadata: { txHash: txHash || null }
           },
           creditsUsed,
           status: "COMPLETED"
@@ -222,10 +172,9 @@ export async function POST(req: Request) {
       runId = run.id;
     } catch (dbError) {
       console.error("Failed to persist agent run:", dbError);
-      // Don't return an error — user still gets their content
     }
 
-    // 6. Project Memory
+    // 5. Project Memory
     if (projectId) {
       try {
         await prisma.projectMemory.create({
@@ -244,8 +193,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       content: generatedContent,
-      runId,               // may be undefined if DB failed — frontend handles gracefully
-      txHash: effectiveTxHash,
+      runId,
+      txHash: txHash || null,
     });
 
   } catch (error: any) {

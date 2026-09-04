@@ -58,7 +58,6 @@ export async function GET(
         // Pricing
         pricePerRun: agent.pricePerRun,
         setupFee: agent.setupFee,
-        keeperhubSlug: agent.keeperhubSlug,
         
         // Technical (safe to show)
         modelProvider: agent.modelProvider,

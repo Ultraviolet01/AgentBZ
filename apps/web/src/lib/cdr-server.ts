@@ -151,10 +151,11 @@ export async function deployAgentCDR(listing: AgentListing): Promise<DeployedAge
       owner: account.address,
     });
 
-    console.log(`[CDR] Vaulting ${listing.apiKeys.length} API key(s) for "${listing.name}"…`);
+    const keys = listing.apiKeys || [];
+    console.log(`[CDR] Vaulting ${keys.length} API key(s) for "${listing.name}"…`);
 
     const { uuid: keysVaultUuid } = await client.uploader.uploadFile({
-      content: encoder.encode(JSON.stringify({ apiKeys: listing.apiKeys })),
+      content: encoder.encode(JSON.stringify({ apiKeys: keys })),
       storageProvider: storage,
       globalPubKey,
       updatable: true,

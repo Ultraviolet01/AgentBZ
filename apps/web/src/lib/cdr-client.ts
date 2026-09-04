@@ -9,5 +9,4 @@
  * See: apps/web/src/lib/cdr-server.ts  — the active CDR module (deploy only)
  */
 
-// This file is kept as a placeholder. All active CDR logic lives in cdr-server.ts.
-// The run flow does not use CDR — agents execute directly via KeeperHub (x402).
+export {};

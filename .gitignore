@@ -7,9 +7,13 @@ node_modules
 .env.*
 !.env.example
 
-# Next.js
+# Next.js & Build Outputs
 .next/
 out/
+dist/
+build/
+*.tsbuildinfo
+*.zip
 
 # Turbo
 .turbo
@@ -50,6 +54,7 @@ Thumbs.db
 
 # Test scripts & logs
 test-*.js
+test_*.js
 test_output*.txt
 test-db.js
 test-resend.js

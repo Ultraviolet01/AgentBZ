@@ -13,6 +13,7 @@ import {
   Info,
   ExternalLink
 } from 'lucide-react';
+import { RunAgentButton } from '@/components/RunAgentButton';
 
 export default function ScamSniffPage() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -69,6 +70,19 @@ export default function ScamSniffPage() {
       {/* Overview Tab */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
+          
+          {/* Quick Run with Hedera x402 */}
+          <Card className="bg-white border border-gray-200 p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Run ScamSniff Instant Scan</h2>
+            <p className="text-gray-600 text-sm mb-4">
+              Enter a contract address or domain to analyze on Hedera testnet with x402 settlement.
+            </p>
+            <RunAgentButton
+              agentId="scamsniff"
+              agentName="ScamSniff"
+              priceHbar={1.0}
+            />
+          </Card>
           
           {/* What is ScamSniff */}
           <Card className="bg-white border border-gray-200 p-6 shadow-sm">

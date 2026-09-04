@@ -22,12 +22,10 @@ import {
   Mail,
   TrendingUp,
   Bell,
-  X
+  X,
+  ExternalLink,
+  ShieldCheck
 } from 'lucide-react';
-
-import { useAccount, useSendTransaction, useSignTypedData, usePublicClient } from 'wagmi';
-import { payAgentFeeFromWallet, signX402PaymentAuthorization } from '@/lib/x402-client';
-import { ExternalLink, ShieldCheck, Wallet } from 'lucide-react';
 
 type MonitoringType = 'project' | 'token_milestone' | 'crypto_news';
 
@@ -38,11 +36,6 @@ export default function LaunchWatchPage() {
   const [activeMonitors, setActiveMonitors] = useState<any[]>([]);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'broadcasting' | 'mined' | 'verifying' | 'done'>('idle');
   const [lastTxHash, setLastTxHash] = useState<string | null>(null);
-
-  const { isConnected, address } = useAccount();
-  const { sendTransactionAsync } = useSendTransaction();
-  const { signTypedDataAsync } = useSignTypedData();
-  const publicClient = usePublicClient();
 
   // Form data
   const [formData, setFormData] = useState({
@@ -69,36 +62,15 @@ export default function LaunchWatchPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    let clientTxHash: string | undefined = undefined;
 
     try {
-      if (!isConnected) {
-        alert("Web3 Wallet Required: Please connect your Web3 wallet to activate 24/7 monitoring on Base.");
-        setIsLoading(false);
-        return;
-      }
-
       setPaymentStatus('broadcasting');
-      if (signTypedDataAsync && address) {
-        const payload = await signX402PaymentAuthorization(address, signTypedDataAsync as any, 0.1);
-        clientTxHash = JSON.stringify(payload);
-        setLastTxHash(payload.nonce);
-      } else if (sendTransactionAsync) {
-        const hash = await payAgentFeeFromWallet(sendTransactionAsync, 0.1);
-        clientTxHash = hash;
-        setLastTxHash(hash);
-        setPaymentStatus('mined');
-        if (publicClient) {
-          await publicClient.waitForTransactionReceipt({ hash: hash as `0x${string}` });
-        }
-      }
 
       const response = await fetch('/api/agents/launchwatch/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           monitoringType,
-          txHash: clientTxHash,
           ...formData
         })
       });
@@ -106,7 +78,7 @@ export default function LaunchWatchPage() {
       const data = await response.json();
 
       if (data.success) {
-        setActiveMonitors([...activeMonitors, { ...data.monitor, txHash: data.txHash || clientTxHash }]);
+        setActiveMonitors([...activeMonitors, { ...data.monitor, txHash: data.txHash }]);
         setStep('active');
         setPaymentStatus('done');
       } else {
@@ -509,15 +481,12 @@ export default function LaunchWatchPage() {
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      {paymentStatus === 'broadcasting' && 'Confirming in Wallet ($0.10 USDC)...'}
-                      {paymentStatus === 'mined' && 'Waiting for Base Confirmation...'}
-                      {paymentStatus === 'verifying' && 'KeeperHub Verifying Payment...'}
-                      {paymentStatus === 'idle' && 'Initializing Agent...'}
+                      Initializing Agent...
                     </>
                   ) : (
                     <>
                       <Play className="w-4 h-4 mr-2" />
-                      {isConnected ? 'PAY & INITIALIZE MONITOR ($0.10 USDC)' : 'START MONITORING ($0.10 USD)'}
+                      START MONITORING
                     </>
                   )}
                 </Button>
