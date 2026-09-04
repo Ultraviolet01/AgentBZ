@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { VaultDashboard } from "@/components/VaultDashboard";
 import api from "@/lib/api";
 
 type ProfileTab = "overview" | "my_agents" | "activities";
@@ -222,6 +223,10 @@ export default function ProfilePage() {
               <ProfileLink href="/projects" icon={BriefcaseBusiness} title="My projects" description="View and organize your work." />
               <ProfileLink href="/deploy" icon={Rocket} title="Deploy an agent" description="Launch a new agent workflow." />
               <ProfileLink href="/settings" icon={Settings} title="Preferences" description="Manage security and app settings." />
+            </div>
+
+            <div className="pt-4">
+              <VaultDashboard />
             </div>
           </div>
         ) : activeTab === "my_agents" ? (
