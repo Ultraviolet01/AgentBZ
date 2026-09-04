@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useHashPack } from "@/hooks/useHashPack";
+import { HashPackButton } from "./HashPackButton";
 
 interface VaultData {
   hederaAccountId: string;
@@ -19,6 +21,12 @@ interface VaultData {
 }
 
 export function VaultDashboard() {
+  const {
+    accountId: hashPackAccountId,
+    isConnected,
+    sendDeposit,
+  } = useHashPack();
+
   const [accountId, setAccountId] = useState("");
   const [inputAccountId, setInputAccountId] = useState("");
   const [vault, setVault] = useState<VaultData | null>(null);
@@ -26,6 +34,7 @@ export function VaultDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   // Deposit flow state
+  const [depositAmount, setDepositAmount] = useState("");
   const [depositTxId, setDepositTxId] = useState("");
   const [depositing, setDepositing] = useState(false);
   const [depositSuccess, setDepositSuccess] = useState<string | null>(null);
@@ -57,15 +66,68 @@ export function VaultDashboard() {
     }
   }
 
+  // Auto-fill account ID when HashPack connects
+  useEffect(() => {
+    if (hashPackAccountId && !accountId) {
+      loadVault(hashPackAccountId);
+    }
+  }, [hashPackAccountId]);
+
+  // Load from localStorage on mount if present
   useEffect(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("agentbazaar-hedera-account");
-      if (saved) loadVault(saved);
+      if (saved && !accountId) {
+        loadVault(saved);
+      }
     }
   }, []);
 
-  async function handleDeposit() {
-    if (!depositTxId.trim()) {
+  async function handleHashPackDeposit() {
+    const activeAccountId = hashPackAccountId || accountId;
+    if (!depositAmount || !activeAccountId) return;
+
+    setDepositing(true);
+    setError(null);
+    setDepositSuccess(null);
+
+    try {
+      // Step 1: HashPack opens → buyer approves HBAR transfer
+      const txId = await sendDeposit(
+        platformAccount,
+        parseFloat(depositAmount)
+      );
+
+      // Step 2: Tell server to verify via Mirror Node + credit vault
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+      const res = await fetch(`${baseUrl}/api/vault/deposit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hederaAccountId: activeAccountId,
+          hederaTransactionId: txId,
+          amountHbar: parseFloat(depositAmount),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Deposit failed");
+
+      setDepositSuccess(
+        `✓ ${data.amountDeposited} HBAR deposited. New balance: ${data.newBalance} HBAR`
+      );
+      setDepositAmount("");
+      await loadVault(activeAccountId);
+    } catch (err: any) {
+      setError(err.message || "Failed to process deposit");
+    } finally {
+      setDepositing(false);
+    }
+  }
+
+  async function handleManualDeposit() {
+    const activeAccountId = hashPackAccountId || accountId;
+    if (!depositTxId.trim() || !activeAccountId) {
       setError("Enter your Hedera transaction ID");
       return;
     }
@@ -76,27 +138,23 @@ export function VaultDashboard() {
 
     try {
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
-      const res = await fetch(
-        `${baseUrl}/api/vault/deposit`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            hederaAccountId: accountId,
-            hederaTransactionId: depositTxId.trim(),
-          }),
-        }
-      );
+      const res = await fetch(`${baseUrl}/api/vault/deposit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hederaAccountId: activeAccountId,
+          hederaTransactionId: depositTxId.trim(),
+        }),
+      });
 
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.error || "Deposit failed");
 
       setDepositSuccess(
         `✓ ${data.amountDeposited} HBAR deposited. New balance: ${data.newBalance} HBAR`
       );
       setDepositTxId("");
-      await loadVault(accountId);
+      await loadVault(activeAccountId);
     } catch (err: any) {
       setError(err.message || "Failed to process deposit");
     } finally {
@@ -104,13 +162,18 @@ export function VaultDashboard() {
     }
   }
 
+  const activeAccount = hashPackAccountId || accountId;
+
   // Not connected yet
-  if (!accountId) {
+  if (!activeAccount) {
     return (
-      <div className="bg-[#0A0A0A] border border-[#1A1A1A] rounded-xl p-6 space-y-4">
-        <h2 className="text-white font-semibold">My Vault</h2>
+      <div className="bg-[#0A0A0A] border border-[#1A1A1A] rounded-xl p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-white font-semibold">My Vault</h2>
+          <HashPackButton />
+        </div>
         <p className="text-gray-400 text-sm">
-          Enter your Hedera account ID to view your vault
+          Connect your HashPack wallet or enter your Hedera account ID manually to view your vault balance and deposit HBAR.
         </p>
         <div className="flex gap-2">
           <input
@@ -125,7 +188,7 @@ export function VaultDashboard() {
             disabled={!inputAccountId.trim() || loading}
             className="px-4 py-2 bg-[#6C3BFF] text-white text-sm rounded-lg disabled:opacity-50"
           >
-            {loading ? "Connecting..." : "Connect"}
+            {loading ? "Connecting..." : "Connect Manually"}
           </button>
         </div>
       </div>
@@ -137,20 +200,23 @@ export function VaultDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-white font-semibold">My Vault</h2>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400 font-mono">{accountId}</span>
-          <button
-            onClick={() => {
-              setAccountId("");
-              setVault(null);
-              if (typeof window !== "undefined") {
-                localStorage.removeItem("agentbazaar-hedera-account");
-              }
-            }}
-            className="text-xs text-gray-500 hover:text-red-400 underline"
-          >
-            Disconnect
-          </button>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-400 font-mono">{activeAccount}</span>
+          <HashPackButton />
+          {!isConnected && (
+            <button
+              onClick={() => {
+                setAccountId("");
+                setVault(null);
+                if (typeof window !== "undefined") {
+                  localStorage.removeItem("agentbazaar-hedera-account");
+                }
+              }}
+              className="text-xs text-gray-500 hover:text-red-400 underline"
+            >
+              Disconnect
+            </button>
+          )}
         </div>
       </div>
 
@@ -166,41 +232,78 @@ export function VaultDashboard() {
         <p className="text-gray-500 text-xs mt-1">Hedera testnet</p>
       </div>
 
-      {/* Deposit instructions */}
-      <div className="bg-[#6C3BFF]/10 border border-[#6C3BFF]/30 rounded-xl p-4 space-y-3">
-        <p className="text-white text-sm font-medium">Deposit HBAR</p>
-        <div className="space-y-1">
-          <p className="text-gray-400 text-xs">Step 1 — Send HBAR to:</p>
-          <p className="text-white font-mono text-sm bg-[#1A1A1A] rounded px-3 py-2 select-all">
-            {platformAccount}
-          </p>
-        </div>
-        <div className="space-y-1">
-          <p className="text-gray-400 text-xs">
-            Step 2 — Paste your Hedera transaction ID here:
-          </p>
+      {/* HashPack Deposit section */}
+      {isConnected ? (
+        <div className="bg-[#6C3BFF]/10 border border-[#6C3BFF]/30 rounded-xl p-4 space-y-3">
+          <p className="text-white text-sm font-medium">Deposit HBAR</p>
           <div className="flex gap-2">
             <input
-              type="text"
-              placeholder="0.0.12345@1234567890.000000000"
-              value={depositTxId}
-              onChange={(e) => setDepositTxId(e.target.value)}
-              className="flex-1 bg-[#1A1A1A] text-white text-xs font-mono rounded-lg px-3 py-2 border border-[#2A2A2A] outline-none"
+              type="number"
+              placeholder="Amount in HBAR (e.g. 10)"
+              value={depositAmount}
+              onChange={(e) => setDepositAmount(e.target.value)}
+              className="flex-1 bg-[#1A1A1A] text-white text-sm rounded-lg px-3 py-2 border border-[#2A2A2A] outline-none"
+              min="1"
             />
             <button
-              onClick={handleDeposit}
-              disabled={depositing || !depositTxId.trim()}
+              onClick={handleHashPackDeposit}
+              disabled={depositing || !depositAmount}
               className="px-4 py-2 bg-[#6C3BFF] text-white text-sm rounded-lg disabled:opacity-50 whitespace-nowrap"
             >
-              {depositing ? "Verifying..." : "Verify & Credit"}
+              {depositing ? "Waiting for HashPack..." : "Deposit"}
             </button>
           </div>
+          <p className="text-gray-500 text-xs">
+            HashPack will open for you to approve the transfer
+          </p>
+          {depositSuccess && (
+            <p className="text-green-400 text-xs">{depositSuccess}</p>
+          )}
         </div>
+      ) : (
+        <div className="bg-[#1A1A1A] rounded-xl p-4 text-center space-y-3">
+          <p className="text-gray-400 text-sm">
+            Connect HashPack to deposit HBAR into your vault
+          </p>
+          <div className="flex justify-center">
+            <HashPackButton />
+          </div>
+        </div>
+      )}
 
-        {depositSuccess && (
-          <p className="text-green-400 text-xs">{depositSuccess}</p>
-        )}
-      </div>
+      {/* Manual deposit fallback option */}
+      <details className="bg-[#141414] border border-[#222] rounded-xl p-4 text-xs text-gray-400">
+        <summary className="cursor-pointer font-medium text-gray-300 hover:text-white">
+          Or deposit manually via Transaction ID
+        </summary>
+        <div className="mt-3 space-y-3">
+          <div>
+            <p className="text-gray-400 mb-1">Send HBAR directly to platform account:</p>
+            <p className="text-white font-mono bg-[#1A1A1A] rounded px-3 py-2 select-all">
+              {platformAccount}
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-400 mb-1">Paste your Hedera transaction ID:</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="0.0.12345@1234567890.000000000"
+                value={depositTxId}
+                onChange={(e) => setDepositTxId(e.target.value)}
+                className="flex-1 bg-[#1A1A1A] text-white text-xs font-mono rounded-lg px-3 py-2 border border-[#2A2A2A] outline-none"
+              />
+              <button
+                onClick={handleManualDeposit}
+                disabled={depositing || !depositTxId.trim()}
+                className="px-4 py-2 bg-[#2A2A2A] text-white text-xs rounded-lg disabled:opacity-50 whitespace-nowrap hover:bg-[#333]"
+              >
+                {depositing ? "Verifying..." : "Verify & Credit"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </details>
 
       {error && <p className="text-red-400 text-sm">{error}</p>}
 

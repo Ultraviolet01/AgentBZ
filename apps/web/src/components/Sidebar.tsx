@@ -15,12 +15,14 @@ import {
   Network,
   Rocket,
   Menu,
-  X
+  X,
+  Wallet
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { AgentSelectionModal } from "./AgentSelectionModal";
+import { HashPackButton } from "./HashPackButton";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -80,6 +82,12 @@ export default function Sidebar() {
       href: '/deploy', 
       icon: Rocket,
       description: 'Deploy New Agent'
+    },
+    {
+      label: 'Vault & Wallet',
+      href: '/wallet',
+      icon: Wallet,
+      description: 'HBAR Balance & Deposit'
     }
   ];
 
@@ -109,9 +117,9 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* Run Agent Button - only show when authenticated */}
+      {/* Wallet Connection & Run Agent - only show when authenticated */}
       {user && (
-        <div className="p-4">
+        <div className="p-4 space-y-2">
           <Button 
             variant="primary"
             onClick={() => setModalOpen(true)}
@@ -120,6 +128,9 @@ export default function Sidebar() {
             <Plus className="w-4 h-4 mr-2" strokeWidth={3} />
             RUN AGENT
           </Button>
+          <div className="pt-1 flex justify-center">
+            <HashPackButton />
+          </div>
         </div>
       )}
 
@@ -236,12 +247,15 @@ export default function Sidebar() {
           </div>
           <span className="font-black text-gray-900 uppercase tracking-tighter">AgentBazaar</span>
         </Link>
-        <button 
-          onClick={() => setIsMobileMenuOpen(true)}
-          className="p-2 text-gray-600 hover:text-gray-900"
-        >
-          <Menu className="w-6 h-6" />
-        </button>
+        <div className="flex items-center gap-2">
+          <HashPackButton />
+          <button 
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="p-2 text-gray-600 hover:text-gray-900"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+        </div>
       </header>
 
       {/* Backdrop for mobile */}

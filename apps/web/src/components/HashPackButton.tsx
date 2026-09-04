@@ -1,10 +1,10 @@
 "use client";
 
-import { useHashConnect } from "@/context/HashConnectContext";
+import { useHashPack } from "@/hooks/useHashPack";
 
 export function HashPackButton() {
-  const { accountId, isConnected, connect, disconnect, isInitialized } =
-    useHashConnect();
+  const { accountId, isConnected, isInitialized, connect, disconnect } =
+    useHashPack();
 
   if (!isInitialized) {
     return (
@@ -20,12 +20,11 @@ export function HashPackButton() {
   if (isConnected && accountId) {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-xs text-gray-400 font-mono">
-          {accountId.length > 8 ? `${accountId.slice(0, 8)}...` : accountId}
-        </span>
+        <div className="w-2 h-2 rounded-full bg-green-500" />
+        <span className="text-xs text-gray-300 font-mono">{accountId}</span>
         <button
           onClick={disconnect}
-          className="px-3 py-1 text-xs text-red-400 border border-red-400/30 rounded-lg hover:bg-red-500/10 transition-colors"
+          className="px-2 py-1 text-xs text-red-400 border border-red-400/30 rounded-lg hover:bg-red-500/10 transition-colors"
         >
           Disconnect
         </button>
@@ -36,8 +35,16 @@ export function HashPackButton() {
   return (
     <button
       onClick={connect}
-      className="px-4 py-2 text-sm bg-[#6C3BFF] text-white rounded-lg font-medium hover:bg-[#582bd6] transition-colors"
+      className="px-4 py-2 text-sm bg-[#6C3BFF] text-white rounded-lg font-medium flex items-center gap-2 hover:bg-[#582bd6] transition-colors"
     >
+      <img
+        src="/hashpack-logo.png"
+        alt="HashPack"
+        className="w-4 h-4"
+        onError={(e) => {
+          (e.currentTarget as HTMLElement).style.display = "none";
+        }}
+      />
       Connect HashPack
     </button>
   );
