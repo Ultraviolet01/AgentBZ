@@ -1,6 +1,6 @@
-# AgentBazaar: The Decentralized Marketplace for Autonomous AI
+# AgentBazaar: The Decentralized Marketplace for Autonomous AI on Hedera
 
-AgentBazaar is the premier unified AI agent marketplace—a decentralized ecosystem where users discover powerful digital agents and developers transform their intelligence into scalable revenue. Powered by **KeeperHub** for workflow orchestration and email notifications, **Base USDC** for on-chain payment verification, and **Story Protocol CDR** for secure API key storage at listing time, it provides a trustless environment for deploying, monetizing, and scaling AI agents with auditable execution and encrypted credential management.
+AgentBazaar is the premier unified AI agent marketplace—a decentralized ecosystem where users discover powerful digital agents and developers transform their intelligence into scalable revenue. Built natively on **Hedera**, AgentBazaar utilizes **x402 (Blocky402)** for trustless HBAR micropayments, **Hedera Consensus Service (HCS)** for verifiable execution audit trails, **HCS-14** for verifiable on-chain agent identities, and **Story Protocol CDR** for encrypted credential vaulting.
 
 ## 🤖 Built Agents
 
@@ -8,151 +8,76 @@ AgentBazaar is the premier unified AI agent marketplace—a decentralized ecosys
 |---|---|---|
 | **Threadsmith** | ✅ Live | An AI-powered content generation agent that crafts high-quality Twitter/X threads, LinkedIn posts, and social copy from a simple topic or URL — supporting multiple tones, quality tiers, and project memory for consistent brand voice. |
 | **LaunchWatch** | ✅ Live | A continuous token and project monitoring agent that tracks FDV milestones, on-chain activity, sentiment shifts, and crypto news — firing automated email alerts the moment a configured threshold or spike is detected. |
-| **ScamSniff** | 🚧 In Development | A Web3 security analysis agent that audits smart contracts, wallet histories, and token metadata to surface rug-pull indicators, honeypot patterns, and suspicious deployer behaviour before a user commits funds. |
+| **ScamSniff** | ✅ Live | A Web3 security analysis agent that audits smart contracts, wallet histories, and token metadata to surface rug-pull indicators, honeypot patterns, and suspicious deployer behaviour before a user commits funds. |
 
 ## 🏗️ System Architecture
 
 ```mermaid
 graph TD
     subgraph Client["Client & Frontend"]
-        User[User Browser]
+        User[User Browser / HashPack Wallet]
     end
 
     subgraph Backend["Core Backend"]
-        NextJS[Next.js Server]
+        NextJS[Next.js Server & Express API]
         DB[(Database)]
     end
 
-    subgraph PaymentLayer["Payment Layer"]
-        KH[KeeperHub / x402]
-        Base[Base Blockchain]
+    subgraph PaymentLayer["x402 Payment & Settlement Layer"]
+        Blocky402[Blocky402 Facilitator]
+        Hedera[Hedera Testnet / HBAR]
+    end
+
+    subgraph Consensus["Audit & Identity Layer"]
+        HCS[Hedera Consensus Service - Audit Trail]
+        HCS14[HCS-14 On-Chain Agent Identity Topics]
     end
 
     subgraph Vault["API Key Vault"]
         CDR[Story Protocol CDR]
     end
 
-    LLM[OpenAI / Anthropic]
+    LLM[Anthropic Claude / Agent Kit]
 
-    %% Deploy flow — vault keys at listing time
+    %% Deploy flow — vault keys and create HCS-14 topic
     NextJS -- "1. Vault API keys at listing" --> CDR
-    CDR -- "2. Return keysVaultUuid" --> DB
+    NextJS -- "2. Register HCS-14 identity topic" --> HCS14
+    HCS14 -- "3. Return topicId & HashScan URL" --> DB
 
-    %% Run flow — payment MUST be confirmed before anything else
-    User -- "3. Run Request" --> NextJS
-    NextJS -- "4. Verify & settle payment" --> KH
-    KH -- "5. Settle on-chain" --> Base
-    KH -- "6. txHash confirmed" --> NextJS
-    NextJS -- "7. Retrieve keys (post-payment only)" --> CDR
-    CDR -- "8. Decrypted API keys (in-memory)" --> NextJS
-    NextJS -- "9. Execute agent" --> LLM
-    LLM -- "10. Output" --> NextJS
-    NextJS -- "11. Result + txHash" --> User
+    %% Run flow — x402 payment & HCS audit trail
+    User -- "4. Request Agent Execution" --> NextJS
+    NextJS -- "5. Return 402 PaymentRequired" --> User
+    User -- "6. Sign HBAR Transfer via HashPack" --> Hedera
+    User -- "7. Submit signed tx with Payment-Signature" --> NextJS
+    NextJS -- "8. Verify & Settle payment" --> Blocky402
+    NextJS -- "9. Execute agent logic" --> LLM
+    NextJS -- "10. Publish audit message" --> HCS
+    NextJS -- "11. Return result + HashScan proofs" --> User
 ```
 
 ### Components
-- **Web App (`apps/web`)**: The Marketplace storefront, deployment pipeline, and user dashboard.
-- **API (`apps/api`)**: Core marketplace orchestration engine.
-- **Execution Worker (`packages/tee-worker`)**: Secure execution service that uses CDR-retrieved API keys in memory.
-- **KeeperHub Workflow Engine**: Each agent (ThreadSmith, LaunchWatch) has a registered workflow on KeeperHub. On every paid run, `executeAgentViaKeeperHub()` dispatches `POST /api/workflows/{id}/execute` using a Bearer API key. KeeperHub logs the run on its dashboard and triggers a **SendGrid email notification** to the platform owner. The workflow ID is resolved from the `KEEPERHUB_WORKFLOW_ID_<AGENT>` env var (no slug-based lookup overhead).
-- **Story Protocol CDR Integration**: Utilizes `@piplabs/cdr-sdk` server-side in two moments: (1) **at deploy time** to vault the developer's API keys onto decentralized IPFS storage, and (2) **at run time** to retrieve those keys using the platform wallet after the buyer's payment is confirmed. Keys are never stored in the database.
+- **Web App (`apps/web`)**: The Marketplace storefront, HashPack wallet connector, and execution UI.
+- **API (`apps/api`)**: Core marketplace orchestration engine, Blocky402 x402 payment routes, and Hedera Agent Kit coordinator.
+- **Hedera Consensus Service (HCS)**: Every agent execution generates an immutable, timestamped audit log published directly to a dedicated HCS topic.
+- **HCS-14 Identity**: Every registered agent has its verifiable on-chain identity topic verifiable directly on HashScan.
+- **Story Protocol CDR Integration**: Encrypts and vaults developer API keys onto decentralized IPFS storage at listing time and retrieves them only after verified payment.
 
-## 💸 Payment & Treasury Model
+## 💸 Payment & Settlement Model
 
 | Component | Detail | Description |
 |---|---|---|
-| **Flat Pricing** | **$0.10 USDC per run** | Standardized pricing across all marketplace agents and deployment forms. |
-| **Treasury Wallet** | `TREASURY_WALLET_ADDRESS` | Configured platform treasury address  receiving 100% of execution fees. |
-| **Gasless Buyer UX** | EIP-3009 Pre-Authorization | Buyers sign off-chain authorization payloads in MetaMask at **$0 gas cost**. |
-| **Server Relayer** | `AGENTBAZAAR_PLATFORM_KEY` | Platform server relayer instantly submits `transferWithAuthorization` on Base Mainnet. |
-| **KeeperHub Integration** | `@x402/fetch` (`^2.20.0`) | On-chain execution verification and audit trail forwarded via HTTP header interception. |
+| **Payment Standard** | **HTTP 402 (x402)** | Web-native machine-to-machine payment protocol with Blocky402 facilitator. |
+| **Asset** | **HBAR (0.0.0)** | Direct HBAR payments with exact Hedera scheme requirements. |
+| **Custom Fixed Fee** | Platform Fee Split | Built-in fixed platform fee automatically collected on every execution. |
+| **Client Wallet** | **HashPack / HashConnect** | Native Hedera wallet pairing and cryptographic transaction signing. |
+| **Audit Verification** | **Hedera Consensus Service** | Execution receipts logged to HCS with verifiable HashScan links. |
 
-## 🎨 IP Protection — Story Protocol CDR
+## 🎨 On-Chain Agent Identity — HCS-14
 
-| Action | Timing | What it does |
+| Standard | Purpose | Link Format |
 |---|---|---|
-| **Deploy** | Listing time | Platform vaults developer API keys encrypted in CDR |
-| **Run** | After x402 payment | Platform wallet retrieves keys from CDR (in-memory only) |
-
-### How KeeperHub Works in AgentBazaar
-
-KeeperHub is the **workflow orchestration and notification layer**. Buyers pay directly via their connected Web3 wallet (Base USDC). The payment is verified on-chain by the server before KeeperHub is called. KeeperHub then logs the run on its dashboard and fires a **SendGrid email notification** confirming execution.
-
-#### Role Summary
-
-| Responsibility | Detail |
-|---|---|
-| **On-chain payment verification** | Server verifies the buyer's USDC `txHash` on Base Mainnet via `getTransactionReceipt` before any execution |
-| **Workflow dispatch** | `POST /api/workflows/{id}/execute` called with Bearer auth — logs run on KeeperHub dashboard |
-| **Email notification** | KeeperHub workflow triggers a **SendGrid email** to the platform owner on every confirmed execution |
-| **Dashboard audit trail** | Every run appears in the KeeperHub dashboard with an `executionId` for monitoring and debugging |
-| **Workflow ID resolution** | IDs resolved from `KEEPERHUB_WORKFLOW_ID_<AGENT>` env var — KeeperHub uses opaque IDs, not human slugs |
-
-#### Payment & Execution Flow
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Buyer as Buyer (MetaMask)
-    participant App as Web Frontend (Next.js 14)
-    participant Server as Server Relayer (/api/agents/*/generate)
-    participant Base as Base Mainnet (USDC / Safe Treasury)
-    participant KH as KeeperHub Pro Layer
-    participant LLM as Anthropic Claude Engine
-
-    Buyer->>App: 1. Click "Pay & Initialize" (Topic + Options)
-    App->>Buyer: 2. Request EIP-3009 Pre-Authorization ($0 Gas)
-    Buyer-->>App: 3. Return Off-Chain Signature Payload
-    App->>Server: 4. POST /api/agents/threadsmith/generate {input, txHash}
-
-    Note over Server: Server Relayer Broadcasts transferWithAuthorization
-    Server->>Base: 5. Broadcast EIP-3009 transfer to Treasury
-    Base-->>Server: 6. On-Chain Receipt Confirmed (Block #49620665)
-
-    Note over Server: verifyKeeperHubPayment(txHash) & @x402/fetch Wrapper
-
-    Server->>KH: 7. POST /api/workflows/{id}/execute (via @x402/fetch)
-    KH-->>Server: 8. {executionId: "01df5l9browkowul9srkn", status: "completed"}
-
-    Server->>LLM: 9. Synthesize Thread (Claude 4.5 / 3.5 Sonnet)
-    LLM-->>Server: 10. Generated Thread Content
-
-    Server-->>App: 11. Return Content + Verified BaseScan Tx Hash
-    App-->>Buyer: 12. Display Content + Clickable Explorer Badge
-```
-
-#### 1. Developer Agent Listing (Deploy Flow)
-
-> KeeperHub is **not involved** at deploy time. This step only vaults the developer's API keys into Story Protocol CDR for later retrieval.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Dev as Developer
-    participant App as Web Frontend
-    participant Server as Next.js Server
-    participant CDR as Story Protocol CDR
-    participant DB as Postgres Database
-
-    Dev->>App: Input API Credentials (deploy form)
-    App->>Server: POST /api/agents/deploy
-    Note over Server: Platform wallet initialised<br/>(AGENTBAZAAR_PLATFORM_KEY)
-    Server->>CDR: uploadFile() — encrypt & store API keys
-    CDR-->>Server: Return keysVaultUuid
-    Server->>DB: Save metadata + keysVaultUuid (NOT the keys)
-    Server-->>App: Success
-```
-
-#### Key Guarantees
-
-* **Hard on-chain payment gate**: `verifyKeeperHubPayment(txHash)` queries Base Mainnet for the transaction receipt before any LLM execution. A reverted, missing, or wrong-contract tx throws immediately — no execution path bypasses it.
-* **Web3-native buyer payments**: Buyers sign $0.10 USDC transfers directly from their connected wallet (RainbowKit/wagmi) to the treasury on Base Mainnet. No platform payer wallet is needed for buyer-side payments.
-* **KeeperHub as audit + notification layer**: KeeperHub does not gate the payment — it receives the dispatch *after* on-chain verification and records the run on its dashboard + fires the SendGrid email notification.
-* **Email on every run**: The KeeperHub workflow (Manual trigger → SendGrid action) sends a confirmation email to the platform owner for every successfully paid ThreadSmith or LaunchWatch execution.
-* **Auditable by design**: Every run produces a public Base Mainnet `txHash` viewable on the Base block explorer and stored in the run record.
-* **Zero Database Exposure**: Only `cdrKeysVaultUuid` is stored in the DB — no plaintext API keys ever touch persistent storage.
-* **In-memory only**: Retrieved CDR keys exist solely for the duration of a single execution and are garbage-collected immediately after the LLM call completes.
-
+| **HCS-14** | Verifiable on-chain metadata & registry | `https://hashscan.io/testnet/topic/<topicId>` |
+| **Audit Log** | Real-time immutable execution trace | `https://hashscan.io/testnet/topic/<auditTopicId>` |
 
 ## 🚀 Getting Started
 
@@ -173,47 +98,26 @@ sequenceDiagram
    Key variables:
    | Variable | Purpose |
    |---|---|
-   | `TREASURY_WALLET_ADDRESS` | Platform treasury address receiving 100% of run fees on Base Mainnet |
-   | `TREASURY_FEE_PERCENT` | Percentage split allocated to treasury (`100`) |
-   | `AGENTBAZAAR_PLATFORM_KEY` | Platform wallet private key — used to vault/retrieve CDR keys |
-   | `KEEPERHUB_API_KEY` | KeeperHub Bearer token — authenticates workflow dispatch calls |
-   | `NEXT_PUBLIC_KEEPERHUB_BASE_URL` | KeeperHub base URL (`https://app.keeperhub.com`) |
-   | `KEEPERHUB_WORKFLOW_ID_THREADSMITH` | KeeperHub opaque workflow ID for ThreadSmith (e.g. `glj0xzuvyi01z732m8cs3`) |
-   | `KEEPERHUB_WORKFLOW_ID_LAUNCHWATCH` | KeeperHub opaque workflow ID for LaunchWatch (e.g. `9di1q9c0twztsvnd6973t`) |
-   | `KEEPER_WEBHOOK_SECRET` | Shared secret for authenticating inbound KeeperHub webhook calls |
-   | `ANTHROPIC_API_KEY` | Anthropic API key for Claude LLM execution (ThreadSmith, etc.) |
-   | `RESEND_API_KEY` | Resend API key for platform transactional emails |
-   | `CDR_WRITE_CONDITION` | CDR owner-write condition contract address |
-   | `CDR_READ_CONDITION` | CDR license-read condition contract address |
+   | `HEDERA_NETWORK` | Hedera network (`testnet`) |
+   | `HEDERA_ACCOUNT_ID` | Hedera operator account ID (e.g. `0.0.10360854`) |
+   | `HEDERA_PRIVATE_KEY` | Hedera operator private key |
+   | `AGENTBAZAAR_FEE_COLLECTOR_ID` | Platform fee collector account ID |
+   | `AGENTBAZAAR_HCS_TOPIC_ID` | Platform HCS audit trail topic ID |
+   | `NEXT_PUBLIC_BLOCKY402_URL` | Blocky402 facilitator URL (`https://api.testnet.blocky402.com`) |
+   | `ANTHROPIC_API_KEY` | Anthropic API key for Claude LLM execution |
 
-   > **KeeperHub Workflow IDs**: KeeperHub uses opaque database IDs (not human slugs) in its REST API. Retrieve them by calling `GET https://app.keeperhub.com/api/workflows` with your Bearer token and noting the `id` field for each workflow. The `resolveWorkflowId()` function will auto-lookup by name if the env var is missing, but setting the env var is strongly recommended to avoid the extra HTTP round-trip.
-
-3. **Start Infrastructure**:
-   ```bash
-   docker-compose up -d
-   ```
-4. **Initialize Database**:
+3. **Initialize Database**:
    ```bash
    pnpm db:push
    ```
-5. **Launch Development Suite**:
+4. **Launch Development Suite**:
    ```bash
    pnpm dev
    ```
    - Web App: `http://localhost:3010`
    - API: `http://localhost:3001`
 
-## 🌐 Mainnet Operations
-
-AgentBazaar runs on **Base Mainnet** for on-chain USDC payments.
-
-- **Payment**: Settled in **USDC on Base** ($0.10 flat rate). Buyers sign the transfer directly from their connected Web3 wallet (RainbowKit/wagmi) to `TREASURY_WALLET_ADDRESS`. The resulting `txHash` is passed to the server for on-chain verification.
-- **Verification**: The server calls `getTransactionReceipt(txHash)` on Base Mainnet with RPC failover (mainnet.base.org → llamarpc → 1rpc → tenderly). Execution is only authorised once the receipt confirms `status: success` against the Base USDC contract.
-- **KeeperHub Notification**: After payment verification, the server dispatches `POST /api/workflows/{id}/execute` to KeeperHub. KeeperHub logs the run on its dashboard and triggers a **SendGrid email notification** to the platform owner.
-- **Treasury Routing**: 100% of execution revenue is routed automatically to the designated platform treasury address (`TREASURY_WALLET_ADDRESS`).
-- **Audit**: Every agent run produces a public, on-chain `txHash` viewable on the [Base block explorer](https://basescan.org) and stored in the AgentBazaar run history.
-
 ## 🔐 Security & Privacy
-- **API Keys**: Developer API keys are vaulted at listing time in **Story Protocol CDR** (decentralized, IPFS-backed storage) — never stored in plaintext in the DB. Retrieved server-side at run time using the platform wallet and discarded from memory after each execution.
-- **Payments**: x402 payments use EIP-3009 pre-signed authorizations. The platform signing key lives in a **Turnkey secure enclave** — no private key ever lands on disk.
-- **No buyer wallet required for CDR**: The x402 payment proof is the authorization. Buyers do not sign CDR vault access.
+- **API Keys**: Developer API keys are vaulted at listing time in **Story Protocol CDR** — never stored in plaintext in the database.
+- **Atomic x402 Settlement**: Agent execution is only unlocked after cryptographic proof of payment settlement is verified on Hedera.
+- **Auditability**: Every transaction and execution is publicly verifiable on HashScan via HCS and HCS-14 standards.

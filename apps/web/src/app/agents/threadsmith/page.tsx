@@ -96,7 +96,7 @@ export default function ThreadSmithPage() {
           tone,
           quality,
           useMemory,
-          txHash,            // on-chain payment proof (null if no wallet → KeeperHub path)
+          txHash,            // on-chain payment proof (null if free/demo path)
         })
       });
       
@@ -424,18 +424,17 @@ export default function ThreadSmithPage() {
                       <p className="text-3xl font-bold text-orange-600 uppercase leading-none">VERIFIED</p>
                    </div>
                 </div>
-                
                 <div className="flex items-center space-x-3">
                   {lastTxHash ? (
                     <a
-                      href={`https://basescan.org/tx/${lastTxHash}`}
+                      href={`https://hashscan.io/testnet/transaction/${lastTxHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center space-x-3 px-6 py-4 bg-orange-50 hover:bg-orange-100 rounded-[22px] border border-orange-200 shadow-sm transition-all cursor-pointer group"
                     >
                       <ExternalLink size={16} className="text-orange-600 group-hover:scale-110 transition-transform" />
                       <span className="text-[10px] font-bold text-orange-700 uppercase tracking-widest leading-none">
-                        KEEPERHUB TX: {lastTxHash.slice(0, 6)}...{lastTxHash.slice(-4)}
+                        HEDERA TX: {lastTxHash.slice(0, 10)}...{lastTxHash.slice(-6)}
                       </span>
                     </a>
                   ) : (

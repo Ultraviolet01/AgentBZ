@@ -515,7 +515,7 @@ export default function LaunchWatchPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-sm font-medium text-green-600">Active — Verified via KeeperHub</span>
+                    <span className="text-sm font-medium text-green-600">Active — Verified via Hedera HCS</span>
                   </div>
                   
                   <h3 className="text-lg font-semibold text-gray-900 mb-1">
@@ -542,7 +542,7 @@ export default function LaunchWatchPage() {
                     return (
                       <div className="mb-3">
                         <a
-                          href={`https://basescan.org/tx/${displayTx}`}
+                          href={`https://hashscan.io/testnet/transaction/${displayTx}`}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline font-mono"
