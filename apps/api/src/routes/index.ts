@@ -89,6 +89,38 @@ router.post("/chat/orchestrate", async (req, res) => {
   }
 });
 
+// Vault Routes
+router.post(["/vault/deposit", "/api/vault/deposit"], async (req, res) => {
+  try {
+    const { POST: handleDeposit } = await import("./vault/deposit");
+    const webReq = new Request(`http://${req.headers.host || "localhost"}${req.originalUrl}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
+    const webRes = await handleDeposit(webReq);
+    const data = await webRes.json();
+    res.status(webRes.status).json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to process deposit" });
+  }
+});
+
+router.get(["/vault/balance", "/api/vault/balance"], async (req, res) => {
+  try {
+    const { GET: handleBalance } = await import("./vault/balance");
+    const webReq = new Request(`http://${req.headers.host || "localhost"}${req.originalUrl}`, {
+      method: "GET",
+      headers: { "content-type": "application/json" },
+    });
+    const webRes = await handleBalance(webReq);
+    const data = await webRes.json();
+    res.status(webRes.status).json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch vault balance" });
+  }
+});
+
 // Wallet Routes
 router.post("/wallet/connect", authMiddleware, walletController.connectWallet);
 router.get("/wallet/status", authMiddleware, walletController.getStatus);
@@ -101,3 +133,4 @@ router.patch("/alerts/:id/mark-read", authMiddleware, alertsController.markRead)
 router.post("/alerts/preferences", authMiddleware, alertsController.updatePreferences);
 
 export default router;
+
