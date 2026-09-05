@@ -1,5 +1,5 @@
-// HashPack wallet connection — used for vault deposits only
-// Agent payments are handled server-side (no wallet needed there)
+// HashPack wallet connection — signs x402 payment transactions per agent request
+// Buyer signs TransferTransaction; Blocky402 co-signs as feePayer and submits
 
 "use client";
 
@@ -150,7 +150,7 @@ export function useHashPack() {
 
   // Send HBAR deposit via HashPack
   // Buyer signs a TransferTransaction — HashPack popup opens for approval
-  // Returns the Hedera transaction ID for Mirror Node verification
+  // Returns base64-encoded signed TransferTransaction for Blocky402 to submit
   const sendDeposit = useCallback(
     async (toAccountId: string, amountHbar: number): Promise<string> => {
       if (!accountId) {
@@ -174,12 +174,11 @@ export function useHashPack() {
         )
         .freezeWithSigner(signer as any);
 
-      // HashPack opens popup — buyer approves
+      // HashPack opens popup — buyer approves and SIGNS only
+      // Do NOT execute — Blocky402 co-signs as feePayer and submits
       const signedTx = await transaction.signWithSigner(signer as any);
-      const txResponse = await signedTx.executeWithSigner(signer as any);
-
-      // Return transaction ID for Mirror Node verification
-      return txResponse.transactionId.toString();
+      const signedBytes = signedTx.toBytes();
+      return Buffer.from(signedBytes).toString("base64");
     },
     [accountId]
   );

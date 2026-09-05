@@ -63,9 +63,9 @@ export function RunAgentButton({
 
       setBreakdown(feeBreakdown);
 
-      // Step 2: HashPack signs the payment — popup opens for buyer approval
-      // sendDeposit builds and signs a TransferTransaction via HashPack
-      const txId = await sendDeposit(
+      // sendDeposit returns base64 signed TransferTransaction
+      // Blocky402 will co-sign as feePayer and submit to Hedera
+      const txBase64 = await sendDeposit(
         process.env.NEXT_PUBLIC_PLATFORM_ACCOUNT!,
         priceHbar + 0.5 // agent fee + platform fee
       );
@@ -76,7 +76,7 @@ export function RunAgentButton({
         scheme: "exact",
         network: "hedera:testnet",
         accepted: paymentRequirements,
-        payload: { transaction: txId },
+        payload: { transaction: txBase64 },
       };
 
       const xPayment = Buffer.from(

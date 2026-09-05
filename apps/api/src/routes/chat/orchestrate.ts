@@ -161,8 +161,11 @@ export async function POST(req: Request) {
     const xPaymentHeader = req.headers.get("X-Payment");
 
     if (!xPaymentHeader) {
+      // estimatedCostHbar already includes platform fee per agent from LLM
+      // Subtract PLATFORM_FEE_HBAR once to avoid double-counting in buildHederaPaymentRequirements
+      const baseAgentCost = estimatedCostHbar - PLATFORM_FEE_HBAR;
       const paymentRequirements = await buildHederaPaymentRequirements(
-        estimatedCostHbar,
+        baseAgentCost,
         `/api/chat/orchestrate`,
         `Pay to run ${agentsToCall.length} agent(s) on AgentBazaar`
       );
@@ -202,9 +205,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // Re-build requirements for verification
+    // Re-build requirements for verification (same baseAgentCost as 402 path)
+    const baseAgentCost = estimatedCostHbar - PLATFORM_FEE_HBAR;
     const paymentRequirements = await buildHederaPaymentRequirements(
-      estimatedCostHbar,
+      baseAgentCost,
       `/api/chat/orchestrate`,
       `Pay to run ${agentsToCall.length} agent(s) on AgentBazaar`
     );

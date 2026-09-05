@@ -1,8 +1,6 @@
 // apps/api/src/lib/blocky402.ts
 // Wire format based on Blocky402 quickstart documentation
 
-import { ExactHederaScheme } from "@x402/hedera/exact/client";
-import { createClientHederaSigner, PrivateKey } from "@x402/hedera";
 
 const BLOCKY402_URL =
   process.env.BLOCKY402_URL ?? "https://api.testnet.blocky402.com";
@@ -81,41 +79,8 @@ export async function buildHederaPaymentRequirements(
   };
 }
 
-// ─── Step 3: Sign a payment payload (server-side for testing) ────────────────
-// In production, the BUYER signs this using their own Hedera wallet (HashPack)
-// For testnet demo, AgentBazaar signs with its own account
 
-export async function signPaymentPayload(
-  paymentRequirements: any
-) {
-  // Option B: server signs on behalf of user using demo buyer account
-  // From docs.hedera.com: createClientHederaSigner + ExactHederaScheme
-  const accountId =
-    process.env.HEDERA_DEMO_BUYER_ACCOUNT_ID ||
-    process.env.HEDERA_ACCOUNT_ID!;
-  const privateKeyStr =
-    process.env.HEDERA_DEMO_BUYER_PRIVATE_KEY ||
-    process.env.HEDERA_PRIVATE_KEY!;
-
-  const signer = createClientHederaSigner(
-    accountId,
-    PrivateKey.fromStringECDSA(privateKeyStr),
-    { network: "hedera:testnet" }
-  );
-
-  const scheme = new ExactHederaScheme(signer);
-  const signed = await scheme.createPaymentPayload(2, paymentRequirements);
-
-  return {
-    x402Version: 2,
-    scheme: "exact",
-    network: "hedera:testnet",
-    accepted: paymentRequirements,
-    payload: signed.payload,
-  };
-}
-
-// ─── Step 4: Verify payment with Blocky402 ────────────────────────────────────
+// ─── Step 3: Verify payment with Blocky402 ───────────────────────────────────
 // From quickstart: POST /verify with { x402Version, paymentPayload, paymentRequirements }
 // Returns: { isValid: boolean, payer: string }
 
