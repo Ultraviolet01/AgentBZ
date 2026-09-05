@@ -16,6 +16,8 @@ const CDR_EXTERNALS = [
   'libp2p',
   '@libp2p/http',
   'undici',
+  '@hashgraph/sdk',
+  'hashconnect',
 ];
 
 const nextConfig = {
