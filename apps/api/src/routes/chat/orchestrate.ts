@@ -84,7 +84,7 @@ async function parseIntentAndSelectAgents(
   }
 
   const llm = new ChatAnthropic({
-    model: "claude-3-5-sonnet-20241022",
+    model: "claude-sonnet-4-6",
     anthropicApiKey: apiKey,
   });
 
@@ -241,7 +241,7 @@ async function executeOneAgent(
   } else {
     try {
       const llm = new ChatAnthropic({
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-4-6",
         anthropicApiKey: apiKey,
       });
 
@@ -316,7 +316,7 @@ async function synthesiseOutputs(
 
   try {
     const llm = new ChatAnthropic({
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-sonnet-4-6",
       anthropicApiKey: apiKey,
     });
 

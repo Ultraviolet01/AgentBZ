@@ -35,7 +35,7 @@ async function runAgentLogic(
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-4-6",
         max_tokens: 1024,
         messages: [
           {
@@ -138,18 +138,22 @@ export async function POST(req: Request) {
       paymentRequirements
     );
 
-    if (!isValid && !process.env.DEMO_MOCK_PAYMENT) {
-      console.warn("[Blocky402] Verification notice:", verifyError);
+    if (!isValid) {
+      return Response.json(
+        { error: `Payment verification failed: ${verifyError}` },
+        { status: 402 }
+      );
     }
 
-    let transaction = `0.0.35467@${Date.now()}`;
-    const settleResult = await settleWithBlocky402(
+    const { success, transaction, error: settleError } = await settleWithBlocky402(
       paymentPayload,
       paymentRequirements
     );
-
-    if (settleResult.success && settleResult.transaction) {
-      transaction = settleResult.transaction;
+    if (!success || !transaction) {
+      return Response.json(
+        { error: `Payment settlement failed: ${settleError}` },
+        { status: 402 }
+      );
     }
 
     // ── Step 5: Deduct from vault balance (both smart contract and DB) ─────────
