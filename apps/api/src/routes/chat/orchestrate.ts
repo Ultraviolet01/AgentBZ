@@ -24,6 +24,7 @@ import {
   PLATFORM_FEE_HBAR,
 } from "../../lib/blocky402";
 import { logToHCS } from "../../lib/hcs";
+import { deductFromBuyerOnChain } from "../../lib/hedera-vault";
 import type { AuditEntry } from "../../lib/hcs";
 
 const db = new PrismaClient();
@@ -161,7 +162,7 @@ async function executeOneAgent(
     logic: string;
   },
   inputs: Record<string, string>,
-  vault: { id: string; balanceHbar: number }
+  vault: { id: string; balanceHbar: number; hederaAccountId: string }
 ): Promise<{ output: string; transaction: string }> {
   const totalCost = agent.priceHbar + PLATFORM_FEE_HBAR;
 
@@ -201,7 +202,17 @@ async function executeOneAgent(
     );
   }
 
-  // Deduct from vault (aligned with vault system Stage C)
+  // Deduct from vault on-chain on HederaVault smart contract + DB
+  try {
+    await deductFromBuyerOnChain(
+      vault.hederaAccountId,
+      totalCost,
+      process.env.AGENTBAZAAR_PAY_TO || "0.0.10843793"
+    );
+  } catch (contractErr: any) {
+    console.warn("[HederaVault Contract] Orchestrator deduct notice:", contractErr.message);
+  }
+
   await db.$transaction([
     db.deduction.create({
       data: {

@@ -6,7 +6,10 @@ import { HashPackButton } from "./HashPackButton";
 
 interface VaultData {
   hederaAccountId: string;
+  evmAddress?: string;
   balanceHbar: number;
+  contractBalanceHbar?: number;
+  contractAddress?: string;
   deposits: {
     amount: number;
     transaction: string;
@@ -221,15 +224,33 @@ export function VaultDashboard() {
       </div>
 
       {/* Balance */}
-      <div className="bg-[#1A1A1A] rounded-xl p-4 text-center">
-        <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">
-          Available Balance
+      <div className="bg-[#1A1A1A] rounded-xl p-4 text-center space-y-2">
+        <p className="text-gray-400 text-xs uppercase tracking-wide">
+          Available Vault Balance
         </p>
         <p className="text-4xl font-bold text-white">
           {vault?.balanceHbar !== undefined ? vault.balanceHbar.toFixed(2) : "0.00"}
           <span className="text-gray-400 text-xl ml-2">HBAR</span>
         </p>
-        <p className="text-gray-500 text-xs mt-1">Hedera testnet</p>
+        <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-gray-400 pt-1">
+          <span className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+            Hedera Testnet
+          </span>
+          {vault?.evmAddress && (
+            <span className="font-mono text-gray-400 bg-[#222] px-2 py-0.5 rounded">
+              EVM: {vault.evmAddress.slice(0, 6)}...{vault.evmAddress.slice(-4)}
+            </span>
+          )}
+          <a
+            href={`https://hashscan.io/testnet/contract/${vault?.contractAddress || "0xe798d59561B17AdF72fEa555d5113bB248a084A4"}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-purple-400 hover:text-purple-300 underline"
+          >
+            Vault Contract ↗
+          </a>
+        </div>
       </div>
 
       {/* HashPack Deposit section */}

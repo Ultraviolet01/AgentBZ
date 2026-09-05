@@ -1,10 +1,11 @@
 // apps/api/src/routes/vault/deposit.ts
 // POST /api/vault/deposit
 // Buyer provides their Hedera account ID + transaction ID of their deposit.
-// Server verifies via Mirror Node then credits their vault.
+// Server verifies via Mirror Node then credits their vault (both on-chain HederaVault contract and DB).
 
 import { verifyDeposit } from "../../lib/mirror-node";
 import { logToHCS } from "../../lib/hcs";
+import { depositForBuyerOnChain } from "../../lib/hedera-vault";
 import { PrismaClient } from "@agentbazaar/database";
 
 const db = new PrismaClient();
@@ -53,7 +54,21 @@ export async function POST(req: Request) {
       );
     }
 
-    // Get or create vault for this buyer
+    // Sync on-chain HederaVault smart contract balance
+    let contractTxHash = "";
+    try {
+      const contractRes = await depositForBuyerOnChain(
+        hederaAccountId,
+        confirmedAmount
+      );
+      if (contractRes.txHash) {
+        contractTxHash = contractRes.txHash;
+      }
+    } catch (contractErr: any) {
+      console.warn("[HederaVault Contract] depositFor sync notice:", contractErr.message);
+    }
+
+    // Get or create vault for this buyer in DB
     let vault = await db.vault.findUnique({
       where: { hederaAccountId },
     });
@@ -75,6 +90,8 @@ export async function POST(req: Request) {
       extra: {
         action: "vault_deposit",
         newBalance: vault.balanceHbar + confirmedAmount,
+        contractTxHash,
+        contractAddress: process.env.HEDERA_VAULT_CONTRACT_ADDRESS || "0xe798d59561B17AdF72fEa555d5113bB248a084A4",
       },
     });
 
@@ -101,6 +118,8 @@ export async function POST(req: Request) {
       amountDeposited: confirmedAmount,
       newBalance: updatedVault.balanceHbar,
       hederaTransaction: hederaTransactionId,
+      contractTxHash,
+      contractAddress: process.env.HEDERA_VAULT_CONTRACT_ADDRESS || "0xe798d59561B17AdF72fEa555d5113bB248a084A4",
       hashscanUrl: `https://hashscan.io/testnet/transaction/${hederaTransactionId}`,
       hcsTxId,
     });
