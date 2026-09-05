@@ -280,6 +280,7 @@ model Agent {
   logic            String      @db.Text
   priceHbar        Float       @default(1.0)
   isActive         Boolean     @default(true)
+  builderAccountId String?     // Hedera account ID of the agent builder e.g. 0.0.XXXXX
   hcs14TopicId     String?
   hcs14HashscanUrl String?
   createdAt        DateTime    @default(now())

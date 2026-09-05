@@ -1,6 +1,6 @@
 // apps/api/src/lib/hedera-vault.ts
 // On-Chain HederaVault Smart Contract Interaction Utility
-// Interacts with HederaVault.sol deployed on Hedera Testnet: 0xC1F8eAAB38D78Ea38d44c3D32AD7C44d2e2C4571
+// Interacts with HederaVault.sol deployed on Hedera Testnet: 0xCEA1141C63bf42e04cC829Ce76BaeD350bC9c971
 
 import { ethers } from "ethers";
 
@@ -8,12 +8,12 @@ const HEDERA_RPC_URL =
   process.env.HEDERA_RPC_URL || "https://testnet.hashio.io/api";
 const VAULT_CONTRACT_ADDRESS =
   process.env.HEDERA_VAULT_CONTRACT_ADDRESS ||
-  "0xC1F8eAAB38D78Ea38d44c3D32AD7C44d2e2C4571";
+  "0xCEA1141C63bf42e04cC829Ce76BaeD350bC9c971";
 
 const VAULT_ABI = [
   "function deposit() external payable",
   "function depositFor(address buyer) external payable",
-  "function deduct(address buyer, uint256 amount, address recipient) external",
+  "function deduct(address buyer, uint256 agentFeeAmount, address builderRecipient, uint256 platformFeeAmount, address platformRecipient) external",
   "function withdraw(uint256 amount) external",
   "function getBalance(address buyer) external view returns (uint256)",
   "function totalDeposited() external view returns (uint256)",
@@ -174,37 +174,42 @@ export async function depositForBuyerOnChain(
  */
 export async function deductFromBuyerOnChain(
   buyerHederaAccountId: string,
-  amountHbar: number,
-  recipientAccountIdOrAddress?: string
+  agentFeeHbar: number,
+  builderAccountIdOrAddress: string,
+  platformFeeHbar: number,
+  platformAccountIdOrAddress: string
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
     const buyerEvmAddress = await getEvmAddress(buyerHederaAccountId);
-    const payoutAccount =
-      recipientAccountIdOrAddress ||
-      process.env.AGENTBAZAAR_PAY_TO ||
-      "0.0.10843793";
-    const recipientEvmAddress = await getEvmAddress(payoutAccount);
+    const builderEvmAddress = await getEvmAddress(builderAccountIdOrAddress);
+    const platformEvmAddress = await getEvmAddress(platformAccountIdOrAddress);
 
-    if (buyerEvmAddress === ethers.ZeroAddress || recipientEvmAddress === ethers.ZeroAddress) {
-      throw new Error("Invalid buyer or recipient address for deduction");
+    if (
+      buyerEvmAddress === ethers.ZeroAddress ||
+      builderEvmAddress === ethers.ZeroAddress ||
+      platformEvmAddress === ethers.ZeroAddress
+    ) {
+      throw new Error("Invalid buyer, builder, or platform address");
     }
 
     const wallet = getOperatorWallet();
     const contract = getVaultContract(wallet);
 
-    const amountWei = ethers.parseEther(amountHbar.toString());
-    const tx = await contract.deduct(buyerEvmAddress, amountWei, recipientEvmAddress);
+    const agentFeeWei = ethers.parseEther(agentFeeHbar.toString());
+    const platformFeeWei = ethers.parseEther(platformFeeHbar.toString());
+
+    const tx = await contract.deduct(
+      buyerEvmAddress,
+      agentFeeWei,
+      builderEvmAddress,
+      platformFeeWei,
+      platformEvmAddress
+    );
     const receipt = await tx.wait();
 
-    return {
-      success: true,
-      txHash: receipt.hash,
-    };
+    return { success: true, txHash: receipt.hash };
   } catch (err: any) {
     console.warn(`[HederaVault] deductOnChain failed:`, err.message);
-    return {
-      success: false,
-      error: err.message,
-    };
+    return { success: false, error: err.message };
   }
 }

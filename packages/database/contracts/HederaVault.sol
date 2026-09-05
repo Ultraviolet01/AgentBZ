@@ -58,29 +58,38 @@ contract HederaVault {
     }
 
     /**
-     * @notice Deduct HBAR from buyer's vault upon verified agent execution
+     * @notice Deduct HBAR from buyer's vault — pays builder and platform separately
      * @param buyer The buyer whose vault is being deducted
-     * @param amount The fee amount in tinybars/wei
-     * @param recipient The builder or fee collector payout address
+     * @param agentFeeAmount Fee in wei going to the agent builder
+     * @param builderRecipient The agent builder's payout address
+     * @param platformFeeAmount Fee in wei going to AgentBazaar platform
+     * @param platformRecipient The platform fee collector address
      */
     function deduct(
         address buyer,
-        uint256 amount,
-        address payable recipient
+        uint256 agentFeeAmount,
+        address payable builderRecipient,
+        uint256 platformFeeAmount,
+        address payable platformRecipient
     ) external onlyOwner {
         require(buyer != address(0), "HederaVault: invalid buyer");
-        require(recipient != address(0), "HederaVault: invalid recipient");
-        require(amount > 0, "HederaVault: amount must be > 0");
-        require(balances[buyer] >= amount, "HederaVault: insufficient vault balance");
-        require(address(this).balance >= amount, "HederaVault: insufficient contract balance");
+        require(builderRecipient != address(0), "HederaVault: invalid builder recipient");
+        require(platformRecipient != address(0), "HederaVault: invalid platform recipient");
+        uint256 totalAmount = agentFeeAmount + platformFeeAmount;
+        require(totalAmount > 0, "HederaVault: total amount must be > 0");
+        require(balances[buyer] >= totalAmount, "HederaVault: insufficient vault balance");
+        require(address(this).balance >= totalAmount, "HederaVault: insufficient contract balance");
 
-        balances[buyer] -= amount;
-        totalDeducted += amount;
+        balances[buyer] -= totalAmount;
+        totalDeducted += totalAmount;
 
-        (bool sent, ) = recipient.call{value: amount}("");
-        require(sent, "HederaVault: failed to transfer payout to recipient");
+        (bool sentBuilder, ) = builderRecipient.call{value: agentFeeAmount}("");
+        require(sentBuilder, "HederaVault: builder transfer failed");
 
-        emit Deducted(buyer, recipient, amount, balances[buyer]);
+        (bool sentPlatform, ) = platformRecipient.call{value: platformFeeAmount}("");
+        require(sentPlatform, "HederaVault: platform transfer failed");
+
+        emit Deducted(buyer, builderRecipient, agentFeeAmount, balances[buyer]);
     }
 
     /**
