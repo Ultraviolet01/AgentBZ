@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     }
 
     // Verify deposit on Hedera testnet via Mirror Node
-    const platformAccountId = process.env.HEDERA_ACCOUNT_ID || "0.0.10360854";
+    const platformAccountId = process.env.HEDERA_ACCOUNT_ID || "0.0.10368450";
     const { confirmed, amountHbar: confirmedAmount, error: verifyError } =
       await verifyDeposit(
         hederaTransactionId,
@@ -91,7 +91,7 @@ export async function POST(req: Request) {
         action: "vault_deposit",
         newBalance: vault.balanceHbar + confirmedAmount,
         contractTxHash,
-        contractAddress: process.env.HEDERA_VAULT_CONTRACT_ADDRESS || "0xe798d59561B17AdF72fEa555d5113bB248a084A4",
+        contractAddress: process.env.HEDERA_VAULT_CONTRACT_ADDRESS || "0xC1F8eAAB38D78Ea38d44c3D32AD7C44d2e2C4571",
       },
     });
 

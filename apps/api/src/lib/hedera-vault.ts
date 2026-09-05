@@ -1,6 +1,6 @@
 // apps/api/src/lib/hedera-vault.ts
 // On-Chain HederaVault Smart Contract Interaction Utility
-// Interacts with HederaVault.sol deployed on Hedera Testnet: 0xe798d59561B17AdF72fEa555d5113bB248a084A4
+// Interacts with HederaVault.sol deployed on Hedera Testnet: 0xC1F8eAAB38D78Ea38d44c3D32AD7C44d2e2C4571
 
 import { ethers } from "ethers";
 
@@ -8,7 +8,7 @@ const HEDERA_RPC_URL =
   process.env.HEDERA_RPC_URL || "https://testnet.hashio.io/api";
 const VAULT_CONTRACT_ADDRESS =
   process.env.HEDERA_VAULT_CONTRACT_ADDRESS ||
-  "0xe798d59561B17AdF72fEa555d5113bB248a084A4";
+  "0xC1F8eAAB38D78Ea38d44c3D32AD7C44d2e2C4571";
 
 const VAULT_ABI = [
   "function deposit() external payable",

@@ -45,7 +45,7 @@ export async function GET(req: Request) {
         contractBalanceHbar: onChainBalance,
         contractAddress:
           process.env.HEDERA_VAULT_CONTRACT_ADDRESS ||
-          "0xe798d59561B17AdF72fEa555d5113bB248a084A4",
+          "0xC1F8eAAB38D78Ea38d44c3D32AD7C44d2e2C4571",
         deposits: [],
         deductions: [],
       });
@@ -59,7 +59,7 @@ export async function GET(req: Request) {
       dbBalanceHbar: vault.balanceHbar,
       contractAddress:
         process.env.HEDERA_VAULT_CONTRACT_ADDRESS ||
-        "0xe798d59561B17AdF72fEa555d5113bB248a084A4",
+        "0xC1F8eAAB38D78Ea38d44c3D32AD7C44d2e2C4571",
       deposits: vault.deposits.map((d) => ({
         amount: d.amountHbar,
         transaction: d.hederaTransaction,
