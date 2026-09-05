@@ -44,6 +44,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.39",
     "nodemon": "^3.1.0",
+    "solc": "0.8.20",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5"
   }

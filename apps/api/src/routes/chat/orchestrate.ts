@@ -409,7 +409,7 @@ export async function POST(req: Request) {
           available,
           shortfall: estimatedCostHbar - available,
           depositInstructions: {
-            sendTo: process.env.HEDERA_ACCOUNT_ID || "0.0.10843793",
+            sendTo: process.env.HEDERA_ACCOUNT_ID || "0.0.10360854",
             minimumHbar: estimatedCostHbar,
           },
         },

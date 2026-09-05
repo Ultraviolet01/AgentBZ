@@ -113,7 +113,7 @@ export async function POST(req: Request) {
           available,
           shortfall: totalCostHbar - available,
           depositInstructions: {
-            sendTo: process.env.HEDERA_ACCOUNT_ID || "0.0.10843793",
+            sendTo: process.env.HEDERA_ACCOUNT_ID || "0.0.10360854",
             minimumHbar: totalCostHbar,
             note: `Send at least ${totalCostHbar} HBAR to AgentBazaar platform account`,
           },

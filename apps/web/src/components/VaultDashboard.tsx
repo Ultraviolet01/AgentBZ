@@ -42,7 +42,7 @@ export function VaultDashboard() {
   const platformAccount =
     process.env.NEXT_PUBLIC_PLATFORM_ACCOUNT ||
     process.env.NEXT_PUBLIC_HEDERA_ACCOUNT_ID ||
-    "0.0.10843793";
+    "0.0.10360854";
 
   async function loadVault(id: string) {
     setLoading(true);

@@ -1,0 +1,8 @@
+{
+  "network": "hedera:testnet",
+  "contractAddress": "0xe798d59561B17AdF72fEa555d5113bB248a084A4",
+  "deployerAccountId": "0.0.10360854",
+  "deployerEvmAddress": "0xA85B8254f8Dd0e1A2EB2352540ceAedADd1F32a0",
+  "platformPayoutAccountId": "0.0.10843793",
+  "deployedAt": "2026-09-05T01:09:17.037Z"
+}
