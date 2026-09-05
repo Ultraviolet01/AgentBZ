@@ -1,25 +1,25 @@
 // apps/api/src/routes/chat/orchestrate.ts
 // AgentBazaar Chat Orchestrator
+// Single x402 payment via Blocky402 for total agent cost
+// Agents run in sequence after payment settles (A2A chaining)
 // ETHGlobal extra points: A2A multi-agent + agent discovery
-// Buyers pay per-request via HashPack x402 — no vault system
 
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { PrismaClient } from "@agentbazaar/database";
 import {
   buildHederaPaymentRequirements,
-  signPaymentPayload,
   verifyWithBlocky402,
   settleWithBlocky402,
-  PLATFORM_FEE_HBAR,
 } from "../../lib/blocky402";
 import { logToHCS } from "../../lib/hcs";
 import type { AuditEntry } from "../../lib/hcs";
 
 const db = new PrismaClient();
+const PLATFORM_FEE_HBAR = 0.5;
 
-// ─── Step 1: Parse user intent and select agents ──────────────────────────────
-// Uses Hedera Agent Kit + LangChain + Claude (from Stage 5 of migration v2)
+// ─── Parse user intent and select agents ─────────────────────────────────────
+// ETHGlobal extra point: Agent discovery — reads live registry
 
 async function parseIntentAndSelectAgents(
   userMessage: string,
@@ -38,43 +38,9 @@ async function parseIntentAndSelectAgents(
   }[];
   estimatedCostHbar: number;
 }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey || apiKey === "your-anthropic-key") {
-    // Deterministic matching fallback when API key is not configured
-    const lower = userMessage.toLowerCase();
-    const matched = availableAgents.filter(
-      (a) =>
-        lower.includes(a.name.toLowerCase()) ||
-        (lower.includes("scam") && a.name.toLowerCase().includes("scam")) ||
-        (lower.includes("thread") && a.name.toLowerCase().includes("thread")) ||
-        (lower.includes("launch") && a.name.toLowerCase().includes("launch"))
-    );
-    const selected =
-      matched.length > 0
-        ? matched
-        : availableAgents.length > 0
-        ? [availableAgents[0]]
-        : [];
-    const totalCost = selected.reduce(
-      (sum, a) => sum + a.priceHbar + PLATFORM_FEE_HBAR,
-      0
-    );
-    return {
-      plan: `Chain selected agents to analyze: ${selected
-        .map((a) => a.name)
-        .join(", ")}`,
-      agentsToCall: selected.map((a) => ({
-        agentId: a.id,
-        agentName: a.name,
-        inputs: { query: userMessage, target: userMessage },
-      })),
-      estimatedCostHbar: totalCost,
-    };
-  }
-
   const llm = new ChatAnthropic({
     model: "claude-sonnet-4-6",
-    anthropicApiKey: apiKey,
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY,
   });
 
   const agentList = availableAgents
@@ -93,7 +59,7 @@ async function parseIntentAndSelectAgents(
 Available agents:
 ${agentList}
 
-Respond ONLY with valid JSON (no markdown, no backticks):
+Respond ONLY with JSON (no markdown, no backticks):
 {
   "plan": "brief explanation",
   "agentsToCall": [
@@ -105,209 +71,75 @@ Respond ONLY with valid JSON (no markdown, no backticks):
     ["human", userMessage],
   ]);
 
-  try {
-    const chain = prompt.pipe(llm);
-    const response = await chain.invoke({});
-    let text = (
-      typeof response.content === "string"
-        ? response.content
-        : JSON.stringify(response.content)
-    ).trim();
-
-    if (text.startsWith("```json")) {
-      text = text.replace(/^```json\s*/, "").replace(/\s*```$/, "");
-    } else if (text.startsWith("```")) {
-      text = text.replace(/^```\s*/, "").replace(/\s*```$/, "");
-    }
-
-    return JSON.parse(text);
-  } catch {
-    const defaultAgent = availableAgents[0];
-    return {
-      plan: `Execute ${defaultAgent?.name || "Agent"} on input`,
-      agentsToCall: defaultAgent
-        ? [
-            {
-              agentId: defaultAgent.id,
-              agentName: defaultAgent.name,
-              inputs: { query: userMessage },
-            },
-          ]
-        : [],
-      estimatedCostHbar: (defaultAgent?.priceHbar || 1) + PLATFORM_FEE_HBAR,
-    };
-  }
+  const chain = prompt.pipe(llm);
+  const response = await chain.invoke({});
+  const text = response.content as string;
+  return JSON.parse(text);
 }
 
-// ─── Step 2: Execute one agent ────────────────────────────────────────────────
-// Uses vault deduction + server-side Blocky402 payment (Option B)
-// Aligned with Stage C of vault system and Stage 3 of migration v2
+// ─── Run agent AI logic ───────────────────────────────────────────────────────
 
-async function executeOneAgent(
-  agent: {
-    id: string;
-    name: string;
-    priceHbar: number;
-    logic: string;
-  },
-  inputs: Record<string, string>,
-  buyerAccountId?: string
-): Promise<{ output: string; transaction: string }> {
-  const totalCost = agent.priceHbar + PLATFORM_FEE_HBAR;
+async function runAgentLogic(
+  logic: string,
+  inputs: Record<string, unknown>
+): Promise<string> {
+  const llm = new ChatAnthropic({
+    model: "claude-sonnet-4-6",
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+  });
 
-  // Build payment requirements (correct function name from Stage 2)
-  const paymentRequirements = await buildHederaPaymentRequirements(
-    agent.priceHbar,
-    `/api/agents/run`,
-    `Pay to run ${agent.name} on AgentBazaar`
-  );
+  const prompt = ChatPromptTemplate.fromMessages([
+    ["system", logic],
+    ["human", JSON.stringify(inputs)],
+  ]);
 
-  // Server-side signing — Option B from Stage 3
-  const paymentPayload = await signPaymentPayload(paymentRequirements);
-
-  // Verify with Blocky402 (correct function name from Stage 2)
-  const { isValid, payer, error: verifyError } = await verifyWithBlocky402(
-    paymentPayload,
-    paymentRequirements
-  );
-  if (!isValid) {
-    throw new Error(`Payment verification failed: ${verifyError}`);
-  }
-
-  // Settle with Blocky402 — settlement.transaction is the on-chain proof
-  const { success, transaction, error: settleError } =
-    await settleWithBlocky402(paymentPayload, paymentRequirements);
-  if (!success || !transaction) {
-    throw new Error(`Payment settlement failed: ${settleError}`);
-  }
-
-  // DB deduction removed — Blocky402 settlement is the sole on-chain proof
-
-  // Run agent AI logic
-  let output = "";
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey || apiKey === "your-anthropic-key") {
-    output = `[${agent.name} Output]\nProcessed inputs: ${JSON.stringify(
-      inputs
-    )}\nStatus: Verified on-chain via Hedera testnet.\nAnalysis: Completed successfully with 0 anomalies.`;
-  } else {
-    try {
-      const llm = new ChatAnthropic({
-        model: "claude-sonnet-4-6",
-        anthropicApiKey: apiKey,
-      });
-
-      const prompt = ChatPromptTemplate.fromMessages([
-        ["system", agent.logic || "You are an AI agent on AgentBazaar."],
-        ["human", JSON.stringify(inputs)],
-      ]);
-
-      const chain = prompt.pipe(llm);
-      const response = await chain.invoke({});
-      output =
-        typeof response.content === "string"
-          ? response.content
-          : JSON.stringify(response.content);
-    } catch {
-      output = `[${agent.name} Execution]\nProcessed inputs: ${JSON.stringify(
-        inputs
-      )}\nResult: Verified on Hedera testnet.`;
-    }
-  }
-
-  // Log to HCS (correct signature — no topic ID param, from Stage 3)
-  const auditEntry: AuditEntry = {
-    type: "agent_execution",
-    agentId: agent.id,
-    agentName: agent.name,
-    buyerAccountId:
-      payer ||
-      process.env.HEDERA_ACCOUNT_ID,
-    hederaTransaction: transaction,
-    priceHbar: totalCost,
-    executedAt: new Date().toISOString(),
-    success: true,
-  };
-
-  let hcsTxId = "";
-  try {
-    hcsTxId = await logToHCS(auditEntry);
-  } catch (hcsErr: any) {
-    console.warn("[HCS] Log error:", hcsErr.message);
-  }
-
-
-  return { output, transaction: transaction! };
+  const chain = prompt.pipe(llm);
+  const response = await chain.invoke({});
+  return response.content as string;
 }
 
-// ─── Step 3: Synthesise all outputs into one reply ───────────────────────────
+// ─── Synthesise outputs into one reply ───────────────────────────────────────
 
 async function synthesiseOutputs(
   userMessage: string,
   agentResults: { agentName: string; output: string }[]
 ): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey || apiKey === "your-anthropic-key") {
-    return (
-      `Synthesised Multi-Agent Response:\n\n` +
-      agentResults
-        .map((r) => `### ${r.agentName}\n${r.output}`)
-        .join("\n\n")
-    );
-  }
+  const llm = new ChatAnthropic({
+    model: "claude-sonnet-4-6",
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+  });
 
-  try {
-    const llm = new ChatAnthropic({
-      model: "claude-sonnet-4-6",
-      anthropicApiKey: apiKey,
-    });
+  const resultsText = agentResults
+    .map((r) => `${r.agentName} result:\n${r.output}`)
+    .join("\n\n---\n\n");
 
-    const resultsText = agentResults
-      .map((r) => `${r.agentName} result:\n${r.output}`)
-      .join("\n\n---\n\n");
+  const prompt = ChatPromptTemplate.fromMessages([
+    [
+      "system",
+      "Synthesise these agent results into one clear helpful response.",
+    ],
+    [
+      "human",
+      `User asked: "${userMessage}"\n\nAgent results:\n${resultsText}`,
+    ],
+  ]);
 
-    const prompt = ChatPromptTemplate.fromMessages([
-      [
-        "system",
-        "Synthesise these agent results into one clear helpful response for the user.",
-      ],
-      [
-        "human",
-        `User asked: "${userMessage}"\n\nAgent results:\n${resultsText}`,
-      ],
-    ]);
-
-    const chain = prompt.pipe(llm);
-    const response = await chain.invoke({});
-    return typeof response.content === "string"
-      ? response.content
-      : JSON.stringify(response.content);
-  } catch {
-    return (
-      `Synthesised Multi-Agent Response:\n\n` +
-      agentResults
-        .map((r) => `### ${r.agentName}\n${r.output}`)
-        .join("\n\n")
-    );
-  }
+  const chain = prompt.pipe(llm);
+  const response = await chain.invoke({});
+  return response.content as string;
 }
 
-// ─── Main orchestrator handler ────────────────────────────────────────────────
+// ─── Main handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const {
-      message,
-      buyerAccountId, // Hedera account ID: "0.0.XXXXX" — NOT EVM address
-      approved, // boolean — true when user approves the plan
-    } = body;
+    const { message } = await req.json();
 
     if (!message) {
       return Response.json({ error: "Message required" }, { status: 400 });
     }
 
-    // ── Fetch active agents from registry ────────────────────────────────────────
+    // ── Fetch active agents from registry ──────────────────────────────────────
     // ETHGlobal extra point: Agent discovery
     const availableAgents = await db.agent.findMany({
       where: { isActive: true },
@@ -320,91 +152,176 @@ export async function POST(req: Request) {
       },
     });
 
-    if (availableAgents.length === 0) {
-      return Response.json(
-        { error: "No active agents available in registry" },
-        { status: 404 }
-      );
-    }
-
-    // ── Parse intent and build execution plan ─────────────────────────────────────
+    // ── Parse intent and build plan ────────────────────────────────────────────
     const { plan, agentsToCall, estimatedCostHbar } =
       await parseIntentAndSelectAgents(message, availableAgents);
 
-    // ── Step 1: Return plan for user approval (no payment yet) ───────────────────
-    if (!approved) {
-      return Response.json({
-        status: "approval_needed",
-        plan,
-        agentsToCall,
+    // ── No X-Payment header — return plan + 402 ────────────────────────────────
+    // Frontend shows plan to user, then HashPack signs ONE payment for total
+    const xPaymentHeader = req.headers.get("X-Payment");
+
+    if (!xPaymentHeader) {
+      const paymentRequirements = await buildHederaPaymentRequirements(
         estimatedCostHbar,
-      });
+        `/api/chat/orchestrate`,
+        `Pay to run ${agentsToCall.length} agent(s) on AgentBazaar`
+      );
+
+      const paymentRequired = Buffer.from(
+        JSON.stringify(paymentRequirements)
+      ).toString("base64");
+
+      return new Response(
+        JSON.stringify({
+          status: "payment_required",
+          plan,
+          agentsToCall,
+          estimatedCostHbar,
+          paymentRequirements,
+        }),
+        {
+          status: 402,
+          headers: {
+            "Content-Type": "application/json",
+            "PAYMENT-REQUIRED": paymentRequired,
+          },
+        }
+      );
     }
 
-    // ── Step 2: Execute agents in sequence — A2A chaining ────────────────────────
+    // ── X-Payment header present — verify + settle ONCE for total ──────────────
+    let paymentPayload: object;
+    try {
+      paymentPayload = JSON.parse(
+        Buffer.from(xPaymentHeader, "base64").toString("utf-8")
+      );
+    } catch {
+      return Response.json(
+        { error: "Invalid X-Payment header" },
+        { status: 402 }
+      );
+    }
+
+    // Re-build requirements for verification
+    const paymentRequirements = await buildHederaPaymentRequirements(
+      estimatedCostHbar,
+      `/api/chat/orchestrate`,
+      `Pay to run ${agentsToCall.length} agent(s) on AgentBazaar`
+    );
+
+    const { isValid, payer, error: verifyError } = await verifyWithBlocky402(
+      paymentPayload,
+      paymentRequirements
+    );
+
+    if (!isValid) {
+      return Response.json(
+        { error: `Payment verification failed: ${verifyError}` },
+        { status: 402 }
+      );
+    }
+
+    const { success, transaction, error: settleError } =
+      await settleWithBlocky402(paymentPayload, paymentRequirements);
+
+    if (!success || !transaction) {
+      return Response.json(
+        { error: `Payment settlement failed: ${settleError}` },
+        { status: 402 }
+      );
+    }
+
+    // ── Run agents in sequence — A2A chaining ──────────────────────────────────
     // ETHGlobal extra point: Multi-agent negotiation via A2A
     const agentResults: {
       agentName: string;
       output: string;
-      transaction: string;
     }[] = [];
     let previousOutput = "";
 
     for (const { agentId, agentName, inputs } of agentsToCall) {
-      const agent = availableAgents.find(
-        (a) =>
-          a.id === agentId ||
-          a.name.toLowerCase() === agentName.toLowerCase()
-      );
+      const agent = availableAgents.find((a) => a.id === agentId);
       if (!agent) continue;
 
-      // Chain previous output as context to next agent (A2A communication)
+      // Chain previous agent output as context — A2A communication
       const enrichedInputs = previousOutput
         ? { ...inputs, previousAgentOutput: previousOutput }
         : inputs;
 
-      const { output, transaction } = await executeOneAgent(
-        agent,
-        enrichedInputs,
-        buyerAccountId
-      );
+      const output = await runAgentLogic(agent.logic, enrichedInputs);
 
-      agentResults.push({ agentName, output, transaction });
+      // Log each agent execution to HCS individually
+      try {
+        const entry: AuditEntry = {
+          type: "agent_execution",
+          agentId: agent.id,
+          agentName,
+          buyerAccountId: payer,
+          hederaTransaction: transaction,
+          priceHbar: agent.priceHbar + PLATFORM_FEE_HBAR,
+          executedAt: new Date().toISOString(),
+          success: true,
+          extra: { orchestrated: true },
+        };
+        await logToHCS(entry);
+      } catch (hcsErr: any) {
+        console.warn("[HCS] Log notice:", hcsErr.message);
+      }
+
+      agentResults.push({ agentName, output });
       previousOutput = output;
     }
 
-    // ── Step 4: Synthesise all outputs ──────────────────────────────────────────
+    // ── Synthesise all outputs ─────────────────────────────────────────────────
     const finalResponse = await synthesiseOutputs(message, agentResults);
 
-    // ── Step 5: Log full orchestration to HCS ──────────────────────────────────
-    const orchestrationEntry: AuditEntry = {
-      type: "orchestration",
-      buyerAccountId,
-      executedAt: new Date().toISOString(),
-      success: true,
-      extra: {
-        userMessage: message,
-        agentsUsed: agentsToCall.map((a) => a.agentName),
-        totalCostHbar: estimatedCostHbar,
-        transactions: agentResults.map((r) => r.transaction),
-      },
-    };
-
+    // ── Log full orchestration to HCS ──────────────────────────────────────────
+    let orchestrationHcsTxId = "";
     try {
-      await logToHCS(orchestrationEntry);
+      const entry: AuditEntry = {
+        type: "orchestration",
+        buyerAccountId: payer,
+        hederaTransaction: transaction,
+        priceHbar: estimatedCostHbar,
+        executedAt: new Date().toISOString(),
+        success: true,
+        extra: {
+          userMessage: message,
+          agentsUsed: agentsToCall.map((a) => a.agentName),
+          totalCostHbar: estimatedCostHbar,
+        },
+      };
+      orchestrationHcsTxId = await logToHCS(entry);
     } catch (hcsErr: any) {
-      console.warn("[HCS] Log orchestration error:", hcsErr.message);
+      console.warn("[HCS] Orchestration log notice:", hcsErr.message);
     }
 
-    // ── Step 6: Return result ────────────────────────────────────────────────────
-    return Response.json({
-      response: finalResponse,
-      agentResults,
-      transactions: agentResults.map((r) => r.transaction),
-      hashscanUrls: agentResults.map(
-        (r) => `https://hashscan.io/testnet/transaction/${r.transaction}`
-      ),
-    });
+    // ── Return result ──────────────────────────────────────────────────────────
+    const xPaymentResponse = Buffer.from(
+      JSON.stringify({ transaction, network: "hedera:testnet" })
+    ).toString("base64");
+
+    return new Response(
+      JSON.stringify({
+        response: finalResponse,
+        agentResults,
+        hederaTransaction: transaction,
+        hcsTxId: orchestrationHcsTxId,
+        hashscanUrl: `https://hashscan.io/testnet/transaction/${transaction}`,
+        hcsUrl: `https://hashscan.io/testnet/topic/${
+          process.env.AGENTBAZAAR_HCS_TOPIC_ID || "0.0.10363117"
+        }`,
+        network: "hedera:testnet",
+        payer,
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "X-Payment": xPaymentResponse,
+        },
+      }
+    );
   } catch (err: any) {
     return Response.json(
       { error: err.message || "Orchestration failed" },
