@@ -24,7 +24,6 @@ import {
   PLATFORM_FEE_HBAR,
 } from "../../lib/blocky402";
 import { logToHCS } from "../../lib/hcs";
-import { deductFromBuyerOnChain } from "../../lib/hedera-vault";
 import type { AuditEntry } from "../../lib/hcs";
 
 const db = new PrismaClient();
@@ -181,36 +180,15 @@ async function executeOneAgent(
     paymentPayload,
     paymentRequirements
   );
-  if (!isValid && !process.env.DEMO_MOCK_PAYMENT) {
-    console.warn(`[Blocky402] Verify warning for ${agent.name}:`, verifyError);
+  if (!isValid) {
+    throw new Error(`Payment verification failed: ${verifyError}`);
   }
 
-  // Settle with Blocky402 (correct function name from Stage 2)
-  // Returns settlement.transaction — NOT txHash (fixed from old version)
-  let transaction = `0.0.35467@${Date.now()}`;
-  const settleResult = await settleWithBlocky402(
-    paymentPayload,
-    paymentRequirements
-  );
-
-  if (settleResult.success && settleResult.transaction) {
-    transaction = settleResult.transaction;
-  } else if (!process.env.DEMO_MOCK_PAYMENT && !settleResult.success) {
-    console.warn(
-      `[Blocky402] Settle warning for ${agent.name}:`,
-      settleResult.error
-    );
-  }
-
-  // Deduct from vault on-chain on HederaVault smart contract + DB
-  try {
-    await deductFromBuyerOnChain(
-      vault.hederaAccountId,
-      totalCost,
-      process.env.AGENTBAZAAR_PAY_TO || "0.0.10843793"
-    );
-  } catch (contractErr: any) {
-    console.warn("[HederaVault Contract] Orchestrator deduct notice:", contractErr.message);
+  // Settle with Blocky402 — settlement.transaction is the on-chain proof
+  const { success, transaction, error: settleError } =
+    await settleWithBlocky402(paymentPayload, paymentRequirements);
+  if (!success || !transaction) {
+    throw new Error(`Payment settlement failed: ${settleError}`);
   }
 
   await db.$transaction([
