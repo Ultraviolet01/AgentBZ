@@ -97,9 +97,10 @@ export function getProvider(): ethers.JsonRpcProvider {
  * Creates an ethers Wallet with the operator private key
  */
 export function getOperatorWallet(): ethers.Wallet {
-  const privateKey =
-    process.env.HEDERA_PRIVATE_KEY ||
-    "0xc3ee5761d96b0280156128ad347fca03964f33e2a0cf7e8d2b6e8791867b4e2f";
+  const privateKey = process.env.HEDERA_PRIVATE_KEY;
+  if (!privateKey) {
+    throw new Error("HEDERA_PRIVATE_KEY environment variable is not set");
+  }
   return new ethers.Wallet(privateKey, getProvider());
 }
 
