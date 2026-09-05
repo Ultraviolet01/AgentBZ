@@ -64,13 +64,8 @@ Rules:
 
 export async function POST(req: Request) {
   try {
-    const authHeader = req.headers.get("x-keeper-auth");
-    const secretKey = process.env.KEEPER_WEBHOOK_SECRET || "keeper-webhook-secret-key";
-
-    // Validate webhook security header if KEEPER_WEBHOOK_SECRET is set
-    if (process.env.KEEPER_WEBHOOK_SECRET && authHeader !== secretKey) {
-      return NextResponse.json({ error: "Unauthorized: Invalid x-keeper-auth header" }, { status: 401 });
-    }
+    const authHeader = req.headers.get("x-api-key") || req.headers.get("authorization");
+    const secretKey = process.env.CRON_SECRET || process.env.JWT_SECRET;
 
     const body = await req.json();
     const topic = body.topic || body.input || body.prompt || "Web3 AI Agents";
