@@ -1,29 +1,23 @@
 // apps/api/src/routes/agents/run.ts
-// Vault-based agent execution — deducts from buyer's vault balance
+// Per-request x402 payment — buyer signs via HashPack, Blocky402 settles
 
 import { PrismaClient } from "@agentbazaar/database";
 import {
   buildHederaPaymentRequirements,
-  signPaymentPayload,
   verifyWithBlocky402,
   settleWithBlocky402,
-  PLATFORM_FEE_HBAR,
 } from "../../lib/blocky402";
 import { logToHCS } from "../../lib/hcs";
+import type { AuditEntry } from "../../lib/hcs";
 
 const db = new PrismaClient();
 
-// Helper: run agent AI logic
 async function runAgentLogic(
   logic: string,
   inputs: Record<string, unknown>
 ): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey || apiKey === "your-anthropic-key") {
-    return `[Agent Analysis Output]\nInputs processed: ${JSON.stringify(
-      inputs
-    )}\nStatus: Verified on-chain via Hedera.\nSummary: Security checks passed with zero anomalies.`;
-  }
+  if (!apiKey) return "Agent executed (no API key configured)";
 
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -44,30 +38,19 @@ async function runAgentLogic(
         ],
       }),
     });
-
     const data = await res.json();
     return data.content?.[0]?.text ?? "No output";
   } catch {
-    return `[Agent Execution]\nCompleted analysis for input: ${JSON.stringify(
-      inputs
-    )}\nResult: Verified on Hedera testnet.`;
+    return "Agent execution error";
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const { agentId, inputs, buyerAccountId } = body;
+    const { agentId, inputs } = await req.json();
 
-    if (!buyerAccountId) {
-      return Response.json(
-        { error: "buyerAccountId required — enter your Hedera account ID" },
-        { status: 400 }
-      );
-    }
-
-    // ── Step 1: Fetch agent ──────────────────────────────────────────────────────
-    let agent = agentId
+    // Fetch agent
+    const agent = agentId
       ? await db.agent.findFirst({
           where: {
             OR: [
@@ -79,60 +62,60 @@ export async function POST(req: Request) {
       : null;
 
     if (!agent) {
-      // Fallback canonical agent mapping
-      const defaultName =
-        agentId === "threadsmith"
-          ? "ThreadSmith"
-          : agentId === "launchwatch"
-          ? "LaunchWatch"
-          : "ScamSniff";
-
-      agent = await db.agent.findFirst({
-        where: { name: { equals: defaultName, mode: "insensitive" } },
-      });
-
-      if (!agent) {
-        return Response.json({ error: "Agent not found" }, { status: 404 });
-      }
+      return Response.json({ error: "Agent not found" }, { status: 404 });
     }
 
-    const feeHbar = PLATFORM_FEE_HBAR || 0.5;
-    const totalCostHbar = agent.priceHbar + feeHbar;
-
-    // ── Step 2: Check vault balance ──────────────────────────────────────────────
-    const vault = await db.vault.findUnique({
-      where: { hederaAccountId: buyerAccountId },
-    });
-
-    if (!vault || vault.balanceHbar < totalCostHbar) {
-      const available = vault?.balanceHbar ?? 0;
-      return Response.json(
-        {
-          error: "Insufficient vault balance",
-          required: totalCostHbar,
-          available,
-          shortfall: totalCostHbar - available,
-          depositInstructions: {
-            sendTo: process.env.HEDERA_ACCOUNT_ID || "0.0.10368450",
-            minimumHbar: totalCostHbar,
-            note: `Send at least ${totalCostHbar} HBAR to AgentBazaar platform account`,
-          },
-        },
-        { status: 402 }
-      );
-    }
-
-    // ── Step 3: Build payment requirements + sign server-side ────────────────────
+    // Build payment requirements
     const paymentRequirements = await buildHederaPaymentRequirements(
       agent.priceHbar,
       `/api/agents/run`,
       `Pay to run ${agent.name} on AgentBazaar`
     );
 
-    const paymentPayload = await signPaymentPayload(paymentRequirements);
+    // ── Path 1: No payment header — return 402 challenge ─────────────────────
+    // Buyer's frontend receives this and signs via HashPack
+    const xPaymentHeader = req.headers.get("X-Payment");
 
-    // ── Step 4: Verify + settle with Blocky402 ───────────────────────────────────
-    const { isValid, error: verifyError } = await verifyWithBlocky402(
+    if (!xPaymentHeader) {
+      const paymentRequired = Buffer.from(
+        JSON.stringify(paymentRequirements)
+      ).toString("base64");
+
+      return new Response(
+        JSON.stringify({
+          error: "Payment required",
+          paymentRequirements,
+          breakdown: {
+            agentFee: `${agent.priceHbar} HBAR`,
+            platformFee: `0.5 HBAR`,
+            total: `${agent.priceHbar + 0.5} HBAR`,
+          },
+        }),
+        {
+          status: 402,
+          headers: {
+            "Content-Type": "application/json",
+            "PAYMENT-REQUIRED": paymentRequired,
+          },
+        }
+      );
+    }
+
+    // ── Path 2: Payment header present — verify + settle + run ───────────────
+    let paymentPayload: object;
+    try {
+      paymentPayload = JSON.parse(
+        Buffer.from(xPaymentHeader, "base64").toString("utf-8")
+      );
+    } catch {
+      return Response.json(
+        { error: "Invalid X-Payment header — could not parse" },
+        { status: 402 }
+      );
+    }
+
+    // Verify with Blocky402
+    const { isValid, payer, error: verifyError } = await verifyWithBlocky402(
       paymentPayload,
       paymentRequirements
     );
@@ -144,10 +127,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const { success, transaction, error: settleError } = await settleWithBlocky402(
-      paymentPayload,
-      paymentRequirements
-    );
+    // Settle with Blocky402 on Hedera testnet
+    const { success, transaction, error: settleError } =
+      await settleWithBlocky402(paymentPayload, paymentRequirements);
+
     if (!success || !transaction) {
       return Response.json(
         { error: `Payment settlement failed: ${settleError}` },
@@ -155,62 +138,30 @@ export async function POST(req: Request) {
       );
     }
 
-    // ── Step 5: Deduct from vault DB balance ─────────────────────────────────────
-    const [deduction, updatedVault] = await db.$transaction([
-      db.deduction.create({
-        data: {
-          vaultId: vault.id,
-          agentId: agent.id,
-          amountHbar: totalCostHbar,
-          agentFeeHbar: agent.priceHbar,
-          platformFeeHbar: feeHbar,
-          hederaTransaction: transaction,
-          executedAt: new Date(),
-        },
-      }),
-      db.vault.update({
-        where: { id: vault.id },
-        data: { balanceHbar: { decrement: totalCostHbar } },
-      }),
-    ]);
-
-    // ── Step 6: Run agent AI logic ───────────────────────────────────────────────
+    // Run agent AI logic
     const output = await runAgentLogic(agent.logic, inputs ?? {});
 
-    // ── Step 7: Log to HCS ───────────────────────────────────────────────────────
-    let hcsTxId = `0.0.${process.env.AGENTBAZAAR_HCS_TOPIC_ID || "10363117"}@${Date.now()}`;
+    // Log to HCS audit trail
+    let hcsTxId = "";
     try {
-      const loggedTxId = await logToHCS({
+      const entry: AuditEntry = {
         type: "agent_execution",
         agentId: agent.id,
         agentName: agent.name,
-        buyerAccountId,
+        buyerAccountId: payer,
         hederaTransaction: transaction,
-        priceHbar: totalCostHbar,
+        priceHbar: agent.priceHbar + 0.5,
         executedAt: new Date().toISOString(),
         success: true,
-        extra: {
-          vaultBalanceAfter: updatedVault.balanceHbar,
-          agentFee: agent.priceHbar,
-          platformFee: feeHbar,
-        },
-      });
-      if (loggedTxId) hcsTxId = loggedTxId;
+      };
+      hcsTxId = await logToHCS(entry);
     } catch (hcsErr: any) {
       console.warn("[HCS] Log notice:", hcsErr.message);
     }
 
-    // Update deduction with HCS tx ID
-    try {
-      await db.deduction.update({
-        where: { id: deduction.id },
-        data: { hcsTxId },
-      });
-    } catch {}
-
-    // ── Step 8: Return result + proof ────────────────────────────────────────────
-    const xPayment = Buffer.from(
-      JSON.stringify(paymentPayload)
+    // Return result with Hedera proof
+    const xPaymentResponse = Buffer.from(
+      JSON.stringify({ transaction, network: "hedera:testnet" })
     ).toString("base64");
 
     return new Response(
@@ -219,20 +170,17 @@ export async function POST(req: Request) {
         hederaTransaction: transaction,
         hcsTxId,
         hashscanUrl: `https://hashscan.io/testnet/transaction/${transaction}`,
-        hcsUrl: `https://hashscan.io/testnet/topic/${process.env.AGENTBAZAAR_HCS_TOPIC_ID || "0.0.10363117"}`,
+        hcsUrl: `https://hashscan.io/testnet/topic/${
+          process.env.AGENTBAZAAR_HCS_TOPIC_ID || "0.0.10363117"
+        }`,
         network: "hedera:testnet",
-        vaultBalanceAfter: updatedVault.balanceHbar,
-        cost: {
-          agentFee: agent.priceHbar,
-          platformFee: feeHbar,
-          total: totalCostHbar,
-        },
+        payer,
       }),
       {
         status: 200,
         headers: {
           "Content-Type": "application/json",
-          "X-Payment": xPayment,
+          "X-Payment": xPaymentResponse,
         },
       }
     );

@@ -1,6 +1,5 @@
 "use client";
 
-import { VaultDashboard } from "@/components/VaultDashboard";
 import { CircleUserRound } from "lucide-react";
 
 export default function WalletPage() {
@@ -12,13 +11,18 @@ export default function WalletPage() {
         </div>
         <div>
           <p className="text-[11px] font-bold text-purple-600 uppercase tracking-[0.24em] mb-1">
-            Hedera Vault System
+            Hedera x402
           </p>
-          <h1 className="text-3xl font-bold tracking-tight">Buyer Vault & Balance</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Pay Per Request</h1>
         </div>
       </header>
 
-      <VaultDashboard />
+      <div className="rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100 p-8 text-center space-y-3">
+        <p className="text-lg font-semibold text-gray-800">No wallet pre-funding required</p>
+        <p className="text-gray-500 text-sm max-w-md mx-auto">
+          Connect HashPack and pay per agent run. Each payment is settled on Hedera testnet in real-time via Blocky402.
+        </p>
+      </div>
     </main>
   );
 }

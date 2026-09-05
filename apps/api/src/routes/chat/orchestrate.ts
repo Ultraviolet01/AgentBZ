@@ -1,17 +1,7 @@
 // apps/api/src/routes/chat/orchestrate.ts
 // AgentBazaar Chat Orchestrator
-// Aligned with agentbazaar-hedera-migration-v2.md
-//
-// Uses:
-// - buildHederaPaymentRequirements (correct name from Stage 2)
-// - signPaymentPayload (demo buyer account — Option B from Stage 3)
-// - verifyWithBlocky402 (correct name from Stage 2)
-// - settleWithBlocky402 (correct name from Stage 2)
-// - logToHCS (correct signature from Stage 3 — no topic ID param)
-// - settlement.transaction (correct field — not txHash)
-// - buyerAccountId (Hedera 0.0.XXXXX — not EVM address)
-// - Vault balance check before running any agent
 // ETHGlobal extra points: A2A multi-agent + agent discovery
+// Buyers pay per-request via HashPack x402 — no vault system
 
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -161,7 +151,7 @@ async function executeOneAgent(
     logic: string;
   },
   inputs: Record<string, string>,
-  vault: { id: string; balanceHbar: number; hederaAccountId: string }
+  buyerAccountId?: string
 ): Promise<{ output: string; transaction: string }> {
   const totalCost = agent.priceHbar + PLATFORM_FEE_HBAR;
 
@@ -191,23 +181,7 @@ async function executeOneAgent(
     throw new Error(`Payment settlement failed: ${settleError}`);
   }
 
-  await db.$transaction([
-    db.deduction.create({
-      data: {
-        vaultId: vault.id,
-        agentId: agent.id,
-        amountHbar: totalCost,
-        agentFeeHbar: agent.priceHbar,
-        platformFeeHbar: PLATFORM_FEE_HBAR,
-        hederaTransaction: transaction,
-        executedAt: new Date(),
-      },
-    }),
-    db.vault.update({
-      where: { id: vault.id },
-      data: { balanceHbar: { decrement: totalCost } },
-    }),
-  ]);
+  // DB deduction removed — Blocky402 settlement is the sole on-chain proof
 
   // Run agent AI logic
   let output = "";
@@ -248,7 +222,6 @@ async function executeOneAgent(
     agentName: agent.name,
     buyerAccountId:
       payer ||
-      process.env.HEDERA_DEMO_BUYER_ACCOUNT_ID ||
       process.env.HEDERA_ACCOUNT_ID,
     hederaTransaction: transaction,
     priceHbar: totalCost,
@@ -263,15 +236,6 @@ async function executeOneAgent(
     console.warn("[HCS] Log error:", hcsErr.message);
   }
 
-  // Update deduction with HCS tx ID
-  if (hcsTxId) {
-    try {
-      await db.deduction.updateMany({
-        where: { hederaTransaction: transaction },
-        data: { hcsTxId },
-      });
-    } catch {}
-  }
 
   return { output, transaction: transaction! };
 }
@@ -343,13 +307,6 @@ export async function POST(req: Request) {
       return Response.json({ error: "Message required" }, { status: 400 });
     }
 
-    if (!buyerAccountId) {
-      return Response.json(
-        { error: "buyerAccountId required — enter your Hedera account ID" },
-        { status: 400 }
-      );
-    }
-
     // ── Fetch active agents from registry ────────────────────────────────────────
     // ETHGlobal extra point: Agent discovery
     const availableAgents = await db.agent.findMany({
@@ -384,29 +341,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // ── Step 2: Check vault balance ───────────────────────────────────────────────
-    const vault = await db.vault.findUnique({
-      where: { hederaAccountId: buyerAccountId },
-    });
-
-    if (!vault || vault.balanceHbar < estimatedCostHbar) {
-      const available = vault?.balanceHbar ?? 0;
-      return Response.json(
-        {
-          error: "Insufficient vault balance",
-          required: estimatedCostHbar,
-          available,
-          shortfall: estimatedCostHbar - available,
-          depositInstructions: {
-            sendTo: process.env.HEDERA_ACCOUNT_ID || "0.0.10368450",
-            minimumHbar: estimatedCostHbar,
-          },
-        },
-        { status: 402 }
-      );
-    }
-
-    // ── Step 3: Execute agents in sequence — A2A chaining ────────────────────────
+    // ── Step 2: Execute agents in sequence — A2A chaining ────────────────────────
     // ETHGlobal extra point: Multi-agent negotiation via A2A
     const agentResults: {
       agentName: string;
@@ -428,17 +363,10 @@ export async function POST(req: Request) {
         ? { ...inputs, previousAgentOutput: previousOutput }
         : inputs;
 
-      // Re-fetch vault each iteration so balance is always current
-      const currentVault = await db.vault.findUnique({
-        where: { hederaAccountId: buyerAccountId },
-      });
-
-      if (!currentVault) throw new Error("Vault not found");
-
       const { output, transaction } = await executeOneAgent(
         agent,
         enrichedInputs,
-        currentVault
+        buyerAccountId
       );
 
       agentResults.push({ agentName, output, transaction });
@@ -476,7 +404,6 @@ export async function POST(req: Request) {
       hashscanUrls: agentResults.map(
         (r) => `https://hashscan.io/testnet/transaction/${r.transaction}`
       ),
-      vaultBalance: vault.balanceHbar - estimatedCostHbar,
     });
   } catch (err: any) {
     return Response.json(

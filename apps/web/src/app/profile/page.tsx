@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { VaultDashboard } from "@/components/VaultDashboard";
 import api from "@/lib/api";
 
 type ProfileTab = "overview" | "my_agents" | "activities";
@@ -225,8 +224,8 @@ export default function ProfilePage() {
               <ProfileLink href="/settings" icon={Settings} title="Preferences" description="Manage security and app settings." />
             </div>
 
-            <div className="pt-4">
-              <VaultDashboard />
+            <div className="pt-4 rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100 p-6 text-center">
+              <p className="text-sm font-medium text-gray-700">Pay per agent run via HashPack — no wallet pre-funding required.</p>
             </div>
           </div>
         ) : activeTab === "my_agents" ? (

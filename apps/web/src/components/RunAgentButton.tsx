@@ -1,7 +1,7 @@
-// apps/web/src/components/RunAgentButton.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useHashPack } from "@/hooks/useHashPack";
 
 interface RunAgentButtonProps {
   agentId: string;
@@ -9,37 +9,34 @@ interface RunAgentButtonProps {
   priceHbar: number;
 }
 
+interface ExecutionResult {
+  output: string;
+  hederaTransaction: string;
+  hcsTxId: string;
+  hashscanUrl: string;
+  hcsUrl: string;
+  payer: string;
+}
+
 export function RunAgentButton({
   agentId,
   agentName,
   priceHbar,
 }: RunAgentButtonProps) {
+  const { isConnected, connect, sendDeposit, accountId } = useHashPack();
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-  const [vaultBalanceAfter, setVaultBalanceAfter] = useState<number | null>(null);
-  const [hashscanUrl, setHashscanUrl] = useState<string | null>(null);
-  const [hcsUrl, setHcsUrl] = useState<string | null>(null);
+  const [result, setResult] = useState<ExecutionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [inputs, setInputs] = useState("");
-
-  const [buyerAccountId, setBuyerAccountId] = useState("");
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("agentbazaar-hedera-account");
-      if (saved) setBuyerAccountId(saved);
-    }
-  }, []);
-
-  const feeBreakdown = {
-    agentFee: `${priceHbar} HBAR`,
-    platformFee: "0.5 HBAR",
-    total: `${priceHbar + 0.5} HBAR`,
-  };
+  const [input, setInput] = useState("");
+  const [breakdown, setBreakdown] = useState<{
+    agentFee: string;
+    platformFee: string;
+    total: string;
+  } | null>(null);
 
   async function handleRun() {
-    if (!buyerAccountId.trim()) {
-      setError("Enter your Hedera account ID");
+    if (!isConnected) {
+      connect();
       return;
     }
 
@@ -48,38 +45,61 @@ export function RunAgentButton({
     setResult(null);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
-      const apiUrl = `${baseUrl}/api/agents/run`;
+      const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/agents/run`;
 
-      const res = await fetch(apiUrl, {
+      // Step 1: First call — no payment, get 402 challenge
+      const firstRes = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          agentId,
-          inputs: { query: inputs },
-          buyerAccountId: buyerAccountId.trim(),
-        }),
+        body: JSON.stringify({ agentId, inputs: { query: input } }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        if (data.shortfall !== undefined) {
-          setError(
-            `Insufficient vault balance. Required: ${data.required} HBAR, Available: ${data.available} HBAR. Please deposit at least ${data.shortfall.toFixed(2)} HBAR to your vault.`
-          );
-        } else {
-          setError(data.error || "Execution failed");
-        }
-        return;
+      if (firstRes.status !== 402) {
+        throw new Error("Expected 402 payment challenge");
       }
 
-      setResult(data.output);
-      if (data.vaultBalanceAfter !== undefined) {
-        setVaultBalanceAfter(data.vaultBalanceAfter);
+      const { paymentRequirements, breakdown: feeBreakdown } =
+        await firstRes.json();
+
+      setBreakdown(feeBreakdown);
+
+      // Step 2: HashPack signs the payment — popup opens for buyer approval
+      // sendDeposit builds and signs a TransferTransaction via HashPack
+      const txId = await sendDeposit(
+        process.env.NEXT_PUBLIC_PLATFORM_ACCOUNT!,
+        priceHbar + 0.5 // agent fee + platform fee
+      );
+
+      // Step 3: Build x402 payment payload from signed transaction
+      const paymentPayload = {
+        x402Version: 2,
+        scheme: "exact",
+        network: "hedera:testnet",
+        accepted: paymentRequirements,
+        payload: { transaction: txId },
+      };
+
+      const xPayment = Buffer.from(
+        JSON.stringify(paymentPayload)
+      ).toString("base64");
+
+      // Step 4: Retry with X-Payment header — Blocky402 settles on Hedera
+      const secondRes = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Payment": xPayment,
+        },
+        body: JSON.stringify({ agentId, inputs: { query: input } }),
+      });
+
+      if (!secondRes.ok) {
+        const err = await secondRes.json();
+        throw new Error(err.error ?? "Execution failed");
       }
-      setHashscanUrl(data.hashscanUrl);
-      setHcsUrl(data.hcsUrl);
+
+      const data: ExecutionResult = await secondRes.json();
+      setResult(data);
     } catch (err: any) {
       setError(err.message ?? "Unknown error");
     } finally {
@@ -89,93 +109,78 @@ export function RunAgentButton({
 
   return (
     <div className="space-y-4">
-      {/* Hedera account input */}
-      <div className="space-y-1">
-        <label className="text-xs text-gray-400 font-medium">Hedera Account ID</label>
-        <input
-          type="text"
-          placeholder="Your Hedera Account ID (0.0.XXXXX)"
-          value={buyerAccountId}
-          onChange={(e) => {
-            setBuyerAccountId(e.target.value);
-            if (typeof window !== "undefined") {
-              localStorage.setItem("agentbazaar-hedera-account", e.target.value);
-            }
-          }}
-          className="w-full bg-[#1A1A1A] text-white text-sm rounded-lg px-4 py-2 border border-[#2A2A2A] outline-none"
-        />
-      </div>
+      <input
+        type="text"
+        placeholder={
+          agentName === "ScamSniff"
+            ? "Enter contract address (e.g. 0xABC...123)"
+            : agentName === "ThreadSmith"
+            ? "Enter a topic for your thread"
+            : "Enter token name or address to watch"
+        }
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={e => e.key === "Enter" && handleRun()}
+        className="w-full bg-[#1A1A1A] text-white text-sm rounded-lg px-4 py-2 border border-[#2A2A2A] focus:border-[#6C3BFF] outline-none"
+        disabled={loading}
+      />
 
-      {/* Input query */}
-      <div className="space-y-1">
-        <label className="text-xs text-gray-400 font-medium">Agent Query / Parameters</label>
-        <input
-          type="text"
-          placeholder="Input (e.g. contract address, topic, or target)"
-          value={inputs}
-          onChange={(e) => setInputs(e.target.value)}
-          className="w-full bg-[#1A1A1A] text-white text-sm rounded-lg px-4 py-2 border border-[#2A2A2A] outline-none"
-        />
-      </div>
-
-      {/* Fee breakdown */}
-      <div className="bg-[#1A1A1A] rounded-lg p-3 text-xs space-y-1 border border-[#2A2A2A]">
-        <div className="flex justify-between text-gray-400">
-          <span>Agent fee</span>
-          <span>{feeBreakdown.agentFee}</span>
+      {/* Fee breakdown shown after first 402 challenge */}
+      {breakdown && (
+        <div className="bg-[#1A1A1A] rounded-lg p-3 text-xs space-y-1">
+          <div className="flex justify-between text-gray-400">
+            <span>Agent fee</span>
+            <span>{breakdown.agentFee}</span>
+          </div>
+          <div className="flex justify-between text-gray-400">
+            <span>Platform fee</span>
+            <span>{breakdown.platformFee}</span>
+          </div>
+          <div className="flex justify-between text-white font-medium border-t border-[#2A2A2A] pt-1">
+            <span>Total</span>
+            <span>{breakdown.total}</span>
+          </div>
         </div>
-        <div className="flex justify-between text-gray-400">
-          <span>Platform fee</span>
-          <span>{feeBreakdown.platformFee}</span>
-        </div>
-        <div className="flex justify-between text-white font-medium border-t border-[#2A2A2A] pt-1">
-          <span>Total Vault Deduction</span>
-          <span className="text-orange-400">{feeBreakdown.total}</span>
-        </div>
-      </div>
+      )}
 
       <button
         onClick={handleRun}
-        disabled={loading || !buyerAccountId.trim()}
-        className="w-full px-4 py-3 bg-[#6C3BFF] hover:bg-[#582cd8] text-white rounded-lg disabled:opacity-50 font-medium transition-colors"
+        disabled={loading || !input.trim()}
+        className="w-full px-4 py-3 bg-[#6C3BFF] text-white rounded-lg disabled:opacity-50 font-medium"
       >
-        {loading ? "Running Agent..." : `Run ${agentName} (${feeBreakdown.total})`}
+        {loading
+          ? "Waiting for HashPack..."
+          : !isConnected
+          ? "Connect HashPack to Run"
+          : `Run ${agentName} — ${priceHbar + 0.5} HBAR`}
       </button>
 
-      {error && <p className="text-red-400 text-xs">{error}</p>}
+      {error && (
+        <p className="text-red-400 text-sm">{error}</p>
+      )}
 
       {result && (
-        <div className="bg-[#1A1A1A] rounded-lg p-4 space-y-3 border border-[#2A2A2A]">
-          <p className="text-white text-sm whitespace-pre-wrap">{result}</p>
-
-          {vaultBalanceAfter !== null && (
-            <p className="text-xs text-gray-400 font-mono">
-              Vault balance after: {vaultBalanceAfter.toFixed(2)} HBAR
-            </p>
-          )}
-
-          {/* Hedera on-chain proof links */}
+        <div className="bg-[#1A1A1A] rounded-lg p-4 space-y-3">
+          <p className="text-white text-sm whitespace-pre-wrap leading-relaxed">
+            {result.output}
+          </p>
           <div className="border-t border-[#2A2A2A] pt-3 space-y-1">
-            {hashscanUrl && (
-              <a
-                href={hashscanUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-xs text-blue-400 hover:text-blue-300 underline"
-              >
-                ↗ View payment settlement on HashScan
-              </a>
-            )}
-            {hcsUrl && (
-              <a
-                href={hcsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-xs text-blue-400 hover:text-blue-300 underline"
-              >
-                ↗ View HCS audit trail on HashScan
-              </a>
-            )}
+            <a
+              href={result.hashscanUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-xs text-blue-400 underline"
+            >
+              ↗ View payment on HashScan (Hedera testnet)
+            </a>
+            <a
+              href={result.hcsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-xs text-blue-400 underline"
+            >
+              ↗ View HCS audit trail on HashScan
+            </a>
           </div>
         </div>
       )}
