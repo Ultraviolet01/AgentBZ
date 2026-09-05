@@ -1,22 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jwtVerify } from 'jose';
-import { deployAgentCDR } from '@/lib/cdr-server';
-import type { ApiKey } from '@/lib/agent-executor';
+import { encryptApiKeys } from '@/lib/key-vault';
+import type { ApiKey } from '@/lib/key-vault';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/agents/deploy
  *
- * Deploy a new custom agent. CDR is used here ONLY to securely vault
- * the developer's API keys at listing time — it is not involved in
- * agent execution (run flow).
+ * Deploy a new custom agent. API keys are encrypted with AES-256-GCM and
+ * stored in the DB. Keys are decrypted at run time only after Blocky402
+ * payment is verified — never exposed in logs or responses.
  *
  * Flow:
  * 1. Validate authentication and input
- * 2. Call deployAgentCDR() — vaults API keys on Story Protocol CDR
- * 3. Create DeployedAgent record (stores CDR vault UUIDs, NOT plaintext keys)
+ * 2. Encrypt API keys with AgentBazaar vault (AES-256-GCM)
+ * 3. Create DeployedAgent record (stores encrypted blob, NOT plaintext keys)
  */
 
 const secret = new TextEncoder().encode(process.env.ACCESS_TOKEN_SECRET || 'at_super-secret-key');
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
       inputSchema,
       outputSchema,
       examples,
-      // CDR fields — passed as plain text; server vaults them
+      // Vault fields — passed as plain text; server encrypts them
       logic,
       apiKeys,        // ApiKey[] | undefined
       credentialSchema,
@@ -99,24 +99,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'An agent with this name already exists' }, { status: 400 });
     }
 
-    // ── CDR API Key Vault (deploy-time only) ──────────────────────────────────
-    let cdrKeysVaultUuid: number | null = null;
-    let hasCredentials = false;
+    // ── Encrypt API Keys with AgentBazaar vault (replaces Story Protocol CDR) ─
+    const normalizedKeys: ApiKey[] = (apiKeys as ApiKey[] | undefined) ?? [];
+    let encryptedApiKeysBlob = '';
 
-    try {
-      const normalizedKeys: ApiKey[] = (apiKeys as ApiKey[] | undefined) ?? [];
-      const cdrResult = await deployAgentCDR({ name, description, apiKeys: normalizedKeys });
-
-      cdrKeysVaultUuid = cdrResult.keysVaultUuid ?? null;
-      hasCredentials   = cdrResult.hasApiKeys;
-
-      console.log(`[Deploy] CDR keys vault: ${cdrKeysVaultUuid ?? 'none'}`);
-    } catch (cdrError: any) {
-      console.error('[Deploy] CDR vaulting failed:', cdrError.message);
-      return NextResponse.json(
-        { error: `Failed to vault API keys on Story Protocol: ${cdrError.message}` },
-        { status: 502 }
-      );
+    if (normalizedKeys.length > 0) {
+      encryptedApiKeysBlob = encryptApiKeys(normalizedKeys);
+      console.log(`[Deploy] Encrypted ${normalizedKeys.length} API key(s) for "${name}"`);
     }
 
     // ── Create DB Record ──────────────────────────────────────────────────────
@@ -146,12 +135,11 @@ export async function POST(req: NextRequest) {
         screenshots: [],
         coverImage: null,
 
-        // CDR API key vault reference (deploy-time key storage only)
-        requiresCredentials: hasCredentials,
+        // AgentBazaar AES-256-GCM encrypted key vault
+        logic: logic || '',
+        encryptedApiKeys: encryptedApiKeysBlob || null,
+        hasApiKeys: normalizedKeys.length > 0,
         credentialSchema: credentialSchema || null,
-        cdrVaultUuid: null,
-        cdrKeysVaultUuid,
-        cdrDeployedAt: new Date(),
       },
     });
 
@@ -162,8 +150,7 @@ export async function POST(req: NextRequest) {
         slug: agent.slug,
         name: agent.name,
         status: agent.status,
-        hasCredentials,
-        cdrKeysVaultUuid,
+        hasApiKeys: agent.hasApiKeys,
       },
     });
   } catch (error: any) {

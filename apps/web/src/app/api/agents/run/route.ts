@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@agentbazaar/database';
 import { jwtVerify } from 'jose';
 import { executeAgent } from '@/lib/agent-executor';
-import { retrieveAgentKeys } from '@/lib/cdr-server';
+import { decryptApiKeys } from '@/lib/key-vault';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,8 +14,7 @@ export const dynamic = 'force-dynamic';
  * Flow:
  * 1. Authenticate buyer via JWT
  * 2. Find the agent record in DB
- * 3. If the agent has CDR-vaulted API keys, retrieve them server-side
- *    using the platform wallet
+ * 3. If the agent has encrypted API keys, decrypt them using the vault
  * 4. Execute via agent executor
  * 5. Discard keys, record the run, return result + txHash
  */
@@ -62,16 +61,14 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 3. Execute Agent ──────────────────────────────────────────────────────
-    const logic = agent.readme || agent.description || '';
+    // Use stored logic (system prompt) — fallback to readme/description for legacy agents
+    const logic = agent.logic || agent.readme || agent.description || '';
     let apiKeys: { name: string; value: string }[] = [];
     let txHash: string | null = clientTxHash || null;
 
-    if (agent.cdrKeysVaultUuid) {
-      try {
-        apiKeys = await retrieveAgentKeys(agent.cdrKeysVaultUuid);
-      } catch (cdrErr: any) {
-        console.error('[Run] CDR key retrieval failed:', cdrErr.message);
-      }
+    // Decrypt API keys from vault — keys are in-memory only, never logged
+    if (agent.encryptedApiKeys) {
+      apiKeys = decryptApiKeys(agent.encryptedApiKeys);
     }
 
     const result = await executeAgent({

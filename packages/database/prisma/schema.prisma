@@ -200,14 +200,14 @@ model DeployedAgent {
   pricePerRun Float // in CRD
   setupFee    Float @default(0)
 
-  // CDR-Based Credentials (Story Protocol)
-  requiresCredentials Boolean   @default(false)
-  credentialSchema    Json?     // What credentials this agent needs
+  // AgentBazaar AES-256-GCM Key Vault (replaces Story Protocol CDR)
+  hasApiKeys        Boolean   @default(false)  // true if agent has encrypted API keys
+  encryptedApiKeys  String?   @db.Text         // AES-256-GCM encrypted API keys blob
+  credentialSchema  Json?                       // What credentials this agent needs (schema only)
 
-  // Story Protocol CDR Vaults
-  cdrVaultUuid      Int?      // CDR vault UUID for agent logic (system prompt)
-  cdrKeysVaultUuid  Int?      // CDR vault UUID for API keys (optional)
-  cdrDeployedAt     DateTime? // Timestamp when CDR vaulting completed
+  // Agent Logic
+  logic             String?   @db.Text         // Agent system prompt / strategy
+
 
   // Cost Tracking
   totalApiCost Float @default(0) // Creator's actual API costs

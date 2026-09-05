@@ -76,8 +76,8 @@ export async function GET(
         isVerified: agent.isVerified,
         isFeatured: agent.isFeatured,
         
-        // TEE
-        requiresCredentials: agent.requiresCredentials,
+        // Key vault
+        hasApiKeys: agent.hasApiKeys,
 
         // Analytics
         totalRuns: agent.totalRuns,

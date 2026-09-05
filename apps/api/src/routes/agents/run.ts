@@ -138,7 +138,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Run agent AI logic
+    // Run agent AI logic (built-in agents use platform Anthropic key — no per-agent keys)
     const output = await runAgentLogic(agent.logic, inputs ?? {});
 
     // Log to HCS audit trail
