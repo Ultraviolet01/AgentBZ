@@ -10,7 +10,6 @@ import {
   PLATFORM_FEE_HBAR,
 } from "../../lib/blocky402";
 import { logToHCS } from "../../lib/hcs";
-import { deductFromBuyerOnChain } from "../../lib/hedera-vault";
 
 const db = new PrismaClient();
 
@@ -156,21 +155,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // ── Step 5: Deduct from vault balance (both smart contract and DB) ─────────
-    let contractDeductTxHash = "";
-    try {
-      const contractDeductRes = await deductFromBuyerOnChain(
-        buyerAccountId,
-        totalCostHbar,
-        process.env.AGENTBAZAAR_PAY_TO || "0.0.10843793"
-      );
-      if (contractDeductRes.txHash) {
-        contractDeductTxHash = contractDeductRes.txHash;
-      }
-    } catch (contractErr: any) {
-      console.warn("[HederaVault Contract] deduct notice:", contractErr.message);
-    }
-
+    // ── Step 5: Deduct from vault DB balance ─────────────────────────────────────
     const [deduction, updatedVault] = await db.$transaction([
       db.deduction.create({
         data: {
