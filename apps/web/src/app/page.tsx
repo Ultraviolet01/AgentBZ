@@ -17,6 +17,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import Marketplace from '@/components/Marketplace';
+import { AgentChat } from '@/components/AgentChat';
 import { cn } from '@/lib/utils';
 
 export default function RootPage() {
@@ -228,6 +229,21 @@ function LandingPage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── Multi-Agent Orchestration Demo ───────────────────────────────── */}
+      <section className="py-12 sm:py-16 px-4 sm:px-6 bg-white border-t border-gray-100">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight uppercase mb-2">
+              Multi-Agent Orchestration (A2A)
+            </h2>
+            <p className="text-sm text-gray-600">
+              Chain multiple autonomous agents together with zero friction. Backed by your Hedera vault balance.
+            </p>
+          </div>
+          <AgentChat />
         </div>
       </section>
 
