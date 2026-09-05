@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     }
 
     // Verify deposit on Hedera testnet via Mirror Node
-    const platformAccountId = process.env.HEDERA_ACCOUNT_ID || "0.0.10360854";
+    const platformAccountId = process.env.HEDERA_ACCOUNT_ID || "0.0.10843793";
     const { confirmed, amountHbar: confirmedAmount, error: verifyError } =
       await verifyDeposit(
         hederaTransactionId,
