@@ -73,7 +73,7 @@ router.post("/agents/deploy", async (req, res) => {
 });
 
 // Chat Orchestrator Routes
-router.post("/chat/orchestrate", async (req, res) => {
+router.post(["/chat/orchestrate", "/api/chat/orchestrate"], async (req, res) => {
   try {
     const { POST: handleOrchestrate } = await import("./chat/orchestrate");
     const webReq = new Request(`http://${req.headers.host || "localhost"}${req.originalUrl}`, {
