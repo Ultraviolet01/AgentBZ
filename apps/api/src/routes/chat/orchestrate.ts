@@ -477,7 +477,7 @@ export async function POST(req: Request) {
         hcsTxId: orchestrationHcsTxId,
         hashscanUrl: `https://hashscan.io/testnet/transaction/${transaction}`,
         hcsUrl: `https://hashscan.io/testnet/topic/${
-          process.env.AGENTBAZAAR_HCS_TOPIC_ID || "0.0.10363117"
+          process.env.AGENTBAZAAR_HCS_TOPIC_ID || "0.0.10396393"
         }`,
         network: "hedera:testnet",
         payer,
