@@ -1,32 +1,22 @@
 "use client";
 
-import { useHashPack } from "@/hooks/useHashPack";
+import { useHashConnect } from "@/context/HashConnectContext";
+import { Wallet, LogOut } from "lucide-react";
 
 export function HashPackButton() {
-  const { accountId, isConnected, isInitialized, connect, disconnect } =
-    useHashPack();
-
-  if (!isInitialized) {
-    return (
-      <button
-        disabled
-        className="px-4 py-2 text-sm bg-[#1A1A1A] text-gray-500 rounded-lg"
-      >
-        Initializing...
-      </button>
-    );
-  }
+  const { accountId, isConnected, connect, disconnect } = useHashConnect();
 
   if (isConnected && accountId) {
     return (
-      <div className="flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full bg-green-500" />
-        <span className="text-xs text-gray-300 font-mono">{accountId}</span>
+      <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-2.5 py-1 shadow-xs">
+        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+        <span className="text-xs font-mono font-bold text-gray-900">{accountId}</span>
         <button
           onClick={disconnect}
-          className="px-2 py-1 text-xs text-red-400 border border-red-400/30 rounded-lg hover:bg-red-500/10 transition-colors"
+          title="Disconnect Wallet"
+          className="p-1 text-gray-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors"
         >
-          Disconnect
+          <LogOut className="w-3.5 h-3.5" />
         </button>
       </div>
     );
@@ -35,17 +25,11 @@ export function HashPackButton() {
   return (
     <button
       onClick={connect}
-      className="px-4 py-2 text-sm bg-[#6C3BFF] text-white rounded-lg font-medium flex items-center gap-2 hover:bg-[#582bd6] transition-colors"
+      className="px-3.5 py-1.5 text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white rounded-xl shadow-xs transition-all flex items-center gap-1.5 uppercase tracking-wide"
     >
-      <img
-        src="/hashpack-logo.png"
-        alt="HashPack"
-        className="w-4 h-4"
-        onError={(e) => {
-          (e.currentTarget as HTMLElement).style.display = "none";
-        }}
-      />
-      Connect HashPack
+      <Wallet className="w-3.5 h-3.5" />
+      Connect Wallet
     </button>
   );
 }
+

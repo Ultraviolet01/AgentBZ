@@ -41,7 +41,8 @@ export function HashConnectProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function connect() {
-    const { connectHashPack, getConnectedAccount } = await import("@/lib/hashconnect");
+    const { initHashConnect, connectHashPack, getConnectedAccount } = await import("@/lib/hashconnect");
+    await initHashConnect().catch(console.error);
     connectHashPack();
     // Poll for connection
     const interval = setInterval(() => {

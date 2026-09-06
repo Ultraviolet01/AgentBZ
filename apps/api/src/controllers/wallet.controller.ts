@@ -93,3 +93,40 @@ export const getTransactions = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to get transactions" });
   }
 };
+
+export const getDashboardStats = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const runs = await prisma.agentRun.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" }
+    });
+    const transactions = await prisma.transaction.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" }
+    });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { walletAddress: true }
+    });
+
+    const totalRuns = runs.length;
+    const spentFromRuns = runs.reduce((sum, r) => sum + (r.creditsUsed || 1.0), 0);
+    const spentFromTxs = transactions
+      .filter(t => t.type === "AGENT_RUN" || t.type === "DEBIT")
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const lifetimeSpentHbar = Math.max(spentFromRuns, spentFromTxs);
+
+    res.json({
+      totalRuns,
+      lifetimeSpentHbar,
+      walletAddress: user?.walletAddress || null,
+      runs,
+      transactions
+    });
+  } catch (error: any) {
+    console.error("Get dashboard stats error:", error);
+    res.status(500).json({ error: "Failed to get dashboard stats" });
+  }
+};

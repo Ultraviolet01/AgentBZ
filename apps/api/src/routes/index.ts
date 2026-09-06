@@ -93,6 +93,8 @@ router.post(["/chat/orchestrate", "/api/chat/orchestrate"], async (req, res) => 
 router.post("/wallet/connect", authMiddleware, walletController.connectWallet);
 router.get("/wallet/status", authMiddleware, walletController.getStatus);
 router.get("/wallet/transactions", authMiddleware, walletController.getTransactions);
+router.get("/wallet/dashboard-stats", authMiddleware, walletController.getDashboardStats);
+router.get("/dashboard/stats", authMiddleware, walletController.getDashboardStats);
 router.post("/wallet/verify-signature", walletController.verifySignature);
 
 // Alerts Routes

@@ -7,21 +7,20 @@ import {
   LayoutGrid, 
   Cpu, 
   FolderOpen, 
-  History,
-  UserRound,
-  Settings,
-  Plus,
-  LogOut,
-  Network,
-  Rocket,
-  Menu,
-  X,
-  Wallet
+  UserRound, 
+  Settings, 
+  LogOut, 
+  Network, 
+  Rocket, 
+  Menu, 
+  X, 
+  LayoutDashboard,
+  ChevronRight
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { AgentSelectionModal } from "./AgentSelectionModal";
 import dynamic from "next/dynamic";
 
 const HashPackButton = dynamic(
@@ -33,8 +32,8 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, isLoading, signOut } = useAuth();
-  const [modalOpen, setModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [hoveredTab, setHoveredTab] = useState<string | null>(null);
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -53,7 +52,6 @@ export default function Sidebar() {
   if (isNoSidebarPage) return null;
 
   // Root path ("/") — sidebar only when user is authenticated and onboarded.
-  // Unauthenticated visitors see the landing page which has its own nav.
   const isLandingPage = pathname === '/';
   if (isLandingPage && !user) return null;
 
@@ -68,31 +66,26 @@ export default function Sidebar() {
       label: 'Marketplace', 
       href: '/', 
       icon: LayoutGrid,
-      description: 'Agent Market'
     },
     { 
       label: 'Agents', 
       href: '/agents', 
       icon: Cpu,
-      description: 'Official Registry'
     },
     { 
       label: 'My Projects', 
       href: '/projects', 
       icon: FolderOpen,
-      description: 'Active Projects'
     },
     { 
       label: 'Deploy Agent', 
       href: '/deploy', 
       icon: Rocket,
-      description: 'Deploy New Agent'
     },
     {
-      label: 'Vault & Wallet',
-      href: '/wallet',
-      icon: Wallet,
-      description: 'HBAR Balance & Deposit'
+      label: 'Dashboard',
+      href: '/dashboard',
+      icon: LayoutDashboard,
     }
   ];
 
@@ -101,140 +94,154 @@ export default function Sidebar() {
     { label: 'Settings', href: '/settings', icon: Settings }
   ];
 
+  const renderNavGroup = (items: typeof navItems, groupTitle: string) => (
+    <div className="space-y-1">
+      <span className="text-[10px] font-bold text-gray-400 uppercase px-3 mb-2 block tracking-[0.2em] opacity-80 select-none">
+        {groupTitle}
+      </span>
+      <div className="space-y-1">
+        {items.map((item) => {
+          const Icon = item.icon;
+          const isActive = pathname === item.href;
+          const isHovered = hoveredTab === item.href;
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onMouseEnter={() => setHoveredTab(item.href)}
+              onMouseLeave={() => setHoveredTab(null)}
+              className="relative block"
+            >
+              <motion.div
+                whileHover={{ x: 3 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                className={cn(
+                  "relative z-10 flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-colors duration-200",
+                  isActive ? "text-orange-600 font-bold" : "text-gray-600 hover:text-gray-900"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <motion.div
+                    animate={{ scale: isActive ? 1.08 : 1 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  >
+                    <Icon 
+                      className={cn("w-4 h-4 transition-colors", isActive ? "text-orange-600" : "text-gray-400")} 
+                      strokeWidth={isActive ? 2.5 : 2} 
+                    />
+                  </motion.div>
+                  <span className="text-sm tracking-tight">{item.label}</span>
+                </div>
+
+                {isActive && (
+                  <motion.span 
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]"
+                  />
+                )}
+              </motion.div>
+
+              {/* Sliding Active Pill */}
+              {isActive && (
+                <motion.div
+                  layoutId="sidebarActivePill"
+                  className="absolute inset-0 bg-gradient-to-r from-orange-50/90 to-orange-100/40 border border-orange-200/60 rounded-xl z-0 shadow-sm"
+                  transition={{
+                    type: "spring",
+                    stiffness: 350,
+                    damping: 30
+                  }}
+                />
+              )}
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   const sidebarContent = (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-white">
       {/* Logo */}
-      <div className="p-6 pt-8 border-b border-gray-50/50 flex items-center justify-between mb-2">
-        <Link href="/" className="flex items-center gap-2 group">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-md transition-all group-hover:rotate-6">
+      <div className="p-6 pt-7 border-b border-gray-100 flex items-center justify-between mb-3">
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <motion.div 
+            whileHover={{ rotate: 8, scale: 1.05 }}
+            transition={{ type: "spring", stiffness: 300, damping: 15 }}
+            className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-md shadow-orange-500/20"
+          >
              <Network className="w-5 h-5 text-white" strokeWidth={2.5} />
-          </div>
+          </motion.div>
           <div>
-            <h1 className="text-lg font-bold text-gray-900 leading-none uppercase tracking-tighter">AgentBazaar</h1>
-            <p className="text-[10px] font-bold text-orange-600 tracking-widest uppercase mt-1">AI MARKETPLACE</p>
+            <h1 className="text-lg font-black text-gray-900 leading-none uppercase tracking-tighter group-hover:text-orange-600 transition-colors">
+              AgentBazaar
+            </h1>
+            <p className="text-[9px] font-black text-orange-600 tracking-[0.2em] uppercase mt-1">
+              AI MARKETPLACE
+            </p>
           </div>
         </Link>
         <button 
           onClick={() => setIsMobileMenuOpen(false)}
-          className="lg:hidden p-2 text-gray-500 hover:text-gray-900"
+          className="lg:hidden p-2 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-50 transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Wallet Connection & Run Agent - only show when authenticated */}
-      {user && (
-        <div className="p-4 space-y-2">
-          <Button 
-            variant="primary"
-            onClick={() => setModalOpen(true)}
-            className="w-full rounded-xl shadow-md hover:shadow-lg transition-all font-bold"
-          >
-            <Plus className="w-4 h-4 mr-2" strokeWidth={3} />
-            RUN AGENT
-          </Button>
-          <div className="pt-1 flex justify-center">
-            <HashPackButton />
-          </div>
-        </div>
-      )}
-
       {/* Navigation */}
-      <nav className="flex-1 px-4 py-4 space-y-4 overflow-y-auto custom-scrollbar">
-        <div className="space-y-0.5">
-          <span className="text-[10px] font-bold text-gray-400 uppercase px-3 mb-2 block tracking-[0.2em] opacity-80">
-            Global Console
-          </span>
-          <div className="space-y-0.5">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = pathname === item.href;
-                
-                return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200",
-                          isActive 
-                          ? "bg-orange-50 text-orange-600 font-bold shadow-sm" 
-                          : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-                      )}
-                    >
-                      <Icon className={cn("w-4 h-4", isActive ? "text-orange-600" : "text-gray-400")} strokeWidth={isActive ? 2.5 : 2} />
-                      <span className="text-sm tracking-tight">{item.label}</span>
-                    </Link>
-                );
-              })}
-          </div>
-        </div>
-
-        <div className="space-y-0.5">
-          <span className="text-[10px] font-bold text-gray-400 uppercase px-3 mb-2 block tracking-[0.2em] opacity-80">
-            Management
-          </span>
-          <div className="space-y-0.5">
-              {accountItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = pathname === item.href;
-                
-                return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200",
-                          isActive 
-                          ? "bg-orange-50 text-orange-600 font-bold" 
-                          : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-                      )}
-                    >
-                      <Icon className={cn("w-4 h-4", isActive ? "text-orange-600" : "text-gray-400")} strokeWidth={isActive ? 2.5 : 2} />
-                      <span className="text-sm tracking-tight">{item.label}</span>
-                    </Link>
-                );
-              })}
-          </div>
-        </div>
+      <nav className="flex-1 px-4 py-2 space-y-5 overflow-y-auto custom-scrollbar">
+        {renderNavGroup(navItems, "Global Console")}
+        {renderNavGroup(accountItems, "Management")}
       </nav>
 
-      {/* Bottom - User Profile / Auth Toggle */}
-      <div className="p-4 border-t border-gray-200 mt-auto">
+      {/* Bottom - User Profile & Live Indicator */}
+      <div className="p-4 border-t border-gray-100 mt-auto bg-gray-50/50">
         {(user || pathname === '/onboarding') ? (
           <div className="space-y-3 mb-3">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-white transition-colors">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white text-xs font-bold shadow-sm">
                 {(user?.username || 'U')[0].toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
+                <p className="text-xs font-bold text-gray-900 truncate">
                   {user?.username || 'New User'}
                 </p>
+                <p className="text-[10px] text-gray-400 font-medium truncate">Hedera Testnet</p>
               </div>
             </div>
             <Button 
               variant="secondary"
               onClick={signOut}
-              className="w-full h-8 text-[10px] font-bold uppercase tracking-widest bg-gray-50 border-gray-100 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-900 transition-colors"
+              className="w-full h-8 text-[10px] font-bold uppercase tracking-widest bg-white border border-gray-200/80 hover:bg-gray-100 rounded-xl text-gray-600 hover:text-gray-900 transition-all shadow-2xs"
             >
-              <LogOut className="w-3 h-3 mr-2" strokeWidth={3} />
+              <LogOut className="w-3 h-3 mr-2" strokeWidth={2.5} />
               Sign Out
             </Button>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2 mb-3">
-            <Button asChild variant="secondary" className="h-8 rounded-lg text-[10px] font-bold border-gray-100 hover:bg-gray-50 text-gray-900 uppercase tracking-tight">
+            <Button asChild variant="secondary" className="h-8 rounded-xl text-[10px] font-bold border-gray-200 hover:bg-white text-gray-900 uppercase tracking-tight shadow-xs">
               <Link href="/login">Sign In</Link>
             </Button>
-            <Button asChild variant="primary" className="h-8 rounded-lg text-[10px] font-bold bg-orange-500 hover:bg-orange-600 text-white shadow-sm uppercase tracking-tight">
+            <Button asChild variant="primary" className="h-8 rounded-xl text-[10px] font-bold bg-orange-500 hover:bg-orange-600 text-white shadow-sm uppercase tracking-tight">
               <Link href="/register">Join</Link>
             </Button>
           </div>
         )}
         
-        <div className="flex items-center gap-2 text-xs">
-          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-gray-600 font-medium tracking-tight">System Live</span>
+        <div className="flex items-center justify-between px-1 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span className="text-[11px] text-gray-500 font-semibold tracking-tight">System Live</span>
+          </div>
+          <span className="text-[9px] font-mono font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">v2.4</span>
         </div>
       </div>
     </div>
@@ -242,8 +249,6 @@ export default function Sidebar() {
 
   return (
     <>
-      <AgentSelectionModal open={modalOpen} onOpenChange={setModalOpen} />
-      
       {/* Mobile Top Header */}
       <header className="lg:hidden h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 sticky top-0 z-30 w-full">
         <Link href="/" className="flex items-center gap-2">
@@ -256,31 +261,40 @@ export default function Sidebar() {
           <HashPackButton />
           <button 
             onClick={() => setIsMobileMenuOpen(true)}
-            className="p-2 text-gray-600 hover:text-gray-900"
+            className="p-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition-colors"
           >
             <Menu className="w-6 h-6" />
           </button>
         </div>
       </header>
 
-      {/* Backdrop for mobile */}
-      {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
+      {/* Mobile Backdrop & Slide Drawer */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/40 backdrop-blur-xs z-40 lg:hidden"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+            <motion.aside
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 260 }}
+              className="fixed inset-y-0 left-0 w-64 bg-white z-50 shadow-2xl h-screen flex flex-col lg:hidden"
+            >
+              {sidebarContent}
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
 
-      {/* Desktop & Mobile Sidebar */}
-      <aside className={cn(
-        "bg-white border-r border-gray-200 flex flex-col z-50 transition-all duration-300 ease-in-out shadow-[1px_0_10px_rgba(0,0,0,0.02)]",
-        // Desktop: sticky column that fills the viewport height
-        "lg:relative lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:translate-x-0 lg:flex-shrink-0",
-        // Mobile: slide-in drawer
-        isMobileMenuOpen
-          ? "fixed inset-y-0 left-0 translate-x-0 w-64 shadow-2xl h-screen"
-          : "fixed inset-y-0 left-0 -translate-x-full h-screen"
-      )}>
+      {/* Desktop Sticky Sidebar */}
+      <aside className="hidden lg:flex lg:relative lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:flex-shrink-0 bg-white border-r border-gray-200/80 flex-col z-30 shadow-[1px_0_12px_rgba(0,0,0,0.02)]">
         {sidebarContent}
       </aside>
     </>
