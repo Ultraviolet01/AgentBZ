@@ -144,7 +144,7 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
                 placeholder="e.g. 0.0.4812345"
                 value={manualInput}
                 onChange={(e) => setManualInput(e.target.value)}
-                className="flex-1 px-3.5 py-2 text-xs font-mono bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 font-medium placeholder:text-gray-400"
+                className="flex-1 px-3.5 py-2.5 text-sm font-mono text-gray-950 font-bold bg-white border border-gray-300 rounded-xl focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 placeholder:text-gray-400 placeholder:font-normal shadow-2xs transition-all"
               />
               <Button 
                 type="submit" 
