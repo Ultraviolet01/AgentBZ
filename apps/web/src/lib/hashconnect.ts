@@ -93,30 +93,12 @@ export async function connectHashPack(): Promise<string | null> {
   if (!hc) return null;
 
   try {
-    // 1. Post message directly to HashPack extension
-    if (typeof window !== "undefined") {
-      window.postMessage({ type: "hashconnect-query-extension" }, "*");
-      
-      if (hc.pairingString) {
-        window.postMessage(
-          {
-            type: "hashconnect-connect-extension",
-            pairingString: hc.pairingString,
-          },
-          "*"
-        );
-      }
-      
-      if (typeof (hc as any).connectToExtension === "function") {
-        (hc as any).connectToExtension();
-      }
+    // Ensure pairing string is ready
+    if (!hc.pairingString && typeof (hc as any).generatePairingString === "function") {
+      await (hc as any).generatePairingString();
     }
-  } catch (e) {
-    console.warn("connectToExtension attempt:", e);
-  }
 
-  try {
-    // 2. Open official pairing modal
+    // Open official WalletConnect pairing modal
     if (typeof hc.openPairingModal === "function") {
       await hc.openPairingModal("dark");
     }
@@ -203,7 +185,7 @@ export async function signPaymentWithHashPack(
         new Hbar(tinybars / 100_000_000)
       );
 
-    const signer = hc.getSigner(accountId);
+    const signer = hc.getSigner(accountId as any);
     const signedTransaction = await transaction.signWithSigner(signer as any);
 
     const txBytes = signedTransaction.toBytes();

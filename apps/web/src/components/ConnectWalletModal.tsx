@@ -117,84 +117,46 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
                 Connect Hedera Wallet
               </DialogTitle>
               <DialogDescription className="text-xs text-gray-500 font-medium">
-                Hedera Testnet · Non-custodial x402
+                Hedera Testnet · HashPack & WalletConnect
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
         <div className="space-y-4 pt-2">
-          {/* Method 1: Instant Account ID Connect */}
-          <div className="p-4 rounded-2xl bg-orange-50/60 border border-orange-200/90 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-gray-800 uppercase tracking-wide flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-orange-500" />
-                Quick Connect (Account ID)
-              </span>
-              <span className="text-[10px] font-extrabold text-orange-700 bg-orange-100 border border-orange-200 px-2 py-0.5 rounded-full">
-                Instant
-              </span>
+          {/* HashPack WalletConnect Button */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-orange-50 to-orange-100/50 border border-orange-200 space-y-3 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-orange-500 text-white font-black text-lg flex items-center justify-center mx-auto shadow-md">
+              Ħ
             </div>
-            <p className="text-[11px] text-gray-500">
-              Enter your Hedera Testnet Account ID to link your wallet instantly:
-            </p>
-            <form onSubmit={handleManualSubmit} className="flex gap-2">
-              <input
-                type="text"
-                placeholder="e.g. 0.0.4812345"
-                value={manualInput}
-                onChange={(e) => setManualInput(e.target.value)}
-                className="flex-1 px-3.5 py-2.5 text-sm font-mono text-gray-950 font-bold bg-white border border-gray-300 rounded-xl focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 placeholder:text-gray-400 placeholder:font-normal shadow-2xs transition-all"
-              />
-              <Button 
-                type="submit" 
-                size="sm"
-                className="bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl text-xs uppercase px-4 shadow-sm"
-              >
-                Connect
-              </Button>
-            </form>
-          </div>
-
-          {/* Method 2: HashPack Extension / Pairing Code */}
-          <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-orange-500 text-white font-black text-xs flex items-center justify-center">
-                  Ħ
-                </div>
-                <span className="text-xs font-bold text-gray-800 uppercase tracking-wide">
-                  HashPack Extension / App
-                </span>
-              </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">HashPack Wallet</h3>
+              <p className="text-xs text-gray-600 mt-0.5">
+                Click below to launch the official WalletConnect QR modal and scan with HashPack.
+              </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2">
-              {/* Trigger extension */}
-              <button
-                type="button"
-                onClick={handleLaunchHashPack}
-                disabled={connecting}
-                className="flex-1 py-2.5 px-3 rounded-xl bg-white border border-gray-200 hover:border-orange-300 hover:bg-orange-50/50 text-gray-800 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
-              >
-                {connecting ? <RefreshCw className="w-3.5 h-3.5 animate-spin text-orange-500" /> : <ArrowRight className="w-3.5 h-3.5 text-orange-500" />}
-                Launch Prompt
-              </button>
-
-              {/* Copy pairing string */}
-              <button
-                type="button"
-                onClick={handleCopyPairingCode}
-                className="flex-1 py-2.5 px-3 rounded-xl bg-white border border-gray-200 hover:border-orange-300 hover:bg-orange-50/50 text-gray-800 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-orange-500" />}
-                {copied ? "Copied!" : "Copy Pairing Code"}
-              </button>
-            </div>
-
-            <p className="text-[11px] text-gray-500 leading-snug">
-              Tip: Click <strong>&quot;Launch Prompt&quot;</strong> to open the official WalletConnect modal, or enter your <strong>Account ID</strong> above for instant connection.
-            </p>
+            <Button
+              type="button"
+              onClick={() => {
+                onOpenChange(false);
+                handleLaunchHashPack();
+              }}
+              disabled={connecting}
+              className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl text-xs uppercase shadow-sm flex items-center justify-center gap-2"
+            >
+              {connecting ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Opening WalletConnect...
+                </>
+              ) : (
+                <>
+                  <QrCode className="w-4 h-4" />
+                  Connect with HashPack (QR Code)
+                </>
+              )}
+            </Button>
           </div>
 
           {/* Footer note */}
@@ -204,12 +166,12 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
               Non-custodial x402
             </span>
             <a
-              href="https://portal.hedera.com"
+              href="https://www.hashpack.app/download"
               target="_blank"
               rel="noopener noreferrer"
               className="text-orange-600 hover:underline flex items-center gap-0.5 font-semibold"
             >
-              Get Free Testnet Account <ExternalLink className="w-3 h-3" />
+              Install HashPack <ExternalLink className="w-3 h-3" />
             </a>
           </div>
         </div>

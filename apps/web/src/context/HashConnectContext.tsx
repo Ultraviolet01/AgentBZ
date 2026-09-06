@@ -64,7 +64,6 @@ export function HashConnectProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function connect() {
-    setIsModalOpen(true);
     try {
       const { connectHashPack, getConnectedAccount } = await import("@/lib/hashconnect");
       await connectHashPack();
