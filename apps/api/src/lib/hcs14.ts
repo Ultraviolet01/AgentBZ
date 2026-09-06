@@ -85,12 +85,8 @@ export async function registerAgentIdentityHCS14(
 
     return { topicId, hashscanUrl };
   } catch (err: any) {
-    console.warn(`[HCS-14] Registration note for ${identity.name}:`, err.message);
-    const mockTopic = `0.0.${Date.now().toString().slice(-7)}`;
-    return {
-      topicId: mockTopic,
-      hashscanUrl: `https://hashscan.io/testnet/topic/${mockTopic}`,
-    };
+    console.error(`[HCS-14] Registration error for ${identity.name}:`, err.message);
+    throw new Error(`Failed to register HCS-14 agent identity: ${err.message}`);
   }
 }
 

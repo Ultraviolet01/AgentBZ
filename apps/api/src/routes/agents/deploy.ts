@@ -4,6 +4,7 @@
 import { PrismaClient } from "@agentbazaar/database";
 import { encryptApiKeys } from "../../lib/key-vault";
 import { logToHCS } from "../../lib/hcs";
+import { registerAgentIdentityHCS14 } from "../../lib/hcs14";
 import type { AuditEntry } from "../../lib/hcs";
 import type { ApiKey } from "../../lib/key-vault";
 
@@ -27,8 +28,8 @@ export async function POST(req: Request) {
       setupFee,
       logic,
       apiKeys,          // ApiKey[] from builder
-      builderAccountId, // builder's Hedera account — builder signed HCS-14 client-side
-      hcs14TopicId,     // builder-owned HCS-14 topic ID
+      builderAccountId, // builder's Hedera account
+      hcs14TopicId,     // optional builder-supplied HCS-14 topic ID
       hcs14HashscanUrl,
       mode,
     } = body;
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
       return Response.json({ error: "Agent logic is required" }, { status: 400 });
     }
 
-    // Encrypt API keys with AgentBazaar vault (NOT CDR)
+    // Encrypt API keys with AgentBazaar vault
     const normalizedKeys: ApiKey[] = Array.isArray(apiKeys)
       ? apiKeys.filter(k => k.name && k.value)
       : [];
@@ -68,6 +69,33 @@ export async function POST(req: Request) {
       },
     });
 
+    let resolvedTopicId = hcs14TopicId;
+    let resolvedHashscanUrl = hcs14HashscanUrl;
+
+    if (!resolvedTopicId) {
+      try {
+        const reg = await registerAgentIdentityHCS14(agent.id, {
+          name: agent.name,
+          description: agent.description || "",
+          builderAccountId: builderAccountId || process.env.HEDERA_ACCOUNT_ID || "0.0.10368450",
+          priceHbar: price,
+          registeredAt: new Date().toISOString(),
+        });
+        resolvedTopicId = reg.topicId;
+        resolvedHashscanUrl = reg.hashscanUrl;
+
+        await db.agent.update({
+          where: { id: agent.id },
+          data: {
+            hcs14TopicId: resolvedTopicId,
+            hcs14HashscanUrl: resolvedHashscanUrl,
+          },
+        });
+      } catch (err: any) {
+        console.warn("[HCS-14] Automatic registration notice:", err.message);
+      }
+    }
+
     // Log listing to HCS audit trail
     try {
       const entry: AuditEntry = {
@@ -75,13 +103,13 @@ export async function POST(req: Request) {
         agentId: agent.id,
         agentName: agent.name,
         buyerAccountId: builderAccountId || "unknown",
-        hederaTransaction: hcs14TopicId || "pending",
+        hederaTransaction: resolvedTopicId || "pending",
         priceHbar: price,
         executedAt: new Date().toISOString(),
         success: true,
         extra: {
           action: "agent_listed",
-          hcs14TopicId,
+          hcs14TopicId: resolvedTopicId,
           mode: mode || "api",
           hasApiKeys: normalizedKeys.length > 0,
         },
@@ -99,10 +127,10 @@ export async function POST(req: Request) {
         name: agent.name,
         status: "pending",
         hasApiKeys: normalizedKeys.length > 0,
-        hcs14TopicId: agent.hcs14TopicId,
+        hcs14TopicId: resolvedTopicId,
       },
-      hcs14TopicId: agent.hcs14TopicId,
-      hcs14HashscanUrl: agent.hcs14HashscanUrl,
+      hcs14TopicId: resolvedTopicId,
+      hcs14HashscanUrl: resolvedHashscanUrl,
     });
   } catch (err: any) {
     console.error("[Deploy] Error:", err);

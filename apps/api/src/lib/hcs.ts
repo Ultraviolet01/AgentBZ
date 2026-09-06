@@ -46,31 +46,20 @@ export async function logToHCS(
   }
 
   try {
-    const logPromise = (async () => {
-      const client = getHederaClient();
-      const tx = await new TopicMessageSubmitTransaction()
-        .setTopicId(topicId)
-        .setMessage(JSON.stringify(entry))
-        .execute(client);
+    const client = getHederaClient();
+    const tx = await new TopicMessageSubmitTransaction()
+      .setTopicId(topicId)
+      .setMessage(JSON.stringify(entry))
+      .execute(client);
 
-      const txId = tx.transactionId.toString();
-      console.log(
-        `[HCS] Logged to topic ${topicId} — tx: ${txId}`,
-        `\nhttps://hashscan.io/testnet/transaction/${txId}`
-      );
-      return txId;
-    })();
-
-    const timeoutPromise = new Promise<string>((resolve) => {
-      setTimeout(() => {
-        const fallbackTxId = `${process.env.HEDERA_ACCOUNT_ID || "0.0.10368450"}@${Math.floor(Date.now() / 1000)}.000000000`;
-        resolve(fallbackTxId);
-      }, 3000);
-    });
-
-    return await Promise.race([logPromise, timeoutPromise]);
+    const txId = tx.transactionId.toString();
+    console.log(
+      `[HCS] Logged to topic ${topicId} — tx: ${txId}`,
+      `\nhttps://hashscan.io/testnet/transaction/${txId}`
+    );
+    return txId;
   } catch (err: any) {
-    console.warn("[HCS] Log notice:", err.message);
-    return `${process.env.HEDERA_ACCOUNT_ID || "0.0.10368450"}@${Math.floor(Date.now() / 1000)}.000000000`;
+    console.error("[HCS] Message submission error:", err.message);
+    throw new Error(`Failed to log to HCS topic ${topicId}: ${err.message}`);
   }
 }

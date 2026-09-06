@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useHashPack } from "@/hooks/useHashPack";
-import { TopicCreateTransaction, AccountId } from "@hashgraph/sdk";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -141,42 +140,15 @@ export default function NewAgentPage() {
 
     setLoading(true);
     setError(null);
+    setStatus("Registering on-chain HCS-14 identity & deploying agent...");
 
     try {
-      // 1. Builder signs HCS-14 topic with their own HashPack wallet
-      setStatus("Creating agent identity on Hedera...");
-
-      const { HashConnect } = await import("hashconnect");
-      const hc = (window as any).__hc as InstanceType<typeof HashConnect>;
-      if (!hc) throw new Error("HashConnect not initialized");
-
-      const fromAccount = AccountId.fromString(accountId);
-      const signer = hc.getSigner(fromAccount as any);
-
-      const topicTx = await new TopicCreateTransaction()
-        .setTopicMemo(`AgentBazaar Agent — ${form.name}`)
-        .freezeWithSigner(signer as any);
-
-      const signedTopic = await topicTx.signWithSigner(signer as any);
-      const topicResponse = await signedTopic.executeWithSigner(signer as any);
-      const receipt = await topicResponse.getReceiptWithSigner(signer as any);
-
-      if (!receipt.topicId) {
-        throw new Error("Failed to create HCS-14 topic");
-      }
-
-      const hcs14TopicId = receipt.topicId.toString();
-      setStatus(`HCS-14 topic created: ${hcs14TopicId}. Deploying agent...`);
-
-      // 2. Submit to API
       const res = await fetch("/api/agents/deploy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
           builderAccountId: accountId,
-          hcs14TopicId,
-          hcs14HashscanUrl: `https://hashscan.io/testnet/topic/${hcs14TopicId}`,
           pricePerRun: form.priceHbar,
         }),
       });
@@ -186,8 +158,8 @@ export default function NewAgentPage() {
 
       setSuccess({
         agentId: data.agent?.id || data.agentId,
-        hcs14TopicId,
-        hashscanUrl: `https://hashscan.io/testnet/topic/${hcs14TopicId}`,
+        hcs14TopicId: data.hcs14TopicId || "Pending",
+        hashscanUrl: data.hcs14HashscanUrl || `https://hashscan.io/testnet/topic/${data.hcs14TopicId}`,
       });
     } catch (err: any) {
       setError(err.message);
