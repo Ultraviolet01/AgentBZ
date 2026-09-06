@@ -177,8 +177,9 @@ export async function POST(req: Request) {
     // Run agent AI logic (built-in agents use platform Anthropic key — no per-agent keys)
     const output = await runAgentLogic(agent.logic, inputs ?? {});
 
-    // Log to HCS audit trail
+    // Log directly to this agent's HCS-14 identity topic
     let hcsTxId = "";
+    const agentTopic = agent.hcs14TopicId || process.env.AGENTBAZAAR_HCS_TOPIC_ID || "0.0.10396393";
     try {
       const entry: AuditEntry = {
         type: "agent_execution",
@@ -190,7 +191,7 @@ export async function POST(req: Request) {
         executedAt: new Date().toISOString(),
         success: true,
       };
-      hcsTxId = await logToHCS(entry);
+      hcsTxId = await logToHCS(entry, agentTopic);
     } catch (hcsErr: any) {
       console.warn("[HCS] Log notice:", hcsErr.message);
     }
@@ -206,9 +207,7 @@ export async function POST(req: Request) {
         hederaTransaction: transaction,
         hcsTxId,
         hashscanUrl: `https://hashscan.io/testnet/transaction/${transaction}`,
-        hcsUrl: `https://hashscan.io/testnet/topic/${
-          process.env.AGENTBAZAAR_HCS_TOPIC_ID || "0.0.10396393"
-        }`,
+        hcsUrl: `https://hashscan.io/testnet/topic/${agentTopic}`,
         network: "hedera:testnet",
         payer,
       }),

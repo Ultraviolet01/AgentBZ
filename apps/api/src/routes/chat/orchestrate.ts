@@ -313,6 +313,7 @@ export async function POST(req: Request) {
         description: true,
         priceHbar: true,
         logic: true,
+        hcs14TopicId: true,
       },
     });
 
@@ -418,7 +419,7 @@ export async function POST(req: Request) {
 
       const output = await runAgentLogic(agent.logic, enrichedInputs);
 
-      // Log each agent execution to HCS individually
+      // Log each agent execution directly into that agent's HCS-14 topic
       try {
         const entry: AuditEntry = {
           type: "agent_execution",
@@ -429,9 +430,9 @@ export async function POST(req: Request) {
           priceHbar: agent.priceHbar + PLATFORM_FEE_HBAR,
           executedAt: new Date().toISOString(),
           success: true,
-          extra: { orchestrated: true },
+          extra: { orchestrated: true, topic: (inputs as any).topic || (inputs as any).query },
         };
-        await logToHCS(entry);
+        await logToHCS(entry, agent.hcs14TopicId || undefined);
       } catch (hcsErr: any) {
         console.warn("[HCS] Log notice:", hcsErr.message);
       }

@@ -35,10 +35,13 @@ export interface AuditEntry {
   extra?: Record<string, unknown>;
 }
 
-export async function logToHCS(entry: AuditEntry): Promise<string> {
-  const topicId = process.env.HEDERA_HCS_TOPIC_ID;
+export async function logToHCS(
+  entry: AuditEntry,
+  customTopicId?: string
+): Promise<string> {
+  const topicId = customTopicId || process.env.HEDERA_HCS_TOPIC_ID || "0.0.10396393";
   if (!topicId) {
-    console.warn("[HCS] HEDERA_HCS_TOPIC_ID not set — skipping audit log");
+    console.warn("[HCS] No topic ID available — skipping audit log");
     return "";
   }
 
