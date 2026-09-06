@@ -259,8 +259,13 @@ export default function DashboardPage() {
             </div>
           ) : (
             <Button
-              onClick={connect}
-              className="bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 h-12 px-6 text-sm uppercase tracking-wider"
+              type="button"
+              onClick={async (e) => {
+                e.preventDefault();
+                setIsModalOpen(true);
+                connect();
+              }}
+              className="bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 h-12 px-6 text-sm uppercase tracking-wider cursor-pointer active:scale-95"
             >
               <Wallet className="w-4 h-4" />
               Connect Wallet

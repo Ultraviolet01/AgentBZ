@@ -90,31 +90,28 @@ export async function initHashConnect(): Promise<HashConnect | null> {
 // Connect to HashPack — triggers extension prompt and pairing modal
 export async function connectHashPack(): Promise<string | null> {
   console.log("[HashPack] connectHashPack called");
-  const hc = await initHashConnect();
-  if (!hc) {
-    console.warn("[HashPack] Could not initialize HashConnect instance");
-    return null;
-  }
-
   try {
-    // If pairingString is not yet ready, generate it
-    if (!hc.pairingString && typeof (hc as any).generatePairingString === "function") {
-      console.log("[HashPack] Generating fresh pairing URI...");
-      await (hc as any).generatePairingString();
+    const hc = await initHashConnect();
+    if (!hc) {
+      console.warn("[HashPack] Could not initialize HashConnect instance");
+      return null;
     }
 
-    console.log("[HashPack] Launching openPairingModal with pairingString:", hc.pairingString);
     if (typeof hc.openPairingModal === "function") {
-      await hc.openPairingModal("dark");
-      console.log("[HashPack] openPairingModal executed");
+      console.log("[HashPack] Calling hc.openPairingModal('dark')...");
+      hc.openPairingModal("dark").catch((err) => {
+        console.warn("[HashPack] openPairingModal promise notice:", err);
+      });
+      console.log("[HashPack] hc.openPairingModal triggered");
     } else {
       console.warn("[HashPack] openPairingModal is not a function on hc:", hc);
     }
-  } catch (err) {
-    console.error("[HashPack] openPairingModal error:", err);
-  }
 
-  return hc.pairingString || null;
+    return hc.pairingString || null;
+  } catch (err: any) {
+    console.error("[HashPack] connectHashPack error:", err);
+    return null;
+  }
 }
 
 export function getHashConnect(): HashConnect | null {
