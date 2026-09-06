@@ -43,6 +43,7 @@ export default function DashboardPage() {
     accountId, 
     isConnected, 
     isInitialized, 
+    balance,
     connect, 
     disconnect, 
     isModalOpen, 
@@ -232,24 +233,26 @@ export default function DashboardPage() {
               </div>
               <div className="text-left">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-mono font-bold text-gray-900">{accountId}</span>
+                  <span className="text-xs font-mono font-bold text-gray-900" title={accountId}>
+                    {accountId.length > 14 ? `${accountId.slice(0, 6)}...${accountId.slice(-4)}` : accountId}
+                  </span>
                   <button 
                     onClick={handleCopyAccount}
                     title="Copy Wallet Address"
-                    className="p-1 text-gray-400 hover:text-gray-700 rounded transition-colors"
+                    className="p-1 text-gray-400 hover:text-gray-700 rounded transition-colors cursor-pointer"
                   >
                     {copiedAccount ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
                 </div>
                 <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  {walletBalance ? `${walletBalance} HBAR` : "Connected"}
+                  {balance ? `${balance} HBAR` : walletBalance ? `${walletBalance} HBAR` : "Connected"}
                 </p>
               </div>
               <button
                 onClick={disconnect}
                 title="Disconnect Wallet"
-                className="ml-2 p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                className="ml-2 p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -359,27 +362,39 @@ export default function DashboardPage() {
               <Badge variant="outline" className={`text-[10px] font-bold uppercase tracking-wider ${
                 isConnected ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-600 border-gray-200"
               }`}>
-                {isConnected ? "Active Vault" : "No Wallet"}
+                {isConnected ? "Connected" : "Disconnected"}
               </Badge>
             </div>
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Hedera Account</p>
             <div className="mt-1">
               {isConnected && accountId ? (
                 <div>
-                  <h3 className="text-2xl font-black text-gray-900 font-mono truncate">{accountId}</h3>
+                  <h3 className="text-xl font-bold text-emerald-700 mt-1">Wallet Connected</h3>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-xs font-mono font-bold text-gray-900 truncate" title={accountId}>
+                      {accountId.length > 18 ? `${accountId.slice(0, 8)}...${accountId.slice(-6)}` : accountId}
+                    </span>
+                    <button 
+                      onClick={handleCopyAccount}
+                      title="Copy Address"
+                      className="p-1 text-gray-400 hover:text-gray-700 rounded transition-colors cursor-pointer"
+                    >
+                      {copiedAccount ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                   <p className="text-xs font-bold text-emerald-600 mt-1">
-                    Balance: {walletBalance ? `${walletBalance} HBAR` : "Loading balance..."}
+                    Balance: {balance ? `${balance} HBAR` : walletBalance ? `${walletBalance} HBAR` : "0.000 HBAR"}
                   </p>
                 </div>
               ) : (
                 <div>
-                  <h3 className="text-xl font-bold text-gray-700 mt-1">HashPack Disconnected</h3>
+                  <h3 className="text-xl font-bold text-gray-700 mt-1">Wallet Disconnected</h3>
                   <p className="text-xs text-gray-500 mt-1">Connect wallet to pay per agent run</p>
                 </div>
               )}
             </div>
             <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-              <span className="text-xs text-gray-500 font-medium">Hedera Testnet (0.0.x)</span>
+              <span className="text-xs text-gray-500 font-medium">Hedera Testnet (EVM 296)</span>
               {isConnected ? (
                 <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live

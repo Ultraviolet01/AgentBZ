@@ -102,12 +102,15 @@ export function HashConnectProvider({ children }: { children: ReactNode }) {
     setIsModalOpen(true);
   }
 
-  function setManualAccount(id: string) {
+  async function setManualAccount(id: string) {
     const trimmed = id.trim().toLowerCase();
     setAccountId(trimmed);
     if (typeof window !== "undefined") {
       localStorage.setItem("agentbazaar-connected-account", trimmed);
+      localStorage.setItem("agentbazaar-wallet-type", "metamask");
     }
+    const bal = await getMetaMaskHbarBalance(trimmed);
+    if (bal) setBalance(bal);
   }
 
   async function disconnect() {

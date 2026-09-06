@@ -27,7 +27,7 @@ interface ConnectWalletModalProps {
 }
 
 export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalProps) {
-  const { accountId, isConnected } = useHashConnect();
+  const { accountId, isConnected, setManualAccount } = useHashConnect();
   const [connecting, setConnecting] = useState(false);
 
   const handleConnectMetaMask = async () => {
@@ -41,6 +41,7 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
     try {
       const account = await connectMetaMask();
       if (account) {
+        setManualAccount(account);
         toast.success(`Connected MetaMask account (${account.slice(0, 6)}...${account.slice(-4)}) on Hedera Testnet!`);
         onOpenChange(false);
       }
