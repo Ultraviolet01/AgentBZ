@@ -90,7 +90,7 @@ async function main() {
     `   HashScan URL: https://hashscan.io/testnet/contract/${contractAddress}`
   );
   console.log(
-    `   Platform Payout Wallet: ${process.env.AGENTBAZAAR_PAY_TO || "0.0.10843793"}`
+    `   Platform Payout Wallet: ${process.env.AGENTBAZAAR_PAY_TO || "0x0C564a8cec1D4c1A158fea26004a9966e53F9dF3"}`
   );
 
   // Save deployed address to artifact
@@ -102,7 +102,7 @@ async function main() {
         contractAddress,
         deployerAccountId: accountId,
         deployerEvmAddress: wallet.address,
-        platformPayoutAccountId: process.env.AGENTBAZAAR_PAY_TO || "0.0.10843793",
+        platformPayoutAccountId: process.env.AGENTBAZAAR_PAY_TO || "0x0C564a8cec1D4c1A158fea26004a9966e53F9dF3",
         deployedAt: new Date().toISOString(),
       },
       null,

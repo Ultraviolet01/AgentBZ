@@ -280,7 +280,7 @@ export async function signPaymentWithMetaMask(
   await switchToHederaTestnet();
 
   const amountHbar = (parseInt(paymentRequirements.amount, 10) / 100_000_000).toFixed(2);
-  const targetRecipient = paymentRequirements.payTo || "0.0.10843793";
+  const targetRecipient = paymentRequirements.payTo || "0x0C564a8cec1D4c1A158fea26004a9966e53F9dF3";
 
   // Execute on-chain transfer to deduct funds
   const { txHash, payload } = await sendMetaMaskHbarPayment(

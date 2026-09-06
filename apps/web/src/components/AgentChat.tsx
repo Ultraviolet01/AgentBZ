@@ -151,7 +151,7 @@ export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: Agent
 
     try {
       // MetaMask popup — buyer broadcasts ONE on-chain HBAR transfer for total cost
-      const targetAccount = (pendingPlan.paymentRequirements as any)?.payTo || "0.0.10843793";
+      const targetAccount = (pendingPlan.paymentRequirements as any)?.payTo || "0x0C564a8cec1D4c1A158fea26004a9966e53F9dF3";
       const txId = await sendDeposit(
         targetAccount,
         pendingPlan.estimatedCostHbar

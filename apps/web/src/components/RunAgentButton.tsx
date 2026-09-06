@@ -66,7 +66,7 @@ export function RunAgentButton({
       setBreakdown(feeBreakdown);
 
       // sendDeposit triggers MetaMask eth_sendTransaction on Hedera Testnet
-      const targetRecipient = paymentRequirements?.payTo || process.env.NEXT_PUBLIC_PLATFORM_ACCOUNT || "0.0.10843793";
+      const targetRecipient = paymentRequirements?.payTo || process.env.NEXT_PUBLIC_PLATFORM_ACCOUNT || "0x0C564a8cec1D4c1A158fea26004a9966e53F9dF3";
       const txBase64 = await sendDeposit(
         targetRecipient,
         priceHbar + 0.5 // agent fee + platform fee
