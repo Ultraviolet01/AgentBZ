@@ -78,11 +78,6 @@ export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: Agent
     const text = (textToSend || input).trim();
     if (!text || loading) return;
 
-    if (!isConnected) {
-      connect();
-      return;
-    }
-
     setInput("");
     setLoading(true);
     setMessages((prev) => [...prev, { role: "user", content: text }]);
@@ -126,13 +121,22 @@ export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: Agent
             hcsUrl: data.hcsUrl,
           },
         ]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: data.error || "Could not analyze request. Please try again.",
+          },
+        ]);
       }
-    } catch {
+    } catch (err: any) {
+      console.error("[AgentChat] Error:", err);
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: "Something went wrong. Please try again.",
+          content: "Something went wrong processing your request. Please try again.",
         },
       ]);
     }
