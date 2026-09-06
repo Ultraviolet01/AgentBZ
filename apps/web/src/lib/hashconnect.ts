@@ -97,7 +97,13 @@ export async function connectHashPack(): Promise<string | null> {
   }
 
   try {
-    console.log("[HashPack] Launching openPairingModal...");
+    // If pairingString is not yet ready, generate it
+    if (!hc.pairingString && typeof (hc as any).generatePairingString === "function") {
+      console.log("[HashPack] Generating fresh pairing URI...");
+      await (hc as any).generatePairingString();
+    }
+
+    console.log("[HashPack] Launching openPairingModal with pairingString:", hc.pairingString);
     if (typeof hc.openPairingModal === "function") {
       await hc.openPairingModal("dark");
       console.log("[HashPack] openPairingModal executed");
