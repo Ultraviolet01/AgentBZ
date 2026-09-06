@@ -22,7 +22,12 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { AgentSelectionModal } from "./AgentSelectionModal";
-import { HashPackButton } from "./HashPackButton";
+import dynamic from "next/dynamic";
+
+const HashPackButton = dynamic(
+  () => import("./HashPackButton").then((mod) => mod.HashPackButton),
+  { ssr: false }
+);
 
 export default function Sidebar() {
   const pathname = usePathname();

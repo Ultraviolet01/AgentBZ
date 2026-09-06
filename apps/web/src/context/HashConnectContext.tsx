@@ -7,12 +7,6 @@ import {
   useState,
   ReactNode,
 } from "react";
-import {
-  initHashConnect,
-  connectHashPack,
-  disconnectHashPack,
-  getConnectedAccount,
-} from "@/lib/hashconnect";
 
 interface HashConnectContextType {
   accountId: string | null;
@@ -35,15 +29,19 @@ export function HashConnectProvider({ children }: { children: ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    initHashConnect()
-      .then(() => {
-        setAccountId(getConnectedAccount());
-        setIsInitialized(true);
-      })
-      .catch(console.error);
+    if (typeof window === "undefined") return;
+    import("@/lib/hashconnect").then(({ initHashConnect, getConnectedAccount }) => {
+      initHashConnect()
+        .then(() => {
+          setAccountId(getConnectedAccount());
+          setIsInitialized(true);
+        })
+        .catch(console.error);
+    });
   }, []);
 
-  function connect() {
+  async function connect() {
+    const { connectHashPack, getConnectedAccount } = await import("@/lib/hashconnect");
     connectHashPack();
     // Poll for connection
     const interval = setInterval(() => {
@@ -55,7 +53,8 @@ export function HashConnectProvider({ children }: { children: ReactNode }) {
     }, 500);
   }
 
-  function disconnect() {
+  async function disconnect() {
+    const { disconnectHashPack } = await import("@/lib/hashconnect");
     disconnectHashPack();
     setAccountId(null);
   }
