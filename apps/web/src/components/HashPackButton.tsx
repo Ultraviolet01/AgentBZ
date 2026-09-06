@@ -23,13 +23,46 @@ export function HashPackButton() {
   }
 
   return (
-    <button
-      onClick={connect}
-      className="px-3.5 py-1.5 text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white rounded-xl shadow-xs transition-all flex items-center gap-1.5 uppercase tracking-wide"
-    >
-      <Wallet className="w-3.5 h-3.5" />
-      Connect Wallet
-    </button>
+    <div className="w-full space-y-2">
+      <button
+        onClick={connect}
+        className="w-full px-3.5 py-1.5 text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 uppercase tracking-wide cursor-pointer"
+      >
+        <Wallet className="w-3.5 h-3.5" />
+        Connect Wallet
+      </button>
+
+      {!isConnected && (
+        <div className="mt-2 space-y-1">
+          <p className="text-[11px] text-gray-500">
+            Or enter your Hedera account ID manually:
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="0.0.XXXXXX"
+              className="flex-1 bg-[#1A1A1A] text-white text-xs rounded px-2 py-1 border border-[#2A2A2A] focus:outline-none focus:border-orange-500"
+              onKeyDown={async (e) => {
+                if (e.key === "Enter") {
+                  const val = (e.target as HTMLInputElement).value.trim();
+                  if (val.startsWith("0.0.")) {
+                    // Manually set connected account
+                    localStorage.setItem("agentbazaar-hedera-account", val);
+                    localStorage.setItem("agentbazaar-connected-account", val);
+                    localStorage.setItem(
+                      "agentbazaar-hashconnect",
+                      JSON.stringify({ accountId: val })
+                    );
+                    window.location.reload();
+                  }
+                }
+              }}
+            />
+            <span className="text-xs text-gray-400 self-center">↵</span>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

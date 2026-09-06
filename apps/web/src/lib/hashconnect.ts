@@ -127,6 +127,10 @@ export async function connectHashPack(): Promise<string | null> {
   return hc.pairingString || null;
 }
 
+export function getHashConnect(): HashConnect | null {
+  return hashconnect;
+}
+
 export function getPairingString(): string | null {
   return hashconnect?.pairingString || null;
 }
