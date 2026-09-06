@@ -41,7 +41,7 @@ export function AgentChatWidget() {
       {/* Floating chat button */}
       <button
         onClick={() => setIsOpen((prev) => !prev)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#6C3BFF] rounded-full shadow-lg flex items-center justify-center hover:bg-[#5a2eee] transition-all"
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#F97316] rounded-full shadow-lg flex items-center justify-center hover:bg-[#e06412] transition-all"
         title="AgentBazaar Chat"
       >
         {isOpen ? (

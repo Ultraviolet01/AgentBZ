@@ -174,7 +174,7 @@ export function AgentChat() {
             <div
               className={`max-w-[80%] rounded-xl px-4 py-2 text-sm ${
                 msg.role === "user"
-                  ? "bg-[#6C3BFF] text-white"
+                  ? "bg-[#F97316] text-white"
                   : msg.role === "system"
                   ? "bg-[#1A1A1A] text-yellow-400 font-mono text-xs w-full"
                   : "bg-[#1A1A1A] text-gray-200"
@@ -240,7 +240,7 @@ export function AgentChat() {
             </button>
             <button
               onClick={approveAndPay}
-              className="px-3 py-1 text-xs text-white bg-[#6C3BFF] rounded-lg"
+              className="px-3 py-1 text-xs text-white bg-[#F97316] hover:bg-[#e06412] transition-colors rounded-lg"
             >
               Pay &amp; Run
             </button>
@@ -261,13 +261,13 @@ export function AgentChat() {
                 ? "Ask me anything — I'll find the right agents..."
                 : "Connect HashPack to start..."
             }
-            className="flex-1 bg-[#1A1A1A] text-white text-sm rounded-lg px-4 py-2 outline-none border border-[#2A2A2A] focus:border-[#6C3BFF]"
+            className="flex-1 bg-[#1A1A1A] text-white text-sm rounded-lg px-4 py-2 outline-none border border-[#2A2A2A] focus:border-[#F97316]"
             disabled={loading}
           />
           <button
             onClick={isConnected ? sendMessage : connect}
             disabled={loading || (isConnected && !input.trim())}
-            className="px-4 py-2 bg-[#6C3BFF] text-white text-sm rounded-lg disabled:opacity-50"
+            className="px-4 py-2 bg-[#F97316] hover:bg-[#e06412] transition-colors text-white text-sm rounded-lg disabled:opacity-50"
           >
             {isConnected ? "Send" : "Connect"}
           </button>
