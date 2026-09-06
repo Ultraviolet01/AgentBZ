@@ -37,28 +37,25 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
   const [loadingUri, setLoadingUri] = useState(false);
 
   useEffect(() => {
+    let active = true;
     if (open) {
       setLoadingUri(true);
-      import("@/lib/hashconnect").then(async ({ initHashConnect, getPairingString, connectHashPack }) => {
+      import("@/lib/hashconnect").then(async ({ getPairingUri }) => {
         try {
-          const hc = await initHashConnect();
-          let code = getPairingString() || hc?.pairingString;
-          if (!code) {
-            // Poll for pairingString if still initializing
-            for (let i = 0; i < 10; i++) {
-              await new Promise(r => setTimeout(r, 300));
-              code = getPairingString() || hc?.pairingString;
-              if (code) break;
-            }
+          const uri = await getPairingUri();
+          if (active && uri) {
+            setPairingCode(uri);
           }
-          if (code) setPairingCode(code);
         } catch (e) {
-          console.warn("Failed to load pairing code:", e);
+          console.warn("Error fetching pairing URI:", e);
         } finally {
-          setLoadingUri(false);
+          if (active) setLoadingUri(false);
         }
       });
     }
+    return () => {
+      active = false;
+    };
   }, [open]);
 
   // Auto-close immediately once wallet is detected
@@ -73,7 +70,7 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
   const handleLaunchHashPack = async () => {
     setConnecting(true);
     try {
-      const { connectHashPack, getPairingString } = await import("@/lib/hashconnect");
+      const { connectHashPack, getPairingUri } = await import("@/lib/hashconnect");
       const code = await connectHashPack();
       if (code) setPairingCode(code);
       toast.info("WalletConnect QR modal opened.");
@@ -86,36 +83,30 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
   };
 
   const handleCopyPairingCode = async () => {
-    const toastId = toast.loading("Generating WalletConnect pairing URI...");
-    try {
-      let code = pairingCode;
-      const { initHashConnect, connectHashPack, getPairingString } = await import("@/lib/hashconnect");
-      
-      const hc = await initHashConnect();
-      code = getPairingString() || hc?.pairingString || "";
-
-      if (!code) {
-        // Trigger connect/pairing generation
-        connectHashPack().catch(() => {});
-        for (let i = 0; i < 20; i++) {
-          await new Promise((r) => setTimeout(r, 250));
-          code = getPairingString() || hc?.pairingString || "";
-          if (code) break;
+    let code = pairingCode;
+    if (!code) {
+      const toastId = toast.loading("Connecting to WalletConnect relay...");
+      try {
+        const { getPairingUri } = await import("@/lib/hashconnect");
+        code = await getPairingUri();
+        if (code) {
+          setPairingCode(code);
+          await navigator.clipboard.writeText(code);
+          setCopied(true);
+          toast.success(`Copied pairing URI (${code.slice(0, 16)}...)`, { id: toastId });
+          setTimeout(() => setCopied(false), 3000);
+        } else {
+          toast.error("Pairing URI is taking longer than expected. Please use the QR Modal above.", { id: toastId });
         }
+      } catch (err: any) {
+        console.error(err);
+        toast.error("Failed to copy pairing URI.", { id: toastId });
       }
-
-      if (code) {
-        setPairingCode(code);
-        await navigator.clipboard.writeText(code);
-        setCopied(true);
-        toast.success(`Copied pairing URI (${code.slice(0, 15)}...)`, { id: toastId });
-        setTimeout(() => setCopied(false), 3000);
-      } else {
-        toast.error("Could not generate URI from WalletConnect relay. Please try the QR Modal above.", { id: toastId });
-      }
-    } catch (err: any) {
-      console.error(err);
-      toast.error("Failed to copy pairing URI.", { id: toastId });
+    } else {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      toast.success(`Copied pairing URI (${code.slice(0, 16)}...)`);
+      setTimeout(() => setCopied(false), 3000);
     }
   };
 

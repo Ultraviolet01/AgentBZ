@@ -122,6 +122,19 @@ export function getPairingString(): string | null {
   return hashconnect?.pairingString || null;
 }
 
+export async function getPairingUri(): Promise<string | null> {
+  const hc = await initHashConnect();
+  if (!hc) return null;
+  if (hc.pairingString) return hc.pairingString;
+
+  // Poll for pairingString from relay
+  for (let i = 0; i < 40; i++) {
+    if (hc.pairingString) return hc.pairingString;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return hc.pairingString || null;
+}
+
 // Get connected account ID
 export function getConnectedAccount(): string | null {
   if (pairedAccountId) return pairedAccountId;
