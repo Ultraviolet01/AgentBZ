@@ -14,6 +14,9 @@ interface HashConnectContextType {
   connect: () => void;
   disconnect: () => void;
   isInitialized: boolean;
+  setManualAccount: (id: string) => void;
+  isModalOpen: boolean;
+  setIsModalOpen: (open: boolean) => void;
 }
 
 const HashConnectContext = createContext<HashConnectContextType>({
@@ -22,41 +25,68 @@ const HashConnectContext = createContext<HashConnectContextType>({
   connect: () => {},
   disconnect: () => {},
   isInitialized: false,
+  setManualAccount: () => {},
+  isModalOpen: false,
+  setIsModalOpen: () => {},
 });
 
 export function HashConnectProvider({ children }: { children: ReactNode }) {
   const [accountId, setAccountId] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    import("@/lib/hashconnect").then(({ initHashConnect, getConnectedAccount }) => {
+    import("@/lib/hashconnect").then(({ initHashConnect, getConnectedAccount, onWalletPaired }) => {
+      // 1. Restore cached account
+      const current = getConnectedAccount();
+      if (current) {
+        setAccountId(current);
+      }
+
+      // 2. Listen for pairings
+      onWalletPaired((pairedId) => {
+        setAccountId(pairedId);
+      });
+
+      // 3. Init HashConnect
       initHashConnect()
         .then(() => {
-          setAccountId(getConnectedAccount());
+          const acc = getConnectedAccount();
+          if (acc) setAccountId(acc);
           setIsInitialized(true);
         })
-        .catch(console.error);
+        .catch((err) => {
+          console.warn("HashConnect context init error:", err);
+          setIsInitialized(true);
+        });
     });
   }, []);
 
   async function connect() {
-    const { initHashConnect, connectHashPack, getConnectedAccount } = await import("@/lib/hashconnect");
-    await initHashConnect().catch(console.error);
-    connectHashPack();
-    // Poll for connection
-    const interval = setInterval(() => {
-      const account = getConnectedAccount();
-      if (account) {
-        setAccountId(account);
-        clearInterval(interval);
+    setIsModalOpen(true);
+    try {
+      const { connectHashPack, getConnectedAccount } = await import("@/lib/hashconnect");
+      await connectHashPack();
+      const acc = getConnectedAccount();
+      if (acc) {
+        setAccountId(acc);
       }
-    }, 500);
+    } catch (err) {
+      console.warn("connectHashPack warning:", err);
+    }
+  }
+
+  function setManualAccount(id: string) {
+    import("@/lib/hashconnect").then(({ setManualConnectedAccount }) => {
+      setManualConnectedAccount(id);
+      setAccountId(id);
+    });
   }
 
   async function disconnect() {
     const { disconnectHashPack } = await import("@/lib/hashconnect");
-    disconnectHashPack();
+    await disconnectHashPack();
     setAccountId(null);
   }
 
@@ -68,6 +98,9 @@ export function HashConnectProvider({ children }: { children: ReactNode }) {
         connect,
         disconnect,
         isInitialized,
+        setManualAccount,
+        isModalOpen,
+        setIsModalOpen,
       }}
     >
       {children}
