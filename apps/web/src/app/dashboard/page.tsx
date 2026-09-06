@@ -374,12 +374,7 @@ export default function DashboardPage() {
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
                 </span>
               ) : (
-                <button 
-                  onClick={connect} 
-                  className="text-xs font-bold text-orange-600 hover:text-orange-700 underline"
-                >
-                  Connect now
-                </button>
+                <span className="text-xs font-medium text-gray-400">Not Connected</span>
               )}
             </div>
           </div>
