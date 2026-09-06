@@ -29,11 +29,10 @@ interface ConnectWalletModalProps {
 }
 
 export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalProps) {
-  const { accountId, isConnected, setManualAccount } = useHashConnect();
+  const { accountId, isConnected } = useHashConnect();
   
   const [pairingCode, setPairingCode] = useState<string>("");
   const [copied, setCopied] = useState(false);
-  const [manualInput, setManualInput] = useState("");
   const [connecting, setConnecting] = useState(false);
 
   useEffect(() => {
@@ -62,46 +61,33 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
       const { connectHashPack, getPairingString } = await import("@/lib/hashconnect");
       const code = await connectHashPack();
       if (code) setPairingCode(code);
-      toast.info("Triggered HashPack connection request.");
+      toast.info("WalletConnect QR modal opened.");
     } catch (err: any) {
       console.error(err);
     } finally {
-      setTimeout(() => setConnecting(false), 4000);
+      setTimeout(() => setConnecting(false), 3000);
     }
   };
 
-  const handleCopyPairingCode = () => {
-    if (!pairingCode) {
-      // Trigger pairing code generation
-      import("@/lib/hashconnect").then(({ connectHashPack }) => {
-        connectHashPack().then((code) => {
-          if (code) {
-            setPairingCode(code);
-            navigator.clipboard.writeText(code);
-            setCopied(true);
-            toast.success("HashPack Pairing code copied! Paste in HashPack > Connect dApp");
-            setTimeout(() => setCopied(false), 2500);
-          }
-        });
-      });
-      return;
+  const handleCopyPairingCode = async () => {
+    try {
+      let code = pairingCode;
+      if (!code) {
+        const { connectHashPack, getPairingString } = await import("@/lib/hashconnect");
+        code = (await connectHashPack()) || getPairingString() || "";
+      }
+      if (code) {
+        setPairingCode(code);
+        await navigator.clipboard.writeText(code);
+        setCopied(true);
+        toast.success("WalletConnect Pairing URI copied! Paste in HashPack > Connect dApp");
+        setTimeout(() => setCopied(false), 2500);
+      } else {
+        toast.error("Pairing URI is generating, please retry in 1 second.");
+      }
+    } catch (err) {
+      toast.error("Failed to copy pairing URI.");
     }
-    navigator.clipboard.writeText(pairingCode);
-    setCopied(true);
-    toast.success("HashPack Pairing code copied! Paste in HashPack > Connect dApp");
-    setTimeout(() => setCopied(false), 2500);
-  };
-
-  const handleManualSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanId = manualInput.trim();
-    if (!cleanId || !/^(0\.0\.\d+|0x[a-fA-F0-9]{40})$/.test(cleanId)) {
-      toast.error("Please enter a valid Hedera Account ID (e.g. 0.0.1234567)");
-      return;
-    }
-    setManualAccount(cleanId);
-    toast.success(`Hedera account ${cleanId} connected!`);
-    onOpenChange(false);
   };
 
   return (
@@ -117,23 +103,25 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
                 Connect Hedera Wallet
               </DialogTitle>
               <DialogDescription className="text-xs text-gray-500 font-medium">
-                Hedera Testnet · HashPack & WalletConnect
+                Hedera Testnet · HashPack & WalletConnect (HIP-820)
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
         <div className="space-y-4 pt-2">
-          {/* HashPack WalletConnect Button */}
-          <div className="p-5 rounded-2xl bg-gradient-to-br from-orange-50 to-orange-100/50 border border-orange-200 space-y-3 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-orange-500 text-white font-black text-lg flex items-center justify-center mx-auto shadow-md">
-              Ħ
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-gray-900">HashPack Wallet</h3>
-              <p className="text-xs text-gray-600 mt-0.5">
-                Click below to launch the official WalletConnect QR modal and scan with HashPack.
-              </p>
+          {/* Method 1: QR Modal */}
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-orange-50 to-orange-100/50 border border-orange-200 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-orange-500 text-white font-black text-base flex items-center justify-center shadow-sm flex-shrink-0">
+                Ħ
+              </div>
+              <div className="text-left">
+                <h3 className="text-sm font-bold text-gray-900">HashPack (QR Modal)</h3>
+                <p className="text-xs text-gray-600">
+                  Scan the WalletConnect QR code with HashPack Mobile.
+                </p>
+              </div>
             </div>
 
             <Button
@@ -143,20 +131,55 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
                 handleLaunchHashPack();
               }}
               disabled={connecting}
-              className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl text-xs uppercase shadow-sm flex items-center justify-center gap-2"
+              className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl text-xs uppercase shadow-sm flex items-center justify-center gap-2"
             >
               {connecting ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  Opening WalletConnect...
+                  Opening Modal...
                 </>
               ) : (
                 <>
                   <QrCode className="w-4 h-4" />
-                  Connect with HashPack (QR Code)
+                  Launch QR Code Modal
                 </>
               )}
             </Button>
+          </div>
+
+          {/* Method 2: Direct Pairing URI Copy for Desktop Extension */}
+          <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Copy className="w-3.5 h-3.5 text-orange-500" />
+                Pairing URI (Desktop / Extension)
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCopyPairingCode}
+                className="h-7 px-2.5 text-[11px] font-bold rounded-lg border-gray-300 hover:bg-white text-gray-700"
+              >
+                {copied ? (
+                  <span className="flex items-center gap-1 text-emerald-600">
+                    <Check className="w-3 h-3" /> Copied!
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1">
+                    <Copy className="w-3 h-3" /> Copy URI
+                  </span>
+                )}
+              </Button>
+            </div>
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              Open HashPack Extension $\rightarrow$ <strong>Settings / Connect dApp</strong> $\rightarrow$ <strong>WalletConnect</strong> $\rightarrow$ paste the copied <code className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded font-mono text-[10px]">wc:...</code> string.
+            </p>
+            {pairingCode && (
+              <div className="p-2 bg-white border border-gray-200 rounded-lg text-[10px] font-mono text-gray-600 truncate">
+                {pairingCode}
+              </div>
+            )}
           </div>
 
           {/* Footer note */}
