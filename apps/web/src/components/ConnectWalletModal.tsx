@@ -83,7 +83,7 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
   };
 
   const handleCopyPairingCode = async () => {
-    let code = pairingCode;
+    let code: string | null = pairingCode || null;
     if (!code) {
       const toastId = toast.loading("Connecting to WalletConnect relay...");
       try {
