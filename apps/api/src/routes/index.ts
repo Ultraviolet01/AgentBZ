@@ -41,15 +41,22 @@ router.post("/agents/launchwatch/setup", authMiddleware, agentsController.setupL
 router.post("/agents/run", async (req, res) => {
   try {
     const { POST: handleRun } = await import("./agents/run");
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    for (const [k, v] of Object.entries(req.headers)) {
+      if (typeof v === "string") headers[k.toLowerCase()] = v;
+      else if (Array.isArray(v)) headers[k.toLowerCase()] = v.join(", ");
+    }
     const webReq = new Request(`http://${req.headers.host || "localhost"}${req.originalUrl}`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers,
       body: JSON.stringify(req.body),
     });
     const webRes = await handleRun(webReq);
     const data = await webRes.json();
     const xPayment = webRes.headers.get("X-Payment");
     if (xPayment) res.setHeader("X-Payment", xPayment);
+    const paymentRequired = webRes.headers.get("PAYMENT-REQUIRED");
+    if (paymentRequired) res.setHeader("PAYMENT-REQUIRED", paymentRequired);
     res.status(webRes.status).json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Failed to run agent" });
@@ -59,9 +66,14 @@ router.post("/agents/run", async (req, res) => {
 router.post("/agents/deploy", async (req, res) => {
   try {
     const { POST: handleDeploy } = await import("./agents/deploy");
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    for (const [k, v] of Object.entries(req.headers)) {
+      if (typeof v === "string") headers[k.toLowerCase()] = v;
+      else if (Array.isArray(v)) headers[k.toLowerCase()] = v.join(", ");
+    }
     const webReq = new Request(`http://${req.headers.host || "localhost"}${req.originalUrl}`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers,
       body: JSON.stringify(req.body),
     });
     const webRes = await handleDeploy(webReq);
@@ -76,13 +88,22 @@ router.post("/agents/deploy", async (req, res) => {
 router.post(["/chat/orchestrate", "/api/chat/orchestrate"], async (req, res) => {
   try {
     const { POST: handleOrchestrate } = await import("./chat/orchestrate");
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    for (const [k, v] of Object.entries(req.headers)) {
+      if (typeof v === "string") headers[k.toLowerCase()] = v;
+      else if (Array.isArray(v)) headers[k.toLowerCase()] = v.join(", ");
+    }
     const webReq = new Request(`http://${req.headers.host || "localhost"}${req.originalUrl}`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers,
       body: JSON.stringify(req.body),
     });
     const webRes = await handleOrchestrate(webReq);
     const data = await webRes.json();
+    const xPayment = webRes.headers.get("X-Payment");
+    if (xPayment) res.setHeader("X-Payment", xPayment);
+    const paymentRequired = webRes.headers.get("PAYMENT-REQUIRED");
+    if (paymentRequired) res.setHeader("PAYMENT-REQUIRED", paymentRequired);
     res.status(webRes.status).json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Orchestration failed" });
