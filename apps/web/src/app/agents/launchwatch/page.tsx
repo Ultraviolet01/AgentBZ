@@ -109,7 +109,8 @@ export default function LaunchWatchPage() {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-6 lg:p-10 max-w-7xl mx-auto">
+      <div className="max-w-5xl space-y-6">
       
       {/* Header */}
       <div className="mb-8">
@@ -598,6 +599,7 @@ export default function LaunchWatchPage() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

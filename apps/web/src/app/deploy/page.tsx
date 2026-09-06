@@ -267,7 +267,8 @@ export default function DeployAgentPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-4xl pb-16">
+    <div className="p-6 lg:p-10 max-w-7xl mx-auto pb-16">
+      <div className="max-w-4xl space-y-8">
       
       {/* Header */}
       <div className="mb-8">
@@ -1155,6 +1156,7 @@ X-AgentBazaar-Run-Id: <run-uuid>
           </div>
         </Card>
       )}
+      </div>
     </div>
   );
 }

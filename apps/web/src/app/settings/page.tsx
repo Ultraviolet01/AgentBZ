@@ -142,8 +142,9 @@ export default function SettingsPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-6 pb-16 text-gray-900">
-      <header className="space-y-4">
+    <div className="p-6 lg:p-10 max-w-7xl mx-auto space-y-6 pb-16 text-gray-900">
+      <div className="max-w-5xl space-y-6">
+        <header className="space-y-4">
         <div className="flex items-center gap-4">
           <div className="flex h-14 w-14 items-center justify-center rounded-[24px] border border-orange-100 bg-orange-50 text-orange-500 shadow-sm">
             <SettingsIcon className="h-7 w-7" />
@@ -328,7 +329,8 @@ export default function SettingsPage() {
           </div>
         </div>
       </section>
-    </main>
+      </div>
+    </div>
   );
 }
 

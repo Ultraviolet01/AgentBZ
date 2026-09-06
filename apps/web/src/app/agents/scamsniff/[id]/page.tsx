@@ -22,15 +22,16 @@ export default function ReportDetailPage() {
   if (loading) return <div className="p-10 text-center text-gray-500">Loading analysis...</div>;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <Link href="/agents/scamsniff">
-        <Button variant="ghost" className="mb-6">
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to ScamSniff
-        </Button>
-      </Link>
+    <div className="p-6 lg:p-10 max-w-7xl mx-auto">
+      <div className="max-w-4xl space-y-6">
+        <Link href="/agents/scamsniff">
+          <Button variant="ghost" className="mb-6">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to ScamSniff
+          </Button>
+        </Link>
 
-      <div className="space-y-6">
+        <div className="space-y-6">
         <Card className="p-8 border-t-4 border-t-orange-500">
           <div className="flex justify-between items-start mb-6">
             <div>
@@ -79,6 +80,7 @@ export default function ReportDetailPage() {
             </Card>
           </div>
         </Card>
+      </div>
       </div>
     </div>
   );

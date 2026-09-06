@@ -125,8 +125,9 @@ export default function ProfilePage() {
   const initial = user.username.charAt(0).toUpperCase();
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-6 pb-16 text-gray-900">
-      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
+    <div className="p-6 lg:p-10 max-w-7xl mx-auto space-y-6 pb-16 text-gray-900">
+      <div className="max-w-5xl space-y-6">
+        <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
         <div className="flex items-center gap-5">
           <div className="w-20 h-20 rounded-[28px] bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-3xl font-bold text-white shadow-lg shadow-orange-100">
             {initial}
@@ -376,7 +377,8 @@ export default function ProfilePage() {
         </div>
         <Button variant="secondary" onClick={signOut} className="rounded-xl border-orange-100 hover:bg-white">Sign out</Button>
       </section>
-    </main>
+      </div>
+    </div>
   );
 }
 

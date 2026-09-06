@@ -132,7 +132,7 @@ export default function ThreadSmithPage() {
 
 
   return (
-    <div className="p-10 max-w-7xl mx-auto min-h-screen space-y-12 pb-24 bg-transparent text-gray-900">
+    <div className="p-6 lg:p-10 max-w-7xl mx-auto min-h-screen space-y-12 pb-24 bg-transparent text-gray-900">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
         <div className="space-y-4">

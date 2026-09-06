@@ -32,7 +32,8 @@ export default function DeployedAgentPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="p-6 lg:p-10 max-w-7xl mx-auto">
+      <div className="max-w-4xl space-y-6">
       
       {/* Success Banner */}
       {isNewlyDeployed && (
@@ -139,6 +140,7 @@ export default function DeployedAgentPage() {
           </div>
         )}
       </Card>
+      </div>
     </div>
   );
 }

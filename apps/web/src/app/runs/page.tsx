@@ -25,10 +25,10 @@ export default function RunsPage() {
     <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="max-w-6xl mx-auto space-y-12 pb-24 px-6 md:px-0 bg-transparent text-gray-900"
+        className="p-6 lg:p-10 max-w-7xl mx-auto space-y-12 pb-24 bg-transparent text-gray-900"
     >
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pt-10">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
         <div className="space-y-4">
           <div className="flex items-center space-x-5 text-orange-500">
             <div className="w-16 h-16 rounded-[24px] bg-orange-100 flex items-center justify-center border border-orange-200 shadow-sm transition-all hover:scale-105">

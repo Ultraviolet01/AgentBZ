@@ -64,7 +64,7 @@ export default function AgentsPage() {
       <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-orange-100/30 blur-[130px] rounded-full pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-100/20 blur-[120px] rounded-full pointer-events-none" />
 
-      <div className="mx-auto w-full max-w-7xl relative z-10 space-y-8 pb-16">
+      <div className="p-6 lg:p-10 max-w-7xl mx-auto relative z-10 space-y-8 pb-16">
         {/* Header */}
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-6">

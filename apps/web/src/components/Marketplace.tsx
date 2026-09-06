@@ -109,7 +109,7 @@ export default function Marketplace() {
   });
 
   return (
-    <div className="p-8 lg:p-10 max-w-7xl mx-auto min-h-screen bg-[var(--background-secondary)] relative">
+    <div className="p-6 lg:p-10 max-w-7xl mx-auto min-h-screen bg-[var(--background-secondary)] relative">
       
       {/* Background Ambience */}
       <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-orange-50/20 blur-[130px] rounded-full pointer-events-none -z-10" />
