@@ -79,32 +79,43 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
       toast.info("WalletConnect QR modal opened.");
     } catch (err: any) {
       console.error(err);
+      toast.error("Failed to open WalletConnect modal.");
     } finally {
       setTimeout(() => setConnecting(false), 3000);
     }
   };
 
   const handleCopyPairingCode = async () => {
+    const toastId = toast.loading("Generating WalletConnect pairing URI...");
     try {
       let code = pairingCode;
+      const { initHashConnect, connectHashPack, getPairingString } = await import("@/lib/hashconnect");
+      
+      const hc = await initHashConnect();
+      code = getPairingString() || hc?.pairingString || "";
+
       if (!code) {
-        setLoadingUri(true);
-        const { initHashConnect, getPairingString } = await import("@/lib/hashconnect");
-        const hc = await initHashConnect();
-        code = getPairingString() || hc?.pairingString || "";
-        setLoadingUri(false);
+        // Trigger connect/pairing generation
+        connectHashPack().catch(() => {});
+        for (let i = 0; i < 20; i++) {
+          await new Promise((r) => setTimeout(r, 250));
+          code = getPairingString() || hc?.pairingString || "";
+          if (code) break;
+        }
       }
-      if (code && code.startsWith("wc:")) {
+
+      if (code) {
         setPairingCode(code);
         await navigator.clipboard.writeText(code);
         setCopied(true);
-        toast.success(`Copied pairing URI (${code.slice(0, 18)}...)`);
-        setTimeout(() => setCopied(false), 2500);
+        toast.success(`Copied pairing URI (${code.slice(0, 15)}...)`, { id: toastId });
+        setTimeout(() => setCopied(false), 3000);
       } else {
-        toast.error("Pairing URI is still generating. Please try again in 2 seconds.");
+        toast.error("Could not generate URI from WalletConnect relay. Please try the QR Modal above.", { id: toastId });
       }
-    } catch (err) {
-      toast.error("Failed to copy pairing URI.");
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Failed to copy pairing URI.", { id: toastId });
     }
   };
 
