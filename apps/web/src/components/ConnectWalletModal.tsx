@@ -34,14 +34,29 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
   const [pairingCode, setPairingCode] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [loadingUri, setLoadingUri] = useState(false);
 
   useEffect(() => {
     if (open) {
-      import("@/lib/hashconnect").then(({ initHashConnect, getPairingString }) => {
-        initHashConnect().then((hc) => {
-          const code = getPairingString() || hc?.pairingString;
+      setLoadingUri(true);
+      import("@/lib/hashconnect").then(async ({ initHashConnect, getPairingString, connectHashPack }) => {
+        try {
+          const hc = await initHashConnect();
+          let code = getPairingString() || hc?.pairingString;
+          if (!code) {
+            // Poll for pairingString if still initializing
+            for (let i = 0; i < 10; i++) {
+              await new Promise(r => setTimeout(r, 300));
+              code = getPairingString() || hc?.pairingString;
+              if (code) break;
+            }
+          }
           if (code) setPairingCode(code);
-        });
+        } catch (e) {
+          console.warn("Failed to load pairing code:", e);
+        } finally {
+          setLoadingUri(false);
+        }
       });
     }
   }, [open]);
@@ -73,17 +88,20 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
     try {
       let code = pairingCode;
       if (!code) {
-        const { connectHashPack, getPairingString } = await import("@/lib/hashconnect");
-        code = (await connectHashPack()) || getPairingString() || "";
+        setLoadingUri(true);
+        const { initHashConnect, getPairingString } = await import("@/lib/hashconnect");
+        const hc = await initHashConnect();
+        code = getPairingString() || hc?.pairingString || "";
+        setLoadingUri(false);
       }
-      if (code) {
+      if (code && code.startsWith("wc:")) {
         setPairingCode(code);
         await navigator.clipboard.writeText(code);
         setCopied(true);
-        toast.success("WalletConnect Pairing URI copied! Paste in HashPack > Connect dApp");
+        toast.success(`Copied pairing URI (${code.slice(0, 18)}...)`);
         setTimeout(() => setCopied(false), 2500);
       } else {
-        toast.error("Pairing URI is generating, please retry in 1 second.");
+        toast.error("Pairing URI is still generating. Please try again in 2 seconds.");
       }
     } catch (err) {
       toast.error("Failed to copy pairing URI.");
@@ -159,11 +177,16 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
                 variant="outline"
                 size="sm"
                 onClick={handleCopyPairingCode}
-                className="h-7 px-2.5 text-[11px] font-bold rounded-lg border-gray-300 hover:bg-white text-gray-700"
+                disabled={loadingUri}
+                className="h-7 px-2.5 text-[11px] font-bold rounded-lg border-gray-300 hover:bg-white text-gray-700 cursor-pointer"
               >
                 {copied ? (
                   <span className="flex items-center gap-1 text-emerald-600">
                     <Check className="w-3 h-3" /> Copied!
+                  </span>
+                ) : loadingUri ? (
+                  <span className="flex items-center gap-1 text-gray-400">
+                    <RefreshCw className="w-3 h-3 animate-spin" /> Generating...
                   </span>
                 ) : (
                   <span className="flex items-center gap-1">
@@ -173,13 +196,22 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
               </Button>
             </div>
             <p className="text-[11px] text-gray-500 leading-relaxed">
-              Open HashPack Extension $\rightarrow$ <strong>Settings / Connect dApp</strong> $\rightarrow$ <strong>WalletConnect</strong> $\rightarrow$ paste the copied <code className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded font-mono text-[10px]">wc:...</code> string.
+              Open HashPack Extension $\rightarrow$ <strong>Settings / Connect dApp</strong> $\rightarrow$ <strong>WalletConnect</strong> $\rightarrow$ paste the <code className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded font-mono text-[10px]">wc:...</code> string.
             </p>
-            {pairingCode && (
-              <div className="p-2 bg-white border border-gray-200 rounded-lg text-[10px] font-mono text-gray-600 truncate">
+            {pairingCode ? (
+              <div 
+                onClick={handleCopyPairingCode}
+                className="p-2.5 bg-white border border-gray-200 rounded-xl text-[10px] font-mono text-gray-700 truncate cursor-pointer hover:border-orange-300 transition-colors"
+                title="Click to copy pairing URI"
+              >
                 {pairingCode}
               </div>
-            )}
+            ) : loadingUri ? (
+              <div className="p-2.5 bg-white border border-dashed border-gray-200 rounded-xl text-[10px] text-gray-400 flex items-center gap-2">
+                <RefreshCw className="w-3 h-3 animate-spin text-orange-500" />
+                Generating connection string (wc:...)...
+              </div>
+            ) : null}
           </div>
 
           {/* Footer note */}
