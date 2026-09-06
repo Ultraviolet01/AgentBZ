@@ -193,7 +193,7 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
             </div>
 
             <p className="text-[11px] text-gray-500 leading-snug">
-              Tip: Click <strong>&quot;Copy Pairing Code&quot;</strong>, then open HashPack &rarr; tap <strong>Connect dApp</strong> &rarr; paste the code to pair.
+              Tip: Click <strong>&quot;Launch Prompt&quot;</strong> to open the official WalletConnect modal, or enter your <strong>Account ID</strong> above for instant connection.
             </p>
           </div>
 
