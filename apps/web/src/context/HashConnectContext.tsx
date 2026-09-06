@@ -8,10 +8,17 @@ import {
   ReactNode,
 } from "react";
 import { ConnectWalletModal } from "@/components/ConnectWalletModal";
+import {
+  connectMetaMask,
+  getConnectedMetaMaskAccount,
+  getMetaMaskHbarBalance,
+  isMetaMaskInstalled,
+} from "@/lib/metamask";
 
 interface HashConnectContextType {
   accountId: string | null;
   isConnected: boolean;
+  balance: string | null;
   connect: () => void;
   disconnect: () => void;
   isInitialized: boolean;
@@ -23,6 +30,7 @@ interface HashConnectContextType {
 const HashConnectContext = createContext<HashConnectContextType>({
   accountId: null,
   isConnected: false,
+  balance: null,
   connect: () => {},
   disconnect: () => {},
   isInitialized: false,
@@ -33,35 +41,61 @@ const HashConnectContext = createContext<HashConnectContextType>({
 
 export function HashConnectProvider({ children }: { children: ReactNode }) {
   const [accountId, setAccountId] = useState<string | null>(null);
+  const [balance, setBalance] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Check saved connection or MetaMask on mount
   useEffect(() => {
     if (typeof window === "undefined") return;
-    import("@/lib/hashconnect").then(({ initHashConnect, getConnectedAccount, onWalletPaired }) => {
-      // 1. Restore cached account
-      const current = getConnectedAccount();
-      if (current) {
-        setAccountId(current);
+
+    async function initWallet() {
+      try {
+        const metaAccount = await getConnectedMetaMaskAccount();
+        if (metaAccount) {
+          setAccountId(metaAccount);
+          const bal = await getMetaMaskHbarBalance(metaAccount);
+          if (bal) setBalance(bal);
+        }
+      } catch (err) {
+        console.warn("Wallet initialization warning:", err);
+      } finally {
+        setIsInitialized(true);
       }
+    }
 
-      // 2. Listen for pairings
-      onWalletPaired((pairedId) => {
-        setAccountId(pairedId);
-      });
+    initWallet();
 
-      // 3. Init HashConnect
-      initHashConnect()
-        .then(() => {
-          const acc = getConnectedAccount();
-          if (acc) setAccountId(acc);
-          setIsInitialized(true);
-        })
-        .catch((err) => {
-          console.warn("HashConnect context init error:", err);
-          setIsInitialized(true);
-        });
-    });
+    // Listen to MetaMask account / chain changes
+    if (isMetaMaskInstalled()) {
+      const ethereum = (window as any).ethereum;
+
+      const handleAccountsChanged = async (accounts: string[]) => {
+        if (accounts.length === 0) {
+          setAccountId(null);
+          setBalance(null);
+          localStorage.removeItem("agentbazaar-connected-account");
+        } else {
+          const acc = accounts[0].toLowerCase();
+          setAccountId(acc);
+          localStorage.setItem("agentbazaar-connected-account", acc);
+          const bal = await getMetaMaskHbarBalance(acc);
+          if (bal) setBalance(bal);
+        }
+      };
+
+      const handleChainChanged = () => {
+        window.location.reload();
+      };
+
+      ethereum.on?.("accountsChanged", handleAccountsChanged);
+      ethereum.on?.("chainChanged", handleChainChanged);
+
+      return () => {
+        ethereum.removeListener?.("accountsChanged", handleAccountsChanged);
+        ethereum.removeListener?.("chainChanged", handleChainChanged);
+      };
+    }
   }, []);
 
   function connect() {
@@ -69,16 +103,20 @@ export function HashConnectProvider({ children }: { children: ReactNode }) {
   }
 
   function setManualAccount(id: string) {
-    import("@/lib/hashconnect").then(({ setManualConnectedAccount }) => {
-      setManualConnectedAccount(id);
-      setAccountId(id);
-    });
+    const trimmed = id.trim().toLowerCase();
+    setAccountId(trimmed);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("agentbazaar-connected-account", trimmed);
+    }
   }
 
   async function disconnect() {
-    const { disconnectHashPack } = await import("@/lib/hashconnect");
-    await disconnectHashPack();
     setAccountId(null);
+    setBalance(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("agentbazaar-connected-account");
+      localStorage.removeItem("agentbazaar-wallet-type");
+    }
   }
 
   return (
@@ -86,6 +124,7 @@ export function HashConnectProvider({ children }: { children: ReactNode }) {
       value={{
         accountId,
         isConnected: !!accountId,
+        balance,
         connect,
         disconnect,
         isInitialized,
@@ -101,3 +140,4 @@ export function HashConnectProvider({ children }: { children: ReactNode }) {
 }
 
 export const useHashConnect = () => useContext(HashConnectContext);
+

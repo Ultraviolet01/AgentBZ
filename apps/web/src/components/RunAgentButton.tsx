@@ -150,12 +150,12 @@ export function RunAgentButton({
       <button
         onClick={handleRun}
         disabled={loading || !input.trim()}
-        className="w-full px-4 py-3 bg-[#6C3BFF] text-white rounded-lg disabled:opacity-50 font-medium"
+        className="w-full px-4 py-3 bg-[#6C3BFF] text-white rounded-lg disabled:opacity-50 font-medium cursor-pointer"
       >
         {loading
-          ? "Waiting for HashPack..."
+          ? "Waiting for MetaMask..."
           : !isConnected
-          ? "Connect HashPack to Run"
+          ? "Connect Wallet to Run"
           : `Run ${agentName} — ${priceHbar + 0.5} HBAR`}
       </button>
 
