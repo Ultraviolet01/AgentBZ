@@ -19,13 +19,11 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { AgentChat } from '@/components/AgentChat';
 
 export default function Marketplace() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'agentbazaar' | 'community'>('all');
-  const [showChat, setShowChat] = useState(true);
 
   // Built-in agents
   const agentBazaarAgents = [
@@ -133,29 +131,6 @@ export default function Marketplace() {
         </p>
       </div>
 
-      {/* Multi-Agent Orchestrator Assistant */}
-      <div className="mb-14">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-orange-500" />
-            <h2 className="text-xl font-bold text-gray-900 tracking-tight uppercase">
-              AI Multi-Agent Orchestrator (A2A)
-            </h2>
-          </div>
-          <button
-            onClick={() => setShowChat((v) => !v)}
-            className="text-xs font-semibold text-orange-600 hover:text-orange-700 underline"
-          >
-            {showChat ? "Hide Assistant" : "Open Assistant"}
-          </button>
-        </div>
-
-        {showChat && (
-          <div className="mb-6">
-            <AgentChat />
-          </div>
-        )}
-      </div>
 
       {/* Search & Filters */}
       <div className="flex flex-col xl:flex-row items-center gap-6 mb-20">

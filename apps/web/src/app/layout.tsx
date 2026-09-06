@@ -6,6 +6,7 @@ import Sidebar from "@/components/Sidebar";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { HashConnectProvider } from "@/context/HashConnectContext";
 import { Toaster } from "sonner";
+import { AgentChatWidget } from "@/components/AgentChatWidget";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -37,6 +38,7 @@ export default function RootLayout({
                 className: "bg-white border-gray-200 text-gray-900 rounded-2xl shadow-lg",
               }} 
             />
+            <AgentChatWidget />
           </HashConnectProvider>
         </AuthProvider>
       </body>
