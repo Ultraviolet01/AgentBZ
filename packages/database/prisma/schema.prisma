@@ -283,6 +283,8 @@ model Agent {
   builderAccountId String?     // Hedera account ID of the agent builder e.g. 0.0.XXXXX
   hcs14TopicId     String?
   hcs14HashscanUrl String?
+  hasApiKeys       Boolean     @default(false)
+  encryptedApiKeys String?     @db.Text
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
   executions       Execution[]
