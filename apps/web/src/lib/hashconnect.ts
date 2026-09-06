@@ -73,8 +73,8 @@ export async function connectHashPack(): Promise<string | null> {
 
   try {
     // 1. Post message directly to HashPack extension
-    if (typeof window !== "undefined") {
-      hc.connectToExtension();
+    if (typeof window !== "undefined" && typeof (hc as any).connectToExtension === "function") {
+      (hc as any).connectToExtension();
     }
   } catch (e) {
     console.warn("connectToExtension attempt:", e);
