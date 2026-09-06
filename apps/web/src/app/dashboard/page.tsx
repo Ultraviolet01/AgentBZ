@@ -24,7 +24,6 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import { useHashConnect } from "@/context/HashConnectContext";
-import { ConnectWalletModal } from "@/components/ConnectWalletModal";
 import api from "@/lib/api";
 
 interface TransactionItem {
@@ -209,8 +208,6 @@ export default function DashboardPage() {
       transition={{ duration: 0.25, ease: "easeOut" }}
       className="p-6 lg:p-10 max-w-7xl mx-auto space-y-8 pb-16 text-gray-900"
     >
-      <ConnectWalletModal open={isModalOpen} onOpenChange={setIsModalOpen} />
-      
       {/* ── Top Header & Wallet Action ────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 pb-2 border-b border-gray-100">
         <div>

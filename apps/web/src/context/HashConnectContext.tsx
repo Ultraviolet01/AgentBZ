@@ -7,6 +7,7 @@ import {
   useState,
   ReactNode,
 } from "react";
+import { ConnectWalletModal } from "@/components/ConnectWalletModal";
 
 interface HashConnectContextType {
   accountId: string | null;
@@ -63,17 +64,8 @@ export function HashConnectProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  async function connect() {
-    try {
-      const { connectHashPack, getConnectedAccount } = await import("@/lib/hashconnect");
-      await connectHashPack();
-      const acc = getConnectedAccount();
-      if (acc) {
-        setAccountId(acc);
-      }
-    } catch (err) {
-      console.warn("connectHashPack warning:", err);
-    }
+  function connect() {
+    setIsModalOpen(true);
   }
 
   function setManualAccount(id: string) {
@@ -103,6 +95,7 @@ export function HashConnectProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
+      <ConnectWalletModal open={isModalOpen} onOpenChange={setIsModalOpen} />
     </HashConnectContext.Provider>
   );
 }
