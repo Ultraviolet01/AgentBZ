@@ -4,178 +4,93 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { HashConnect } from "hashconnect";
-import { TransferTransaction, AccountId, Hbar, LedgerId } from "@hashgraph/sdk";
-
-const APP_METADATA = {
-  name: "AgentBazaar",
-  description: "Open marketplace for AI agents on Hedera",
-  icons: [`${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/logo.png`],
-  url: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-};
-
-// Singleton HashConnect instance
-let _hashconnect: HashConnect | null = null;
-
-function getHashConnect(): HashConnect {
-  if (!_hashconnect) {
-    const projectId =
-      process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || "agentbazaar-testnet";
-    _hashconnect = new HashConnect(
-      LedgerId.TESTNET,
-      projectId,
-      APP_METADATA,
-      false
-    );
-  }
-  return _hashconnect;
-}
+import { 
+  initHashConnect, 
+  connectHashPack, 
+  disconnectHashPack, 
+  getConnectedAccount, 
+  onWalletPaired,
+  getPairingString,
+  signPaymentWithHashPack
+} from "@/lib/hashconnect";
+import { TransferTransaction, AccountId, Hbar } from "@hashgraph/sdk";
 
 export function useHashPack() {
   const [accountId, setAccountId] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [pairingString, setPairingString] = useState<string>("");
-  const [topic, setTopic] = useState<string>("");
-  const [walletMetadata, setWalletMetadata] = useState<any>(null);
 
-  // Initialize HashConnect on mount
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    async function init() {
-      const hc = getHashConnect();
-
-      // Try to restore saved session
-      const saved =
-        localStorage.getItem("agentbazaar-hashconnect") ||
-        localStorage.getItem("agentbazaar-hedera-account");
-      if (saved) {
-        try {
-          const data = saved.startsWith("{")
-            ? JSON.parse(saved)
-            : { accountId: saved };
-          if (data.accountId) {
-            setAccountId(data.accountId);
-            setIsConnected(true);
-            if (data.metadata) setWalletMetadata(data.metadata);
-          }
-        } catch {
-          localStorage.removeItem("agentbazaar-hashconnect");
-        }
-      }
-
-      // Listen for wallet pairing
-      hc.pairingEvent.on((data: any) => {
-        const connectedAccountId =
-          data.accountIds?.[0]?.toString?.() || data.accountIds?.[0] || "";
-        if (connectedAccountId) {
-          setAccountId(connectedAccountId);
-          setWalletMetadata(data.metadata || null);
-          setIsConnected(true);
-
-          localStorage.setItem(
-            "agentbazaar-hashconnect",
-            JSON.stringify({
-              metadata: data.metadata,
-              accountId: connectedAccountId,
-            })
-          );
-          localStorage.setItem("agentbazaar-hedera-account", connectedAccountId);
-          localStorage.setItem("agentbazaar-connected-account", connectedAccountId);
-        }
-      });
-
-      // Listen for disconnection
-      hc.disconnectionEvent.on(() => {
-        setAccountId(null);
-        setIsConnected(false);
-        setWalletMetadata(null);
-        localStorage.removeItem("agentbazaar-hashconnect");
-        localStorage.removeItem("agentbazaar-hedera-account");
-        localStorage.removeItem("agentbazaar-connected-account");
-      });
-
-      await hc.init();
-
-      if (hc.connectedAccountIds && hc.connectedAccountIds.length > 0) {
-        const connected = hc.connectedAccountIds[0].toString();
-        setAccountId(connected);
-        setIsConnected(true);
-        localStorage.setItem("agentbazaar-hedera-account", connected);
-      }
-
-      if (hc.pairingString) {
-        setPairingString(hc.pairingString);
-      }
-
-      setIsInitialized(true);
+    // Restore cached account
+    const existing = getConnectedAccount();
+    if (existing) {
+      setAccountId(existing);
+      setIsConnected(true);
     }
 
-    init().catch((err) => {
-      console.error("HashConnect initialization error:", err);
+    // Subscribe to pairing events
+    const unsub = onWalletPaired((newAccount) => {
+      setAccountId(newAccount);
+      setIsConnected(true);
+    });
+
+    initHashConnect().then((hc) => {
+      if (hc) {
+        const acc = getConnectedAccount();
+        if (acc) {
+          setAccountId(acc);
+          setIsConnected(true);
+        }
+        if (hc.pairingString) {
+          setPairingString(hc.pairingString);
+        }
+      }
       setIsInitialized(true);
     });
+
+    return () => {
+      unsub();
+    };
   }, []);
 
-  // Open HashPack pairing modal
   const connect = useCallback(async () => {
-    const hc = getHashConnect();
-    try {
-      if (hc.openPairingModal) {
-        await hc.openPairingModal("dark");
-      }
-    } catch (err) {
-      console.error("Failed to open pairing modal:", err);
+    const code = await connectHashPack();
+    if (code) setPairingString(code);
+    const acc = getConnectedAccount();
+    if (acc) {
+      setAccountId(acc);
+      setIsConnected(true);
     }
   }, []);
 
-  // Disconnect HashPack
   const disconnect = useCallback(async () => {
-    try {
-      const hc = getHashConnect();
-      await hc.disconnect();
-    } catch (err) {
-      console.error("Failed to disconnect HashConnect:", err);
-    }
+    await disconnectHashPack();
     setAccountId(null);
     setIsConnected(false);
-    setWalletMetadata(null);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("agentbazaar-hashconnect");
-      localStorage.removeItem("agentbazaar-hedera-account");
-      localStorage.removeItem("agentbazaar-connected-account");
-    }
   }, []);
 
-  // Send HBAR deposit via HashPack
-  // Buyer signs a TransferTransaction — HashPack popup opens for approval
-  // Returns base64-encoded signed TransferTransaction for Blocky402 to submit
   const sendDeposit = useCallback(
     async (toAccountId: string, amountHbar: number): Promise<string> => {
-      if (!accountId) {
+      const activeAccount = accountId || getConnectedAccount();
+      if (!activeAccount) {
         throw new Error("HashPack not connected");
       }
 
-      const hc = getHashConnect();
-      const fromAccount = AccountId.fromString(accountId);
+      const hc = await initHashConnect();
+      if (!hc) throw new Error("HashConnect not ready");
+
+      const fromAccount = AccountId.fromString(activeAccount);
       const toAccount = AccountId.fromString(toAccountId);
       const signer = hc.getSigner(fromAccount as any);
 
-      // Build transfer transaction
       const transaction = await new TransferTransaction()
-        .addHbarTransfer(
-          fromAccount,
-          new Hbar(-amountHbar) // negative = sending
-        )
-        .addHbarTransfer(
-          toAccount,
-          new Hbar(amountHbar) // positive = receiving
-        )
+        .addHbarTransfer(fromAccount, new Hbar(-amountHbar))
+        .addHbarTransfer(toAccount, new Hbar(amountHbar))
         .freezeWithSigner(signer as any);
 
-      // HashPack opens popup — buyer approves and SIGNS only
-      // Do NOT execute — Blocky402 co-signs as feePayer and submits
       const signedTx = await transaction.signWithSigner(signer as any);
       const signedBytes = signedTx.toBytes();
       return Buffer.from(signedBytes).toString("base64");
@@ -188,10 +103,10 @@ export function useHashPack() {
     isConnected,
     isInitialized,
     pairingString,
-    topic,
-    walletMetadata,
     connect,
     disconnect,
     sendDeposit,
+    signPaymentWithHashPack,
   };
 }
+

@@ -15,6 +15,7 @@ const APP_METADATA = {
 let hashconnect: HashConnect | null = null;
 let pairedAccountId: string | null = null;
 let pairingListeners: Array<(accountId: string) => void> = [];
+let isInitializing = false;
 
 export function onWalletPaired(callback: (accountId: string) => void) {
   pairingListeners.push(callback);
@@ -27,7 +28,13 @@ export function onWalletPaired(callback: (accountId: string) => void) {
 export async function initHashConnect(): Promise<HashConnect | null> {
   if (typeof window === "undefined") return null;
   if (hashconnect) return hashconnect;
+  if (isInitializing) {
+    // Wait briefly if already initializing
+    await new Promise(r => setTimeout(r, 200));
+    if (hashconnect) return hashconnect;
+  }
 
+  isInitializing = true;
   const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || "379f8263158f448c90b07dc7671239aa";
   
   try {
@@ -35,7 +42,7 @@ export async function initHashConnect(): Promise<HashConnect | null> {
       LedgerId.TESTNET,
       projectId,
       APP_METADATA,
-      false
+      true // enable debug
     );
 
     const savedAccount = localStorage.getItem("agentbazaar-connected-account");
@@ -44,24 +51,38 @@ export async function initHashConnect(): Promise<HashConnect | null> {
     }
 
     // Listen for wallet pairing
-    hashconnect.pairingEvent.on((session) => {
-      if (session.accountIds && session.accountIds.length > 0) {
-        pairedAccountId = session.accountIds[0];
-        localStorage.setItem("agentbazaar-connected-account", pairedAccountId);
+    hashconnect.pairingEvent.on((session: any) => {
+      console.log("HashConnect pairingEvent received:", session);
+      const accounts = session.accountIds || [];
+      if (accounts.length > 0) {
+        pairedAccountId = accounts[0].toString();
+        localStorage.setItem("agentbazaar-connected-account", pairedAccountId!);
+        localStorage.setItem("agentbazaar-hedera-account", pairedAccountId!);
         pairingListeners.forEach(cb => cb(pairedAccountId!));
       }
     });
 
     // Listen for disconnection
     hashconnect.disconnectionEvent.on(() => {
+      console.log("HashConnect disconnectionEvent received");
       pairedAccountId = null;
       localStorage.removeItem("agentbazaar-connected-account");
+      localStorage.removeItem("agentbazaar-hedera-account");
     });
 
     await hashconnect.init();
+
+    if (hashconnect.connectedAccountIds && hashconnect.connectedAccountIds.length > 0) {
+      pairedAccountId = hashconnect.connectedAccountIds[0].toString();
+      localStorage.setItem("agentbazaar-connected-account", pairedAccountId);
+      localStorage.setItem("agentbazaar-hedera-account", pairedAccountId);
+    }
+
+    isInitializing = false;
     return hashconnect;
   } catch (err) {
     console.warn("HashConnect init error:", err);
+    isInitializing = false;
     return hashconnect;
   }
 }
@@ -73,15 +94,29 @@ export async function connectHashPack(): Promise<string | null> {
 
   try {
     // 1. Post message directly to HashPack extension
-    if (typeof window !== "undefined" && typeof (hc as any).connectToExtension === "function") {
-      (hc as any).connectToExtension();
+    if (typeof window !== "undefined") {
+      window.postMessage({ type: "hashconnect-query-extension" }, "*");
+      
+      if (hc.pairingString) {
+        window.postMessage(
+          {
+            type: "hashconnect-connect-extension",
+            pairingString: hc.pairingString,
+          },
+          "*"
+        );
+      }
+      
+      if (typeof (hc as any).connectToExtension === "function") {
+        (hc as any).connectToExtension();
+      }
     }
   } catch (e) {
     console.warn("connectToExtension attempt:", e);
   }
 
   try {
-    // 2. Open pairing modal / WalletConnect
+    // 2. Open official pairing modal
     if (typeof hc.openPairingModal === "function") {
       await hc.openPairingModal("dark");
     }
@@ -100,7 +135,7 @@ export function getPairingString(): string | null {
 export function getConnectedAccount(): string | null {
   if (pairedAccountId) return pairedAccountId;
   if (typeof window !== "undefined") {
-    const saved = localStorage.getItem("agentbazaar-connected-account");
+    const saved = localStorage.getItem("agentbazaar-connected-account") || localStorage.getItem("agentbazaar-hedera-account");
     if (saved) return saved;
   }
   if (hashconnect && hashconnect.connectedAccountIds && hashconnect.connectedAccountIds.length > 0) {
@@ -115,6 +150,7 @@ export function setManualConnectedAccount(accountId: string): void {
   pairedAccountId = trimmed;
   if (typeof window !== "undefined") {
     localStorage.setItem("agentbazaar-connected-account", trimmed);
+    localStorage.setItem("agentbazaar-hedera-account", trimmed);
   }
   pairingListeners.forEach(cb => cb(trimmed));
 }
@@ -124,6 +160,7 @@ export async function disconnectHashPack(): Promise<void> {
   pairedAccountId = null;
   if (typeof window !== "undefined") {
     localStorage.removeItem("agentbazaar-connected-account");
+    localStorage.removeItem("agentbazaar-hedera-account");
   }
   if (hashconnect) {
     try {
@@ -142,7 +179,8 @@ export async function signPaymentWithHashPack(
     extra: { feePayer: string };
   }
 ): Promise<string> {
-  if (!hashconnect) throw new Error("HashConnect not initialized");
+  const hc = await initHashConnect();
+  if (!hc) throw new Error("HashConnect not initialized");
 
   const connectedAccount = getConnectedAccount();
   if (!connectedAccount) throw new Error("No HashPack account connected");
@@ -160,10 +198,8 @@ export async function signPaymentWithHashPack(
       new Hbar(tinybars / 100_000_000)
     );
 
-  const signedTransaction = await hashconnect.signAndReturnTransaction(
-    accountId as any,
-    transaction as any
-  );
+  const signer = hc.getSigner(accountId);
+  const signedTransaction = await transaction.signWithSigner(signer as any);
 
   const txBytes = signedTransaction.toBytes();
   const txBase64 = Buffer.from(txBytes).toString("base64");
@@ -178,3 +214,4 @@ export async function signPaymentWithHashPack(
 
   return Buffer.from(JSON.stringify(paymentPayload)).toString("base64");
 }
+
