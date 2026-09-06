@@ -100,6 +100,7 @@ export async function verifyWithBlocky402(
     });
 
     const data = await res.json();
+    console.log("[Blocky402 /verify] status:", res.status, "response:", JSON.stringify(data));
 
     if (res.ok && data.isValid) {
       return { isValid: data.isValid, payer: data.payer };
@@ -148,6 +149,7 @@ export async function settleWithBlocky402(
     });
 
     const data = await res.json();
+    console.log("[Blocky402 /settle] status:", res.status, "response:", JSON.stringify(data));
 
     if (res.ok && data.success && data.transaction) {
       return { success: true, transaction: data.transaction };

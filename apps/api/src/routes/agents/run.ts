@@ -147,6 +147,9 @@ export async function POST(req: Request) {
       );
     }
 
+    console.log("[Run] paymentPayload received:", JSON.stringify(paymentPayload));
+    console.log("[Run] paymentRequirements:", JSON.stringify(paymentRequirements));
+
     // Verify with Blocky402
     const { isValid, payer, error: verifyError } = await verifyWithBlocky402(
       paymentPayload,

@@ -70,6 +70,8 @@ export function RunAgentButton({
         priceHbar + 0.5 // agent fee + platform fee
       );
 
+      console.log("[RunAgentButton] txBase64 from sendDeposit:", txBase64);
+
       // Step 3: Build x402 payment payload from signed transaction
       const paymentPayload = {
         x402Version: 2,
@@ -78,6 +80,8 @@ export function RunAgentButton({
         accepted: paymentRequirements,
         payload: { transaction: txBase64 },
       };
+
+      console.log("[RunAgentButton] paymentPayload being sent:", JSON.stringify(paymentPayload));
 
       const xPayment = Buffer.from(
         JSON.stringify(paymentPayload)
