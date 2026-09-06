@@ -136,7 +136,84 @@ export async function getMetaMaskHbarBalance(address: string): Promise<string | 
 }
 
 /**
- * Request MetaMask signature for an x402 payment
+ * Convert Hedera account ID (e.g. 0.0.10843793) or standard address to EVM hex address
+ */
+export function hederaAccountToEvmAddress(account: string): string {
+  if (!account) return "0x0000000000000000000000000000000000000000";
+  if (account.startsWith("0x")) return account.toLowerCase();
+
+  // If format is shard.realm.num (e.g. 0.0.10843793)
+  const parts = account.split(".");
+  if (parts.length === 3) {
+    const num = parseInt(parts[2], 10);
+    if (!isNaN(num)) {
+      return "0x" + num.toString(16).padStart(40, "0").toLowerCase();
+    }
+  }
+  return account;
+}
+
+/**
+ * Send an on-chain HBAR payment via MetaMask on Hedera Testnet
+ * This prompts MetaMask with a real transaction confirmation and deducts HBAR funds.
+ */
+export async function sendMetaMaskHbarPayment(
+  fromAddress: string,
+  toAccountOrAddress: string,
+  amountHbar: number | string,
+  description: string = "Agent Execution Micropayment"
+): Promise<{ txHash: string; payload: string }> {
+  if (!isMetaMaskInstalled()) {
+    throw new Error("MetaMask is not installed in your browser");
+  }
+
+  const ethereum = (window as any).ethereum;
+  await switchToHederaTestnet();
+
+  const recipientEvmAddress = hederaAccountToEvmAddress(toAccountOrAddress);
+  const parsedHbar = typeof amountHbar === "string" ? parseFloat(amountHbar) : amountHbar;
+  
+  // In Hedera EVM, 1 HBAR = 10^18 wei (tinybar is 10^8, EVM JSON-RPC scales to 18 decimals)
+  const valueWei = BigInt(Math.round(parsedHbar * 1e18));
+  const valueHex = "0x" + valueWei.toString(16);
+
+  console.log(`[MetaMask] Sending ${parsedHbar} HBAR (${valueWei} wei) to ${recipientEvmAddress} from ${fromAddress}`);
+
+  // Trigger MetaMask native transaction popup (deducts real testnet HBAR)
+  const txHash: string = await ethereum.request({
+    method: "eth_sendTransaction",
+    params: [
+      {
+        from: fromAddress,
+        to: recipientEvmAddress,
+        value: valueHex,
+      },
+    ],
+  });
+
+  console.log("[MetaMask] On-chain transaction broadcasted successfully. Tx Hash:", txHash);
+
+  const timestamp = new Date().toISOString();
+  const paymentDetails = {
+    payerAddress: fromAddress,
+    recipientAddress: recipientEvmAddress,
+    toAccountId: toAccountOrAddress,
+    amountHbar: parsedHbar,
+    txHash,
+    network: "hedera:testnet",
+    chainId: HEDERA_TESTNET_CHAIN_ID_DEC,
+    timestamp,
+    description,
+  };
+
+  return {
+    txHash,
+    payload: Buffer.from(JSON.stringify(paymentDetails)).toString("base64"),
+  };
+}
+
+/**
+ * Request MetaMask signature for an x402 payment (EIP-191 personal_sign)
  */
 export async function requestMetaMaskPaymentSignature(
   fromAddress: string,
@@ -180,7 +257,7 @@ Timestamp: ${timestamp}`;
 }
 
 /**
- * Sign a payment transaction using MetaMask on Hedera Testnet
+ * Sign and broadcast a payment transaction using MetaMask on Hedera Testnet
  */
 export async function signPaymentWithMetaMask(
   paymentRequirements: {
@@ -203,8 +280,12 @@ export async function signPaymentWithMetaMask(
   await switchToHederaTestnet();
 
   const amountHbar = (parseInt(paymentRequirements.amount, 10) / 100_000_000).toFixed(2);
-  const { payload } = await requestMetaMaskPaymentSignature(
+  const targetRecipient = paymentRequirements.payTo || "0.0.10843793";
+
+  // Execute on-chain transfer to deduct funds
+  const { txHash, payload } = await sendMetaMaskHbarPayment(
     from,
+    targetRecipient,
     amountHbar,
     paymentRequirements.extra?.description || "Hedera x402 Settlement"
   );
@@ -216,8 +297,10 @@ export async function signPaymentWithMetaMask(
     accepted: paymentRequirements,
     payload: {
       transaction: payload,
+      txHash,
     },
   };
 
   return Buffer.from(JSON.stringify(paymentPayload)).toString("base64");
 }
+

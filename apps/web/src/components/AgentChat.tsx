@@ -46,7 +46,7 @@ const QUICK_PROMPTS = [
 
 export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: AgentChatProps) {
   const { isConnected: isHashPackConnected, connect: connectHashPack, sendDeposit } = useHashPack();
-  const { isConnected: isContextConnected, connect: connectContextModal, accountId } = useHashConnect();
+  const { isConnected: isContextConnected, connect: connectContextModal, accountId, refreshBalance } = useHashConnect();
   
   const isConnected = isHashPackConnected || isContextConnected || !!accountId;
   const connect = () => {
@@ -73,30 +73,36 @@ export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: Agent
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading, pendingPlan]);
 
-  // Step 1 — Send message, get plan + 402
-  async function handleSend(textToSend?: string) {
-    const text = (textToSend || input).trim();
-    if (!text || loading) return;
+  // Step 1 — Send message to orchestrator
+  // Returns:
+  // - If direct question: { response } -> show immediately
+  // - If complex task: 402 with { plan, agentsToCall, estimatedCostHbar } -> show approve button
+  async function handleSend() {
+    if (!input.trim() || loading) return;
 
+    const userMessage = input.trim();
     setInput("");
     setLoading(true);
-    setMessages((prev) => [...prev, { role: "user", content: text }]);
+    setPendingPlan(null);
+
+    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
 
     try {
       const res = await fetch("/api/chat/orchestrate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: userMessage }),
       });
 
       const data = await res.json();
 
-      if (res.status === 402 && data.status === "payment_required") {
+      if (res.status === 402) {
+        // Multi-agent plan built — needs buyer payment approval
         setPendingPlan({
           plan: data.plan,
           agentsToCall: data.agentsToCall,
           estimatedCostHbar: data.estimatedCostHbar,
-          originalMessage: text,
+          originalMessage: userMessage,
           paymentRequirements: data.paymentRequirements,
         });
 
@@ -111,7 +117,8 @@ export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: Agent
               .join(" → ")}`,
           },
         ]);
-      } else if (data.response) {
+      } else if (res.ok) {
+        // Single agent or direct response
         setMessages((prev) => [
           ...prev,
           {
@@ -124,35 +131,29 @@ export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: Agent
       } else {
         setMessages((prev) => [
           ...prev,
-          {
-            role: "assistant",
-            content: data.error || "Could not analyze request. Please try again.",
-          },
+          { role: "assistant", content: `Error: ${data.error || "Failed to process request"}` },
         ]);
       }
     } catch (err: any) {
-      console.error("[AgentChat] Error:", err);
       setMessages((prev) => [
         ...prev,
-        {
-          role: "assistant",
-          content: "Something went wrong processing your request. Please try again.",
-        },
+        { role: "assistant", content: `Network error: ${err.message}` },
       ]);
     }
 
     setLoading(false);
   }
 
-  // Step 2 — HashPack signs ONE payment for total, server runs all agents
+  // Step 2 — MetaMask confirms on-chain payment for total, server runs all agents
   async function approveAndPay() {
     if (!pendingPlan) return;
     setLoading(true);
 
     try {
-      // HashPack popup — buyer signs ONE HBAR transfer for total cost
+      // MetaMask popup — buyer broadcasts ONE on-chain HBAR transfer for total cost
+      const targetAccount = (pendingPlan.paymentRequirements as any)?.payTo || "0.0.10843793";
       const txId = await sendDeposit(
-        process.env.NEXT_PUBLIC_PLATFORM_ACCOUNT || "0.0.4851234",
+        targetAccount,
         pendingPlan.estimatedCostHbar
       );
 
@@ -181,6 +182,11 @@ export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: Agent
 
       const data = await res.json();
       setPendingPlan(null);
+
+      // Refresh connected wallet balance
+      if (refreshBalance) {
+        refreshBalance().catch(console.warn);
+      }
 
       if (!res.ok) {
         setMessages((prev) => [

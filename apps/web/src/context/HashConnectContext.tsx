@@ -21,6 +21,7 @@ interface HashConnectContextType {
   balance: string | null;
   connect: () => void;
   disconnect: () => void;
+  refreshBalance: () => Promise<void>;
   isInitialized: boolean;
   setManualAccount: (id: string) => void;
   isModalOpen: boolean;
@@ -33,6 +34,7 @@ const HashConnectContext = createContext<HashConnectContextType>({
   balance: null,
   connect: () => {},
   disconnect: () => {},
+  refreshBalance: async () => {},
   isInitialized: false,
   setManualAccount: () => {},
   isModalOpen: false,
@@ -44,6 +46,14 @@ export function HashConnectProvider({ children }: { children: ReactNode }) {
   const [balance, setBalance] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  async function refreshBalance() {
+    const acc = accountId || (await getConnectedMetaMaskAccount());
+    if (acc) {
+      const bal = await getMetaMaskHbarBalance(acc);
+      if (bal !== null) setBalance(bal);
+    }
+  }
 
   // Check saved connection or MetaMask on mount
   useEffect(() => {
@@ -130,6 +140,7 @@ export function HashConnectProvider({ children }: { children: ReactNode }) {
         balance,
         connect,
         disconnect,
+        refreshBalance,
         isInitialized,
         setManualAccount,
         isModalOpen,

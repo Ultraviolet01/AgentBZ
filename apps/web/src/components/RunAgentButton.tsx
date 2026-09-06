@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useHashPack } from "@/hooks/useHashPack";
+import { useHashConnect } from "@/context/HashConnectContext";
 
 interface RunAgentButtonProps {
   agentId: string;
@@ -24,6 +25,7 @@ export function RunAgentButton({
   priceHbar,
 }: RunAgentButtonProps) {
   const { isConnected, connect, sendDeposit, accountId } = useHashPack();
+  const { refreshBalance } = useHashConnect();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ExecutionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,10 +65,10 @@ export function RunAgentButton({
 
       setBreakdown(feeBreakdown);
 
-      // sendDeposit returns base64 signed TransferTransaction
-      // Blocky402 will co-sign as feePayer and submit to Hedera
+      // sendDeposit triggers MetaMask eth_sendTransaction on Hedera Testnet
+      const targetRecipient = paymentRequirements?.payTo || process.env.NEXT_PUBLIC_PLATFORM_ACCOUNT || "0.0.10843793";
       const txBase64 = await sendDeposit(
-        process.env.NEXT_PUBLIC_PLATFORM_ACCOUNT!,
+        targetRecipient,
         priceHbar + 0.5 // agent fee + platform fee
       );
 
@@ -104,6 +106,10 @@ export function RunAgentButton({
 
       const data: ExecutionResult = await secondRes.json();
       setResult(data);
+
+      if (refreshBalance) {
+        refreshBalance().catch(console.warn);
+      }
     } catch (err: any) {
       setError(err.message ?? "Unknown error");
     } finally {

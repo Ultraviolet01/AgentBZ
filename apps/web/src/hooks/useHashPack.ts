@@ -73,10 +73,11 @@ export function useHashPack() {
         throw new Error("MetaMask wallet not connected. Please click Connect Wallet first.");
       }
 
-      // Trigger MetaMask signature popup
-      const { requestMetaMaskPaymentSignature } = await import("@/lib/metamask");
-      const { payload } = await requestMetaMaskPaymentSignature(
+      // Trigger MetaMask on-chain transaction popup (deducts funds on Hedera Testnet)
+      const { sendMetaMaskHbarPayment } = await import("@/lib/metamask");
+      const { payload } = await sendMetaMaskHbarPayment(
         activeAccount,
+        toAccountId,
         amountHbar,
         "Agent Execution & Orchestration Micropayment"
       );
