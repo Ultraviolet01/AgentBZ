@@ -244,7 +244,7 @@ function LandingPage() {
               icon={Shield}
               title="ScamSniff"
               desc="Real-time threat detection for contracts and profiles."
-              cost="$0.10 / run"
+              cost="1 HBAR"
               highlight="HIGH ACCURACY"
               color="text-green-600"
               bgColor="bg-green-100"
@@ -254,7 +254,7 @@ function LandingPage() {
               icon={Sparkles}
               title="ThreadSmith"
               desc="AI content synthesis for Web3 project updates and social threads."
-              cost="$0.10 / run"
+              cost="1 HBAR"
               highlight="MULTI-MODAL"
               color="text-orange-600"
               bgColor="bg-orange-100"
@@ -264,7 +264,7 @@ function LandingPage() {
               icon={Search}
               title="LaunchWatch"
               desc="Autonomous monitoring for token milestones and network activity."
-              cost="$0.10 / run"
+              cost="1 HBAR"
               highlight="24/7 PULSE"
               color="text-blue-600"
               bgColor="bg-blue-100"

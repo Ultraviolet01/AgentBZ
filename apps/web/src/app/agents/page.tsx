@@ -20,7 +20,7 @@ export default function AgentsPage() {
       bgColor: 'bg-emerald-500/10',
       badge: 'HIGH ACCURACY',
       badgeColor: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-      cost: '$0.10 / run',
+      cost: '1 HBAR',
       status: 'active',
       totalRuns: 1247,
       successRate: 99.2
@@ -34,7 +34,7 @@ export default function AgentsPage() {
       bgColor: 'bg-[#f5a623]/10',
       badge: 'MULTI-MODAL',
       badgeColor: 'bg-[#f5a623]/10 text-[#f5a623] border-[#f5a623]/20',
-      cost: '$0.10 / run',
+      cost: '1 HBAR',
       status: 'active',
       totalRuns: 856,
       successRate: 97.8
@@ -48,7 +48,7 @@ export default function AgentsPage() {
       bgColor: 'bg-blue-500/10',
       badge: '24/7 PULSE',
       badgeColor: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-      cost: '$0.10 / run',
+      cost: '1 HBAR',
       status: 'active',
       totalRuns: 432,
       successRate: 98.5

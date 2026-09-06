@@ -372,8 +372,8 @@ export default function ScamSniffPage() {
             <p className="text-sm text-gray-600">Per scan with full evidence pipeline</p>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-bold text-orange-600">1 CRD</div>
-            <p className="text-xs text-gray-500">~$0.10 USD</p>
+            <div className="text-3xl font-bold text-orange-600">1 HBAR</div>
+            <p className="text-xs text-gray-500">Hedera testnet</p>
           </div>
         </div>
       </Card>
