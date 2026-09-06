@@ -177,16 +177,11 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
                 variant="outline"
                 size="sm"
                 onClick={handleCopyPairingCode}
-                disabled={loadingUri}
                 className="h-7 px-2.5 text-[11px] font-bold rounded-lg border-gray-300 hover:bg-white text-gray-700 cursor-pointer"
               >
                 {copied ? (
                   <span className="flex items-center gap-1 text-emerald-600">
                     <Check className="w-3 h-3" /> Copied!
-                  </span>
-                ) : loadingUri ? (
-                  <span className="flex items-center gap-1 text-gray-400">
-                    <RefreshCw className="w-3 h-3 animate-spin" /> Generating...
                   </span>
                 ) : (
                   <span className="flex items-center gap-1">
@@ -201,17 +196,23 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
             {pairingCode ? (
               <div 
                 onClick={handleCopyPairingCode}
-                className="p-2.5 bg-white border border-gray-200 rounded-xl text-[10px] font-mono text-gray-700 truncate cursor-pointer hover:border-orange-300 transition-colors"
+                className="p-2.5 bg-white border border-gray-200 rounded-xl text-[10px] font-mono text-gray-700 break-all cursor-pointer hover:border-orange-300 transition-colors"
                 title="Click to copy pairing URI"
               >
                 {pairingCode}
               </div>
-            ) : loadingUri ? (
-              <div className="p-2.5 bg-white border border-dashed border-gray-200 rounded-xl text-[10px] text-gray-400 flex items-center gap-2">
-                <RefreshCw className="w-3 h-3 animate-spin text-orange-500" />
-                Generating connection string (wc:...)...
-              </div>
-            ) : null}
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCopyPairingCode}
+                className="w-full py-2 bg-white hover:bg-gray-100 text-gray-700 text-xs font-semibold rounded-xl border border-gray-300 flex items-center justify-center gap-2"
+              >
+                <Copy className="w-3.5 h-3.5 text-orange-500" />
+                Click to Generate & Copy URI
+              </Button>
+            )}
           </div>
 
           {/* Footer note */}
