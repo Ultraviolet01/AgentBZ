@@ -33,7 +33,7 @@ export function AgentChatWidget() {
     <>
       {/* Expanded chat panel */}
       {isOpen && (
-        <div className="fixed bottom-20 right-6 z-50 w-[380px] shadow-2xl">
+        <div className="fixed bottom-20 right-6 z-50 w-[380px] max-w-[calc(100vw-3rem)] rounded-2xl shadow-2xl">
           <AgentChat />
         </div>
       )}

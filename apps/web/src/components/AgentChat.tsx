@@ -154,16 +154,16 @@ export function AgentChat() {
   }
 
   return (
-    <div className="flex flex-col h-[600px] bg-[#0A0A0A] rounded-xl border border-[#1A1A1A]">
+    <div className="flex flex-col h-[600px] bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-[#1A1A1A] flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-        <span className="text-sm font-medium text-white">AgentBazaar Chat</span>
-        <span className="text-xs text-gray-500 ml-auto">Hedera testnet</span>
+      <div className="px-4 py-3.5 border-b border-gray-100 bg-white flex items-center gap-2">
+        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+        <span className="text-sm font-semibold text-gray-900">AgentBazaar Chat</span>
+        <span className="text-xs font-medium text-gray-400 ml-auto">Hedera testnet</span>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white">
         {messages.map((msg, i) => (
           <div
             key={i}
@@ -172,22 +172,22 @@ export function AgentChat() {
             }`}
           >
             <div
-              className={`max-w-[80%] rounded-xl px-4 py-2 text-sm ${
+              className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                 msg.role === "user"
-                  ? "bg-[#F97316] text-white"
+                  ? "bg-[#F97316] text-white rounded-br-sm shadow-sm"
                   : msg.role === "system"
-                  ? "bg-[#1A1A1A] text-yellow-400 font-mono text-xs w-full"
-                  : "bg-[#1A1A1A] text-gray-200"
+                  ? "bg-amber-50 text-amber-900 border border-amber-200/80 font-mono text-xs w-full"
+                  : "bg-gray-100 text-gray-800 border border-gray-200/60 rounded-bl-sm"
               }`}
             >
               <p className="whitespace-pre-wrap">{msg.content}</p>
               {msg.hashscanUrl && (
-                <div className="mt-2 space-y-1 border-t border-[#2A2A2A] pt-2">
+                <div className="mt-2.5 space-y-1.5 border-t border-gray-200/80 pt-2">
                   <a
                     href={msg.hashscanUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block text-xs text-blue-400 underline"
+                    className="block text-xs font-medium text-blue-600 hover:text-blue-700 underline"
                   >
                     ↗ Payment — HashScan (Hedera testnet)
                   </a>
@@ -196,7 +196,7 @@ export function AgentChat() {
                       href={msg.hcsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block text-xs text-blue-400 underline"
+                      className="block text-xs font-medium text-blue-600 hover:text-blue-700 underline"
                     >
                       ↗ HCS Audit Trail — HashScan
                     </a>
@@ -209,12 +209,12 @@ export function AgentChat() {
 
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-[#1A1A1A] rounded-xl px-4 py-2">
-              <div className="flex gap-1">
+            <div className="bg-gray-100 rounded-2xl px-4 py-3 border border-gray-200/60">
+              <div className="flex gap-1.5">
                 {[0, 150, 300].map((delay) => (
                   <div
                     key={delay}
-                    className="w-2 h-2 rounded-full bg-gray-500 animate-bounce"
+                    className="w-2 h-2 rounded-full bg-gray-400 animate-bounce"
                     style={{ animationDelay: `${delay}ms` }}
                   />
                 ))}
@@ -226,21 +226,21 @@ export function AgentChat() {
 
       {/* Approval bar — ONE HashPack payment for all agents */}
       {pendingPlan && !loading && (
-        <div className="px-4 py-3 border-t border-yellow-500/30 bg-yellow-500/5 flex items-center justify-between">
-          <span className="text-xs text-yellow-400">
+        <div className="px-4 py-3 border-t border-amber-200 bg-amber-50 flex items-center justify-between gap-3">
+          <span className="text-xs font-medium text-amber-900 leading-snug">
             Pay {pendingPlan.estimatedCostHbar} HBAR via HashPack to run{" "}
             {pendingPlan.agentsToCall.length} agent(s)?
           </span>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-shrink-0">
             <button
               onClick={() => setPendingPlan(null)}
-              className="px-3 py-1 text-xs text-gray-400 border border-gray-700 rounded-lg"
+              className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={approveAndPay}
-              className="px-3 py-1 text-xs text-white bg-[#F97316] hover:bg-[#e06412] transition-colors rounded-lg"
+              className="px-3 py-1.5 text-xs font-medium text-white bg-[#F97316] hover:bg-[#e06412] transition-colors rounded-lg shadow-sm"
             >
               Pay &amp; Run
             </button>
@@ -250,7 +250,7 @@ export function AgentChat() {
 
       {/* Input */}
       {!pendingPlan && (
-        <div className="px-4 py-3 border-t border-[#1A1A1A] flex gap-2">
+        <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50 flex gap-2 items-center">
           <input
             type="text"
             value={input}
@@ -261,13 +261,13 @@ export function AgentChat() {
                 ? "Ask me anything — I'll find the right agents..."
                 : "Connect HashPack to start..."
             }
-            className="flex-1 bg-[#1A1A1A] text-white text-sm rounded-lg px-4 py-2 outline-none border border-[#2A2A2A] focus:border-[#F97316]"
+            className="flex-1 bg-white text-gray-900 text-sm rounded-xl px-4 py-2.5 outline-none border border-gray-200 focus:border-[#F97316] placeholder:text-gray-400 shadow-sm transition-colors"
             disabled={loading}
           />
           <button
             onClick={isConnected ? sendMessage : connect}
             disabled={loading || (isConnected && !input.trim())}
-            className="px-4 py-2 bg-[#F97316] hover:bg-[#e06412] transition-colors text-white text-sm rounded-lg disabled:opacity-50"
+            className="px-4 py-2.5 bg-[#F97316] hover:bg-[#e06412] transition-colors text-white text-sm font-medium rounded-xl disabled:opacity-50 shadow-sm"
           >
             {isConnected ? "Send" : "Connect"}
           </button>
