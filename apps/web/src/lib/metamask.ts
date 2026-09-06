@@ -136,6 +136,50 @@ export async function getMetaMaskHbarBalance(address: string): Promise<string | 
 }
 
 /**
+ * Request MetaMask signature for an x402 payment
+ */
+export async function requestMetaMaskPaymentSignature(
+  fromAddress: string,
+  amountHbar: number | string,
+  description: string = "Agent Execution Micropayment"
+): Promise<{ signature: string; payload: string }> {
+  if (!isMetaMaskInstalled()) {
+    throw new Error("MetaMask is not installed in your browser");
+  }
+
+  const ethereum = (window as any).ethereum;
+  await switchToHederaTestnet();
+
+  const timestamp = new Date().toISOString();
+  const messageToSign = `AgentBazaar x402 Payment Authorization
+Network: Hedera Testnet (Chain ID: 296)
+Payer: ${fromAddress}
+Amount: ${amountHbar} HBAR
+Purpose: ${description}
+Timestamp: ${timestamp}`;
+
+  // Trigger MetaMask personal_sign popup
+  const signature = await ethereum.request({
+    method: "personal_sign",
+    params: [messageToSign, fromAddress],
+  });
+
+  const payload = JSON.stringify({
+    payerAddress: fromAddress,
+    amount: amountHbar.toString(),
+    signature,
+    timestamp,
+    network: "hedera:testnet",
+    chainId: HEDERA_TESTNET_CHAIN_ID_DEC,
+  });
+
+  return {
+    signature,
+    payload: Buffer.from(payload).toString("base64"),
+  };
+}
+
+/**
  * Sign a payment transaction using MetaMask on Hedera Testnet
  */
 export async function signPaymentWithMetaMask(
@@ -158,22 +202,20 @@ export async function signPaymentWithMetaMask(
   const from = accounts[0];
   await switchToHederaTestnet();
 
+  const amountHbar = (parseInt(paymentRequirements.amount, 10) / 100_000_000).toFixed(2);
+  const { payload } = await requestMetaMaskPaymentSignature(
+    from,
+    amountHbar,
+    paymentRequirements.extra?.description || "Hedera x402 Settlement"
+  );
+
   const paymentPayload = {
     x402Version: 2,
     scheme: "exact",
     network: "hedera:testnet",
     accepted: paymentRequirements,
     payload: {
-      transaction: Buffer.from(
-        JSON.stringify({
-          payerAddress: from,
-          amount: paymentRequirements.amount,
-          payTo: paymentRequirements.payTo,
-          timestamp: new Date().toISOString(),
-          network: "hedera:testnet",
-          chainId: HEDERA_TESTNET_CHAIN_ID_DEC,
-        })
-      ).toString("base64"),
+      transaction: payload,
     },
   };
 

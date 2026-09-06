@@ -73,16 +73,15 @@ export function useHashPack() {
         throw new Error("MetaMask wallet not connected. Please click Connect Wallet first.");
       }
 
-      // Return signed x402 transaction payload for Hedera Testnet
-      const payload = {
-        payerAccountId: activeAccount,
-        toAccountId,
+      // Trigger MetaMask signature popup
+      const { requestMetaMaskPaymentSignature } = await import("@/lib/metamask");
+      const { payload } = await requestMetaMaskPaymentSignature(
+        activeAccount,
         amountHbar,
-        timestamp: new Date().toISOString(),
-        network: "hedera:testnet",
-        chainId: 296,
-      };
-      return Buffer.from(JSON.stringify(payload)).toString("base64");
+        "Agent Execution & Orchestration Micropayment"
+      );
+
+      return payload;
     },
     [accountId]
   );
