@@ -24,86 +24,88 @@ export function onWalletPaired(callback: (accountId: string) => void) {
   };
 }
 
+let initPromise: Promise<HashConnect | null> | null = null;
+
 // Initialize HashConnect — call once on app load
 export async function initHashConnect(): Promise<HashConnect | null> {
   if (typeof window === "undefined") return null;
   if (hashconnect) return hashconnect;
-  if (isInitializing) {
-    // Wait briefly if already initializing
-    await new Promise(r => setTimeout(r, 200));
-    if (hashconnect) return hashconnect;
-  }
+  if (initPromise) return initPromise;
 
-  isInitializing = true;
-  const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || "379f8263158f448c90b07dc7671239aa";
-  
-  try {
-    hashconnect = new HashConnect(
-      LedgerId.TESTNET,
-      projectId,
-      APP_METADATA,
-      true // enable debug
-    );
+  initPromise = (async () => {
+    const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || "ba563c1e05865a8e3ed72b898791260f";
 
-    const savedAccount = localStorage.getItem("agentbazaar-connected-account");
-    if (savedAccount) {
-      pairedAccountId = savedAccount;
-    }
+    try {
+      const hc = new HashConnect(
+        LedgerId.TESTNET,
+        projectId,
+        APP_METADATA,
+        true // enable debug
+      );
 
-    // Listen for wallet pairing
-    hashconnect.pairingEvent.on((session: any) => {
-      console.log("HashConnect pairingEvent received:", session);
-      const accounts = session.accountIds || [];
-      if (accounts.length > 0) {
-        pairedAccountId = accounts[0].toString();
-        localStorage.setItem("agentbazaar-connected-account", pairedAccountId!);
-        localStorage.setItem("agentbazaar-hedera-account", pairedAccountId!);
-        pairingListeners.forEach(cb => cb(pairedAccountId!));
+      const savedAccount = localStorage.getItem("agentbazaar-connected-account");
+      if (savedAccount) {
+        pairedAccountId = savedAccount;
       }
-    });
 
-    // Listen for disconnection
-    hashconnect.disconnectionEvent.on(() => {
-      console.log("HashConnect disconnectionEvent received");
-      pairedAccountId = null;
-      localStorage.removeItem("agentbazaar-connected-account");
-      localStorage.removeItem("agentbazaar-hedera-account");
-    });
+      // Listen for wallet pairing
+      hc.pairingEvent.on((session: any) => {
+        console.log("HashConnect pairingEvent received:", session);
+        const accounts = session.accountIds || [];
+        if (accounts.length > 0) {
+          pairedAccountId = accounts[0].toString();
+          localStorage.setItem("agentbazaar-connected-account", pairedAccountId!);
+          localStorage.setItem("agentbazaar-hedera-account", pairedAccountId!);
+          pairingListeners.forEach(cb => cb(pairedAccountId!));
+        }
+      });
 
-    await hashconnect.init();
+      // Listen for disconnection
+      hc.disconnectionEvent.on(() => {
+        console.log("HashConnect disconnectionEvent received");
+        pairedAccountId = null;
+        localStorage.removeItem("agentbazaar-connected-account");
+        localStorage.removeItem("agentbazaar-hedera-account");
+      });
 
-    if (hashconnect.connectedAccountIds && hashconnect.connectedAccountIds.length > 0) {
-      pairedAccountId = hashconnect.connectedAccountIds[0].toString();
-      localStorage.setItem("agentbazaar-connected-account", pairedAccountId);
-      localStorage.setItem("agentbazaar-hedera-account", pairedAccountId);
+      await hc.init();
+
+      if (hc.connectedAccountIds && hc.connectedAccountIds.length > 0) {
+        pairedAccountId = hc.connectedAccountIds[0].toString();
+        localStorage.setItem("agentbazaar-connected-account", pairedAccountId);
+        localStorage.setItem("agentbazaar-hedera-account", pairedAccountId);
+      }
+
+      hashconnect = hc;
+      return hashconnect;
+    } catch (err) {
+      console.warn("HashConnect init error:", err);
+      return hashconnect;
     }
+  })();
 
-    isInitializing = false;
-    return hashconnect;
-  } catch (err) {
-    console.warn("HashConnect init error:", err);
-    isInitializing = false;
-    return hashconnect;
-  }
+  return initPromise;
 }
 
 // Connect to HashPack — triggers extension prompt and pairing modal
 export async function connectHashPack(): Promise<string | null> {
+  console.log("[HashPack] connectHashPack called");
   const hc = await initHashConnect();
-  if (!hc) return null;
+  if (!hc) {
+    console.warn("[HashPack] Could not initialize HashConnect instance");
+    return null;
+  }
 
   try {
-    // Ensure pairing string is ready
-    if (!hc.pairingString && typeof (hc as any).generatePairingString === "function") {
-      await (hc as any).generatePairingString();
-    }
-
-    // Open official WalletConnect pairing modal
+    console.log("[HashPack] Launching openPairingModal...");
     if (typeof hc.openPairingModal === "function") {
       await hc.openPairingModal("dark");
+      console.log("[HashPack] openPairingModal executed");
+    } else {
+      console.warn("[HashPack] openPairingModal is not a function on hc:", hc);
     }
   } catch (err) {
-    console.warn("openPairingModal notice:", err);
+    console.error("[HashPack] openPairingModal error:", err);
   }
 
   return hc.pairingString || null;

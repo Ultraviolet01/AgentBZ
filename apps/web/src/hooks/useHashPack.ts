@@ -58,33 +58,17 @@ export function useHashPack() {
   }, []);
 
   const connect = useCallback(async () => {
-    let hc = getHashConnect();
-    if (!hc) {
-      hc = await initHashConnect();
-    }
     try {
-      // Try v3 API first
-      if (hc && typeof (hc as any).openPairingModal === "function") {
-        await (hc as any).openPairingModal();
-        return;
+      await connectHashPack();
+      const acc = getConnectedAccount();
+      if (acc) {
+        setAccountId(acc);
+        setIsConnected(true);
       }
-      // Try v2 API
-      if (hc && typeof (hc as any).connectToLocalWallet === "function") {
-        const pairingStr = (hc as any).pairingString || pairingString;
-        if (pairingStr) {
-          (hc as any).connectToLocalWallet(pairingStr);
-          return;
-        }
-      }
-      // Fallback — open HashPack manually
-      window.open("https://www.hashpack.app/download", "_blank");
-      console.warn("[HashPack] Could not open pairing modal — check hashconnect version");
     } catch (err) {
       console.error("[HashPack] connect error:", err);
-      // Last resort fallback
-      window.open("https://www.hashpack.app", "_blank");
     }
-  }, [pairingString]);
+  }, []);
 
   const disconnect = useCallback(async () => {
     await disconnectHashPack();
