@@ -51,18 +51,32 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
   const handleConnectHashPack = async () => {
     setConnectingWallet("hashpack");
     try {
+      // Ensure DAppConnector knows HashPack extension is present
+      const sdk = (hashpackSession?.connector as any)?.sdk;
+      if (sdk && Array.isArray(sdk.extensions)) {
+        if (!sdk.extensions.some((e: any) => e.id === "gjagmgiddbbciopjhllkdnddhcglnemk")) {
+          sdk.extensions.push({
+            id: "gjagmgiddbbciopjhllkdnddhcglnemk",
+            name: "HashPack",
+            description: "HashPack Wallet Extension",
+            available: true,
+            availableInIframe: false,
+          });
+        }
+      }
+
       if (typeof window !== "undefined") {
         window.postMessage({ type: "hedera-extension-query" }, "*");
         window.postMessage({ type: "hashconnect-query-extension" }, "*");
       }
-      await new Promise((r) => setTimeout(r, 150));
+
       await hashpackSession.connect();
       toast.success("Connected to HashPack wallet on Hedera Testnet!");
       onOpenChange(false);
     } catch (err: any) {
       console.warn("[HashPack] Extension connect error:", err);
       toast.error(
-        "Could not connect HashPack extension. Please make sure HashPack is unlocked and on Testnet, or use the 'WalletConnect / QR Code' button below.",
+        err?.message || "Could not connect HashPack extension. Please make sure HashPack is unlocked and on Testnet.",
         { duration: 6000 }
       );
     } finally {
@@ -72,10 +86,11 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
 
   const handleConnectHWC = async () => {
     setConnectingWallet("hwc");
+    // Close the Radix dialog so the WalletConnect QR modal is unobstructed
+    onOpenChange(false);
     try {
       await hwcSession.connect();
       toast.success("Connected to Hedera wallet!");
-      onOpenChange(false);
     } catch (err: any) {
       console.error("[WalletConnect] connect error:", err);
       toast.error(err?.message || "WalletConnect pairing was closed or rejected");
