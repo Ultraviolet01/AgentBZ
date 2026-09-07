@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { 
   Rocket, 
   Info, 
@@ -15,11 +16,39 @@ import {
   AlertTriangle,
   Check,
   ArrowLeft,
+  ArrowRight,
   Plus,
+  Trash2,
   X,
   Lock,
-  ShieldCheck
+  Eye,
+  EyeOff,
+  Globe,
+  Database,
+  Tag,
+  DollarSign,
+  Settings,
+  Upload,
+  Zap,
+  ShieldCheck,
+  Cpu,
+  Wallet,
+  ExternalLink,
+  Code
 } from 'lucide-react';
+import { useHashConnect } from '@/context/HashConnectContext';
+
+// ─── Step Definitions (Exact 7 Steps from Agentra) ───────────────────────────
+
+const STEPS = [
+  { id: 1, label: 'Mode', icon: Database, description: 'Deploy target' },
+  { id: 2, label: 'Identity', icon: Zap, description: 'Name & category' },
+  { id: 3, label: 'Endpoint', icon: Globe, description: 'MCP & API schema' },
+  { id: 4, label: 'Metadata', icon: Tag, description: 'Tags & description' },
+  { id: 5, label: 'Pricing', icon: DollarSign, description: 'Access prices' },
+  { id: 6, label: 'Exec Config', icon: Settings, description: 'Request schema & secrets' },
+  { id: 7, label: 'Deploy', icon: Upload, description: 'Publish on-chain' },
+];
 
 const CATEGORIES = [
   { value: 'security', label: '🛡️ Security & Safety', color: '#22c55e' },
@@ -27,6 +56,7 @@ const CATEGORIES = [
   { value: 'monitoring', label: '📡 Monitoring & Alerts', color: '#3b82f6' },
   { value: 'analytics', label: '📊 Analytics & Insights', color: '#8b5cf6' },
   { value: 'automation', label: '🤖 Automation & Tasks', color: '#ec4899' },
+  { value: 'web3', label: '🌐 Web3 & DeFi', color: '#06b6d4' },
   { value: 'others', label: '📁 Others', color: '#64748b' },
 ];
 
@@ -34,1129 +64,1035 @@ const MODEL_PROVIDERS = [
   { value: 'anthropic', label: 'Anthropic (Claude)' },
   { value: 'openai', label: 'OpenAI (GPT)' },
   { value: 'custom', label: 'Custom Model' },
-  { value: 'multiple', label: 'Multiple Models' },
+  { value: 'mcp', label: 'MCP Server Endpoint' },
 ];
+
+const FIELD_TYPES = ['text', 'textarea', 'number', 'file', 'password', 'boolean'];
 
 export default function DeployAgentPage() {
   const router = useRouter();
+  const { isConnected, connect, accountId } = useHashConnect();
+
+  const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [currentStep, setCurrentStep] = useState(1);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [successData, setSuccessData] = useState<{
+    agentId: string;
+    slug: string;
+    name: string;
+    hcs14TopicId?: string;
+    hashscanUrl?: string;
+  } | null>(null);
 
-  // Form state
+  // ── Form State ─────────────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
-    // Basic Info
+    // Step 1: Mode
+    deployMode: 'api' as 'api' | 'mcp' | 'custom',
+
+    // Step 2: Identity
     name: '',
+    category: 'analytics',
+    slug: '',
+
+    // Step 3: Endpoint
+    apiEndpoint: 'https://api.agentbazaar.io/v1/execute',
+    webhookUrl: '',
+    modelProvider: 'anthropic',
+    modelName: 'claude-haiku-4-5-20251001',
+    mcpSchemaUrl: '',
+
+    // Step 4: Metadata
     description: '',
     longDescription: '',
-    category: '',
-    tags: [] as string[],
-    
-    // Technical
-    apiEndpoint: '',
-    webhookUrl: '',
-    modelProvider: '',
-    modelName: '',
-    
-    // Pricing
-    pricePerRun: '0.1',
-    setupFee: '0',
-    
-    // Branding
+    tags: ['web3', 'analytics', 'hedera'] as string[],
     icon: '🤖',
     color: '#f97316',
-    
-    // Documentation
-    readme: '',
-    exampleInput: '',
-    exampleOutput: '',
-    
-    // Input/Output Schema
-    inputFields: [{ name: '', type: 'text', required: true, description: '' }],
-    outputFields: [{ name: '', type: 'text', description: '' }],
-    
-    // Credentials
+
+    // Step 5: Pricing
+    tier: 'Standard' as 'Standard' | 'Professional' | 'Enterprise',
+    pricePerRun: '1.0',
+    setupFee: '0',
+
+    // Step 6: Exec Config & Secrets
+    logic: 'You are an intelligent Web3 agent deployed on AgentBazaar. Analyze the user request, execute tools, and return high-accuracy results.',
+    headers: [
+      { key: 'Authorization', value: '', required: false, secret: true, userProvided: false, placeholder: 'Bearer token', description: 'API Authentication' }
+    ] as { key: string; value: string; required: boolean; secret: boolean; userProvided: boolean; placeholder: string; description: string }[],
+    bodyFields: [
+      { key: 'prompt', type: 'text', required: true, userProvided: true, placeholder: 'Enter your request or query...', description: 'Primary input prompt' }
+    ] as { key: string; type: string; required: boolean; userProvided: boolean; placeholder: string; description: string }[],
     apiKeys: {
-      openai_api_key: '',
       anthropic_api_key: '',
+      openai_api_key: '',
       custom_api_key: '',
     } as Record<string, string>,
-    customSecrets: [] as { key: string, value: string }[],
-    // Agent Logic (system prompt / strategy)
-    logic: '',
   });
 
-  // Tag input
   const [tagInput, setTagInput] = useState('');
+  const [showSecretIndex, setShowSecretIndex] = useState<number | null>(null);
 
-  // Slug preview (derived from name)
-  const slugPreview = formData.name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-
-  // URL validator
-  const isValidUrl = (url: string) => {
-    try { new URL(url); return url.startsWith('https://') || url.startsWith('http://'); }
-    catch { return false; }
+  // Auto-generate slug from name
+  const handleNameChange = (name: string) => {
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    setFormData(prev => ({ ...prev, name, slug }));
   };
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleApiKeyChange = (key: string, value: string) => {
-    setFormData(prev => ({ 
-      ...prev, 
-      apiKeys: { ...prev.apiKeys, [key]: value } 
-    }));
-  };
-
   const addTag = () => {
-    if (tagInput && !formData.tags.includes(tagInput)) {
-      handleInputChange('tags', [...formData.tags, tagInput]);
+    if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
+      setFormData(prev => ({ ...prev, tags: [...prev.tags, tagInput.trim()] }));
       setTagInput('');
     }
   };
 
   const removeTag = (tag: string) => {
-    handleInputChange('tags', formData.tags.filter(t => t !== tag));
+    setFormData(prev => ({ ...prev, tags: prev.tags.filter(t => t !== tag) }));
   };
 
-  const addInputField = () => {
-    handleInputChange('inputFields', [
-      ...formData.inputFields,
-      { name: '', type: 'text', required: false, description: '' }
-    ]);
+  // Header Handlers
+  const addHeader = () => {
+    setFormData(prev => ({
+      ...prev,
+      headers: [...prev.headers, { key: '', value: '', required: false, secret: false, userProvided: true, placeholder: '', description: '' }]
+    }));
   };
 
-  const removeInputField = (index: number) => {
-    handleInputChange(
-      'inputFields',
-      formData.inputFields.filter((_, i) => i !== index)
-    );
+  const updateHeader = (index: number, field: string, val: any) => {
+    const updated = [...formData.headers];
+    updated[index] = { ...updated[index], [field]: val };
+    setFormData(prev => ({ ...prev, headers: updated }));
   };
 
-  const updateInputField = (index: number, field: string, value: any) => {
-    const updated = [...formData.inputFields];
-    updated[index] = { ...updated[index], [field]: value };
-    handleInputChange('inputFields', updated);
+  const removeHeader = (index: number) => {
+    setFormData(prev => ({ ...prev, headers: prev.headers.filter((_, i) => i !== index) }));
   };
 
-  const addOutputField = () => {
-    handleInputChange('outputFields', [
-      ...formData.outputFields,
-      { name: '', type: 'text', description: '' }
-    ]);
+  // Body Field Handlers
+  const addBodyField = () => {
+    setFormData(prev => ({
+      ...prev,
+      bodyFields: [...prev.bodyFields, { key: '', type: 'text', required: false, userProvided: true, placeholder: '', description: '' }]
+    }));
   };
 
-  const removeOutputField = (index: number) => {
-    handleInputChange(
-      'outputFields',
-      formData.outputFields.filter((_, i) => i !== index)
-    );
+  const updateBodyField = (index: number, field: string, val: any) => {
+    const updated = [...formData.bodyFields];
+    updated[index] = { ...updated[index], [field]: val };
+    setFormData(prev => ({ ...prev, bodyFields: updated }));
   };
 
-  const updateOutputField = (index: number, field: string, value: any) => {
-    const updated = [...formData.outputFields];
-    updated[index] = { ...updated[index], [field]: value };
-    handleInputChange('outputFields', updated);
-  };
-  const addCustomSecret = () => {
-    handleInputChange('customSecrets', [
-      ...formData.customSecrets,
-      { key: '', value: '' }
-    ]);
+  const removeBodyField = (index: number) => {
+    setFormData(prev => ({ ...prev, bodyFields: prev.bodyFields.filter((_, i) => i !== index) }));
   };
 
-  const removeCustomSecret = (index: number) => {
-    handleInputChange(
-      'customSecrets',
-      formData.customSecrets.filter((_, i) => i !== index)
-    );
-  };
-
-  const updateCustomSecret = (index: number, field: 'key' | 'value', value: string) => {
-    const updated = [...formData.customSecrets];
-    updated[index] = { ...updated[index], [field]: value };
-    handleInputChange('customSecrets', updated);
-  };
-  const handleSubmit = async () => {
-    setIsLoading(true);
-    setError('');
-
+  // Validation
+  const isValidUrl = (url: string) => {
     try {
-      if (!formData.name || !formData.description || !formData.category) {
-        throw new Error('Please fill in all required fields');
-      }
-      if (!formData.apiEndpoint || !isValidUrl(formData.apiEndpoint)) {
-        throw new Error('A valid API Endpoint URL is required (Step 2)');
-      }
-      if (!formData.pricePerRun || parseFloat(formData.pricePerRun) <= 0) {
-        throw new Error('Please set a valid price per run');
-      }
-      if (!formData.logic.trim()) {
-        throw new Error('Agent logic / system prompt is required (Step 3)');
-      }
-
-      const inputSchema = {
-        type: 'object',
-        properties: formData.inputFields.reduce((acc, field) => ({
-          ...acc,
-          [field.name]: { type: field.type, description: field.description }
-        }), {}),
-        required: formData.inputFields.filter(f => f.required).map(f => f.name),
-      };
-
-      const outputSchema = {
-        type: 'object',
-        properties: formData.outputFields.reduce((acc, field) => ({
-          ...acc,
-          [field.name]: { type: field.type, description: field.description }
-        }), {}),
-      };
-
-      const examples = {
-        input:  formData.exampleInput  ? JSON.parse(formData.exampleInput)  : {},
-        output: formData.exampleOutput ? JSON.parse(formData.exampleOutput) : {},
-      };
-
-      // Build CDR-ready API keys array
-      const apiKeysList: { name: string; value: string }[] = [];
-      if (formData.modelProvider === 'openai'     && formData.apiKeys.openai_api_key)
-        apiKeysList.push({ name: 'OPENAI_API_KEY',     value: formData.apiKeys.openai_api_key });
-      if (formData.modelProvider === 'anthropic'  && formData.apiKeys.anthropic_api_key)
-        apiKeysList.push({ name: 'ANTHROPIC_API_KEY',  value: formData.apiKeys.anthropic_api_key });
-      if (formData.modelProvider === 'custom'     && formData.apiKeys.custom_api_key)
-        apiKeysList.push({ name: 'API_KEY',            value: formData.apiKeys.custom_api_key });
-      formData.customSecrets.forEach(s => {
-        if (s.key && s.value) apiKeysList.push({ name: s.key, value: s.value });
-      });
-
-      const credentialSchema = apiKeysList.length > 0
-        ? { provider: formData.modelProvider, fields: apiKeysList.map(k => k.name) }
-        : null;
-
-      // Send to server — CDR vaulting happens server-side
-      const response = await fetch('/api/agents/deploy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          pricePerRun: parseFloat(formData.pricePerRun),
-          setupFee: parseFloat(formData.setupFee),
-          inputSchema,
-          outputSchema,
-          examples,
-          // CDR fields (plain text — server handles vaulting)
-          logic: formData.logic,
-          apiKeys: apiKeysList,
-          credentialSchema,
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to deploy agent');
-
-      router.push('/projects');
-    } catch (err: any) {
-      setError(err.message || 'Failed to deploy agent');
-    } finally {
-      setIsLoading(false);
+      new URL(url);
+      return url.startsWith('http://') || url.startsWith('https://');
+    } catch {
+      return false;
     }
   };
 
-  return (
-    <div className="p-6 lg:p-10 max-w-7xl mx-auto pb-16">
-      <div className="max-w-4xl space-y-8">
-      
-      {/* Header */}
-      <div className="mb-8">
-        <Button
-          variant="ghost"
-          onClick={() => router.back()}
-          className="mb-4"
+  const nextStep = () => {
+    setError('');
+    if (currentStep === 1 && !formData.deployMode) {
+      setError('Please select a deploy target mode');
+      return;
+    }
+    if (currentStep === 2 && (!formData.name.trim() || !formData.category)) {
+      setError('Agent Name and Category are required');
+      return;
+    }
+    if (currentStep === 3 && (!formData.apiEndpoint.trim() || !isValidUrl(formData.apiEndpoint))) {
+      setError('Please provide a valid API / MCP Endpoint URL');
+      return;
+    }
+    if (currentStep === 4 && !formData.description.trim()) {
+      setError('Short Description is required');
+      return;
+    }
+    if (currentStep === 5 && (parseFloat(formData.pricePerRun) <= 0 || isNaN(parseFloat(formData.pricePerRun)))) {
+      setError('Please enter a valid price per run in HBAR');
+      return;
+    }
+    if (currentStep === 6 && !formData.logic.trim()) {
+      setError('Agent logic / system prompt is required');
+      return;
+    }
+    setCurrentStep(s => Math.min(s + 1, 7));
+  };
+
+  const prevStep = () => {
+    setError('');
+    setCurrentStep(s => Math.max(s - 1, 1));
+  };
+
+  // ── Step 7: On-Chain Submit & Deploy ───────────────────────────────────────
+  const handleSubmit = async () => {
+    setIsLoading(true);
+    setError('');
+    setStatusMessage('Encrypting secrets with AES-256-GCM vault & registering HCS-14 identity...');
+
+    try {
+      // Build API Keys array
+      const apiKeysList: { name: string; value: string }[] = [];
+      if (formData.apiKeys.anthropic_api_key)
+        apiKeysList.push({ name: 'ANTHROPIC_API_KEY', value: formData.apiKeys.anthropic_api_key });
+      if (formData.apiKeys.openai_api_key)
+        apiKeysList.push({ name: 'OPENAI_API_KEY', value: formData.apiKeys.openai_api_key });
+      if (formData.apiKeys.custom_api_key)
+        apiKeysList.push({ name: 'API_KEY', value: formData.apiKeys.custom_api_key });
+
+      formData.headers.forEach(h => {
+        if (h.secret && h.value) apiKeysList.push({ name: h.key, value: h.value });
+      });
+
+      // Build JSON schemas
+      const inputSchema = {
+        type: 'object',
+        properties: formData.bodyFields.reduce((acc, field) => ({
+          ...acc,
+          [field.key || 'input']: { type: field.type, description: field.description, placeholder: field.placeholder }
+        }), {}),
+        required: formData.bodyFields.filter(f => f.required).map(f => f.key),
+      };
+
+      const payload = {
+        name: formData.name,
+        slug: formData.slug || formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        description: formData.description,
+        longDescription: formData.longDescription || formData.description,
+        category: formData.category,
+        tags: formData.tags,
+        apiEndpoint: formData.apiEndpoint,
+        webhookUrl: formData.webhookUrl || null,
+        modelProvider: formData.modelProvider,
+        modelName: formData.modelName,
+        pricePerRun: parseFloat(formData.pricePerRun),
+        setupFee: parseFloat(formData.setupFee || '0'),
+        icon: formData.icon || '🤖',
+        color: formData.color || '#f97316',
+        logic: formData.logic,
+        inputSchema,
+        apiKeys: apiKeysList,
+        builderAccountId: accountId || undefined,
+        deployMode: formData.deployMode,
+        executionConfig: {
+          headers: formData.headers,
+          bodyFields: formData.bodyFields,
+          endpoint: formData.apiEndpoint,
+        }
+      };
+
+      const res = await fetch('/api/agents/deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Agent deployment failed');
+
+      setSuccessData({
+        agentId: data.agent?.id || data.agentId,
+        slug: data.agent?.slug || formData.slug,
+        name: formData.name,
+        hcs14TopicId: data.hcs14TopicId || process.env.NEXT_PUBLIC_HCS_TOPIC_ID || '0.0.10396393',
+        hashscanUrl: `https://hashscan.io/testnet/topic/${data.hcs14TopicId || '0.0.10396393'}`,
+      });
+    } catch (err: any) {
+      setError(err.message || 'Deployment error');
+    } finally {
+      setIsLoading(false);
+      setStatusMessage('');
+    }
+  };
+
+  // ── Success Modal / Screen ──────────────────────────────────────────────────
+  if (successData) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center p-6">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-lg w-full bg-white border border-gray-200 rounded-[32px] p-8 text-center space-y-6 shadow-xl"
         >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back
-        </Button>
-        
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center">
-            <Rocket className="w-6 h-6 text-orange-600" />
+          <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center text-3xl mx-auto shadow-sm">
+            🚀
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Deploy Your Agent</h1>
-            <p className="text-sm text-gray-700">
-              Add your AI agent to the marketplace and earn revenue
+            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-widest">
+              Live on Hedera Testnet
+            </span>
+            <h2 className="text-2xl font-black text-gray-900 mt-2 uppercase">
+              {successData.name} Deployed!
+            </h2>
+            <p className="text-gray-500 text-sm mt-1">
+              Your agent has been minted as an on-chain intelligent asset settled via Blocky402 micro-payments.
             </p>
           </div>
+
+          <div className="bg-gray-50 rounded-2xl p-4 text-left space-y-3 border border-gray-100 font-mono text-xs">
+            <div className="flex justify-between">
+              <span className="text-gray-400">Agent Slug:</span>
+              <span className="font-bold text-gray-800">/agents/{successData.slug}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">HCS Audit Topic:</span>
+              <span className="font-bold text-orange-600">{successData.hcs14TopicId}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Key Vault:</span>
+              <span className="font-bold text-emerald-600">AES-256-GCM Encrypted</span>
+            </div>
+            {successData.hashscanUrl && (
+              <a
+                href={successData.hashscanUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-orange-500 hover:text-orange-600 font-bold flex items-center gap-1 mt-2 text-xs"
+              >
+                ↗ View HCS Identity on HashScan
+              </a>
+            )}
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              onClick={() => router.push(`/agents/deployed/${successData.slug}`)}
+              className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-2xl h-12 text-sm uppercase tracking-wider cursor-pointer"
+            >
+              Test Agent Console
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => router.push('/marketplace')}
+              className="rounded-2xl border-gray-200 h-12 px-6"
+            >
+              Marketplace
+            </Button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 lg:p-10 max-w-7xl mx-auto space-y-8 pb-16 text-gray-900">
+      
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 pb-4 border-b border-gray-100">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse" />
+            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-[0.2em]">Deploy Studio</span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-black text-gray-900 uppercase tracking-tight">
+            Deploy <span className="text-orange-500">Intelligent Agent.</span>
+          </h1>
+          <p className="text-sm text-gray-500 font-medium mt-1">
+            Monetize your AI model, API endpoint, or MCP server on-chain with Hedera x402 micro-payments.
+          </p>
         </div>
 
-        {/* Progress Steps */}
-        <div className="flex items-center gap-2 mt-6">
-          {[1, 2, 3, 4].map((step) => (
-            <div key={step} className="flex items-center flex-1">
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
-                currentStep >= step 
-                  ? 'bg-orange-500 text-white' 
-                  : 'bg-gray-200 text-gray-700'
-              }`}>
-                {currentStep > step ? <Check className="w-4 h-4" /> : step}
-              </div>
-              {step < 4 && (
-                <div className={`flex-1 h-1 mx-2 ${
-                  currentStep > step ? 'bg-orange-500' : 'bg-gray-200'
-                }`} />
-              )}
-            </div>
-          ))}
-        </div>
-        
-        <div className="flex justify-between mt-2 text-xs text-gray-700">
-          <span>Basic Info</span>
-          <span>Configuration</span>
-          <span>Credentials</span>
-          <span>Review</span>
+        {/* Revenue Badge */}
+        <div className="bg-orange-50 border border-orange-200 rounded-2xl p-3 px-5 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-orange-500 text-white flex items-center justify-center font-black">
+            90%
+          </div>
+          <div>
+            <p className="text-xs font-bold text-gray-900">Creator Revenue Share</p>
+            <p className="text-[11px] text-orange-700">Instant on-chain x402 settlement</p>
+          </div>
         </div>
       </div>
 
-      {/* Info Alert */}
-      <Alert className="mb-6 bg-blue-50 border-blue-200">
-        <Info className="w-4 h-4 text-blue-600" />
-        <AlertDescription className="text-sm text-blue-900">
-          <strong>Revenue Share:</strong> You earn 90% of all revenue from your agent. 
-          AgentBazaar takes 10% platform fee. Payouts in USDC monthly.
-        </AlertDescription>
-      </Alert>
+      {/* ── 7-Step Progress Stepper ─────────────────────────────────────────── */}
+      <div className="bg-white border border-gray-200 rounded-[28px] p-3 overflow-x-auto shadow-sm">
+        <div className="flex items-center min-w-max">
+          {STEPS.map((s, idx) => {
+            const Icon = s.icon;
+            const isPassed = currentStep > s.id;
+            const isCurrent = currentStep === s.id;
 
-      {/* Step 1: Basic Info */}
-      {currentStep === 1 && (
-        <Card className="bg-white border border-gray-200 p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">
-            Basic Information
-          </h2>
+            return (
+              <div key={s.id} className="flex items-center flex-1">
+                <button
+                  type="button"
+                  onClick={() => s.id < currentStep && setCurrentStep(s.id)}
+                  disabled={s.id > currentStep}
+                  className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl transition-all cursor-pointer ${
+                    isCurrent
+                      ? 'bg-orange-500 text-white shadow-sm font-bold'
+                      : isPassed
+                      ? 'bg-gray-100 text-gray-900 hover:bg-gray-200 font-semibold'
+                      : 'text-gray-400 cursor-not-allowed opacity-60'
+                  }`}
+                >
+                  <div className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs ${
+                    isCurrent ? 'bg-white/20 text-white' : isPassed ? 'bg-orange-100 text-orange-600' : 'bg-gray-200 text-gray-500'
+                  }`}>
+                    {isPassed ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : <Icon className="w-3.5 h-3.5" />}
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs tracking-wider uppercase">{s.label}</p>
+                    <p className={`text-[10px] line-clamp-1 ${isCurrent ? 'text-white/80' : 'text-gray-400'}`}>
+                      {s.description}
+                    </p>
+                  </div>
+                </button>
+                {idx < STEPS.length - 1 && (
+                  <div className={`w-6 h-0.5 mx-1 ${isPassed ? 'bg-orange-500' : 'bg-gray-200'}`} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
+      {/* ── Error Banner ─────────────────────────────────────────────────────── */}
+      {error && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl flex items-center gap-3 text-sm font-medium">
+            <AlertTriangle className="w-5 h-5 flex-shrink-0 text-red-600" />
+            <span>{error}</span>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── Main Form Container ─────────────────────────────────────────────── */}
+      <Card className="bg-white border border-gray-200/80 rounded-[32px] p-6 lg:p-10 shadow-sm relative overflow-hidden">
+        
+        {/* STEP 1: MODE (Deploy Target) */}
+        {currentStep === 1 && (
           <div className="space-y-6">
-            
-            {/* Agent Name */}
             <div>
-              <Label htmlFor="name" className="text-sm font-medium text-gray-800">
-                Agent Name *
-              </Label>
-              <Input
-                id="name"
-                placeholder="ScamSniff"
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                className="mt-1"
-              />
-              <div className="flex items-center justify-between mt-1">
-                <p className="text-xs text-gray-500">Choose a unique, memorable name for your agent</p>
-                {slugPreview && (
-                  <p className="text-xs text-gray-400 font-mono">
-                    URL: <span className="text-orange-500">/agents/{slugPreview}</span>
+              <span className="text-xs font-bold text-orange-600 uppercase tracking-widest">Step 1 of 7</span>
+              <h2 className="text-2xl font-black text-gray-900 mt-1 uppercase">Select Deploy Target Mode</h2>
+              <p className="text-sm text-gray-500">Choose how you want your agent to be hosted and executed.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[
+                {
+                  id: 'api',
+                  label: 'API Agent',
+                  icon: '⚡',
+                  tag: 'REST / Webhook',
+                  desc: 'Wrap any standard HTTP / REST API endpoint. AgentBazaar handles x402 payment gating and forward execution.',
+                },
+                {
+                  id: 'mcp',
+                  label: 'MCP Agent',
+                  icon: '🔗',
+                  tag: 'Model Context Protocol',
+                  desc: 'Standard Model Context Protocol server. Exposes tools, resources, and structured schemas to multi-agent swarms.',
+                },
+                {
+                  id: 'custom',
+                  label: 'Custom AI Agent',
+                  icon: '🛠️',
+                  tag: 'Managed Logic',
+                  desc: 'Hosted agent with system prompt, custom AI model routing (Claude / GPT), and encrypted API key vault.',
+                },
+              ].map((m) => {
+                const isSelected = formData.deployMode === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => handleInputChange('deployMode', m.id)}
+                    className={`p-6 rounded-3xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between ${
+                      isSelected
+                        ? 'border-orange-500 bg-orange-50/50 shadow-md ring-2 ring-orange-500/20'
+                        : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50/50'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="w-12 h-12 rounded-2xl bg-white border border-gray-200 flex items-center justify-center text-2xl shadow-sm">
+                          {m.icon}
+                        </div>
+                        <Badge variant="outline" className={isSelected ? 'bg-orange-500 text-white border-transparent' : 'bg-gray-100 text-gray-600'}>
+                          {m.tag}
+                        </Badge>
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900">{m.label}</h3>
+                      <p className="text-xs text-gray-500 mt-2 leading-relaxed">{m.desc}</p>
+                    </div>
+
+                    <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
+                      <span className="text-xs font-bold text-gray-400 uppercase">Target Selection</span>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        isSelected ? 'border-orange-500 bg-orange-500 text-white' : 'border-gray-300'
+                      }`}>
+                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2: IDENTITY */}
+        {currentStep === 2 && (
+          <div className="space-y-6">
+            <div>
+              <span className="text-xs font-bold text-orange-600 uppercase tracking-widest">Step 2 of 7</span>
+              <h2 className="text-2xl font-black text-gray-900 mt-1 uppercase">Agent Identity</h2>
+              <p className="text-sm text-gray-500">Define the public name and marketplace category for your agent.</p>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <Label htmlFor="name" className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                  Agent Name *
+                </Label>
+                <Input
+                  id="name"
+                  placeholder="e.g. Sentiment Sentinel"
+                  value={formData.name}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  className="mt-1 h-12 rounded-2xl text-base"
+                />
+                {formData.slug && (
+                  <p className="text-xs text-gray-500 mt-1.5 font-mono">
+                    Unique Slug: <span className="font-bold text-orange-600">/agents/{formData.slug}</span>
                   </p>
                 )}
               </div>
-            </div>
 
-            {/* Short Description */}
-            <div>
-              <Label htmlFor="description" className="text-sm font-medium text-gray-800">
-                Short Description *
-              </Label>
-              <Textarea
-                id="description"
-                placeholder="AI-powered scam detector with 8-layer evidence pipeline"
-                value={formData.description}
-                onChange={(e) => handleInputChange('description', e.target.value)}
-                rows={2}
-                className="mt-1"
-                maxLength={160}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                {formData.description.length}/160 characters
-              </p>
-            </div>
-
-            {/* Long Description */}
-            <div>
-              <Label htmlFor="longDescription" className="text-sm font-medium text-gray-800">
-                Long Description <span className="text-gray-400 font-normal">(Optional)</span>
-              </Label>
-              <Textarea
-                id="longDescription"
-                placeholder="Detailed description of what your agent does, how it works, and what problems it solves..."
-                value={formData.longDescription}
-                onChange={(e) => handleInputChange('longDescription', e.target.value)}
-                rows={6}
-                className="mt-1"
-              />
-            </div>
-
-            {/* Category */}
-            <div>
-              <Label className="text-sm font-medium text-gray-800">
-                Category *
-              </Label>
-              <div className="grid grid-cols-2 gap-3 mt-2">
-                {CATEGORIES.map((cat) => (
-                  <button
-                    key={cat.value}
-                    onClick={() => handleInputChange('category', cat.value)}
-                    className={`p-4 rounded-lg border-2 text-left transition-all ${
-                      formData.category === cat.value
-                        ? 'border-orange-500 bg-orange-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <span className="text-base font-semibold text-gray-900">{cat.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Tags */}
-            <div>
-              <Label className="text-sm font-medium text-gray-800">
-                Tags
-              </Label>
-              <div className="flex gap-2 mt-2">
-                <Input
-                  placeholder="defi, nft, social..."
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addTag();
-                    }
-                  }}
-                />
-                <Button onClick={addTag} variant="outline">
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </div>
-              
-              {formData.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {formData.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm"
-                    >
-                      {tag}
-                      <button onClick={() => removeTag(tag)}>
-                        <X className="w-3 h-3" />
+              <div>
+                <Label className="text-xs font-bold uppercase tracking-wider text-gray-700 block mb-2">
+                  Marketplace Category *
+                </Label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {CATEGORIES.map((cat) => {
+                    const isSelected = formData.category === cat.value;
+                    return (
+                      <button
+                        key={cat.value}
+                        type="button"
+                        onClick={() => handleInputChange('category', cat.value)}
+                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                          isSelected
+                            ? 'border-orange-500 bg-orange-50 text-gray-900 font-bold'
+                            : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                        }`}
+                      >
+                        <span className="text-xs block">{cat.label}</span>
                       </button>
-                    </span>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3: ENDPOINT */}
+        {currentStep === 3 && (
+          <div className="space-y-6">
+            <div>
+              <span className="text-xs font-bold text-orange-600 uppercase tracking-widest">Step 3 of 7</span>
+              <h2 className="text-2xl font-black text-gray-900 mt-1 uppercase">Endpoint & Protocol</h2>
+              <p className="text-sm text-gray-500">Specify the API endpoint URL or MCP tool server.</p>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <Label htmlFor="apiEndpoint" className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                  API / MCP Endpoint URL *
+                </Label>
+                <Input
+                  id="apiEndpoint"
+                  placeholder="https://api.youragent.com/v1/execute"
+                  value={formData.apiEndpoint}
+                  onChange={(e) => handleInputChange('apiEndpoint', e.target.value)}
+                  className="mt-1 h-12 rounded-2xl font-mono text-sm"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  AgentBazaar verifies x402 payment before routing verified requests to this endpoint.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <Label htmlFor="modelProvider" className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                    AI Model Provider
+                  </Label>
+                  <select
+                    id="modelProvider"
+                    value={formData.modelProvider}
+                    onChange={(e) => handleInputChange('modelProvider', e.target.value)}
+                    className="w-full mt-1 h-12 px-4 border border-gray-200 rounded-2xl text-sm font-medium bg-white focus:ring-2 focus:ring-orange-500"
+                  >
+                    {MODEL_PROVIDERS.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <Label htmlFor="modelName" className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                    Model Identifier
+                  </Label>
+                  <Input
+                    id="modelName"
+                    placeholder="claude-haiku-4-5-20251001"
+                    value={formData.modelName}
+                    onChange={(e) => handleInputChange('modelName', e.target.value)}
+                    className="mt-1 h-12 rounded-2xl font-mono text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="webhookUrl" className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                  Webhook / Status Notification URL (Optional)
+                </Label>
+                <Input
+                  id="webhookUrl"
+                  placeholder="https://api.youragent.com/webhook"
+                  value={formData.webhookUrl}
+                  onChange={(e) => handleInputChange('webhookUrl', e.target.value)}
+                  className="mt-1 h-12 rounded-2xl font-mono text-sm"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 4: METADATA & BRANDING */}
+        {currentStep === 4 && (
+          <div className="space-y-6">
+            <div>
+              <span className="text-xs font-bold text-orange-600 uppercase tracking-widest">Step 4 of 7</span>
+              <h2 className="text-2xl font-black text-gray-900 mt-1 uppercase">Metadata & Branding</h2>
+              <p className="text-sm text-gray-500">Provide rich descriptions and visual identity for marketplace discovery.</p>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <Label htmlFor="description" className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                  Short Description * (Summary)
+                </Label>
+                <Textarea
+                  id="description"
+                  placeholder="Real-time AI sentiment analyzer for Web3 tokens and smart contracts..."
+                  value={formData.description}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  rows={2}
+                  maxLength={180}
+                  className="mt-1 rounded-2xl"
+                />
+                <p className="text-xs text-gray-400 mt-1 text-right">{formData.description.length}/180</p>
+              </div>
+
+              <div>
+                <Label htmlFor="longDescription" className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                  Full Documentation (Markdown supported)
+                </Label>
+                <Textarea
+                  id="longDescription"
+                  placeholder="Detailed explanation of the agent capabilities, input parameters, and output format..."
+                  value={formData.longDescription}
+                  onChange={(e) => handleInputChange('longDescription', e.target.value)}
+                  rows={4}
+                  className="mt-1 rounded-2xl font-mono text-xs"
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs font-bold uppercase tracking-wider text-gray-700 block mb-1">
+                  Tags
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Add tag (e.g. sentiment, hedera, defi)..."
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
+                    className="h-11 rounded-2xl"
+                  />
+                  <Button type="button" onClick={addTag} className="bg-orange-500 hover:bg-orange-600 rounded-2xl px-5">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {formData.tags.map((t) => (
+                    <Badge key={t} className="bg-gray-100 text-gray-800 hover:bg-gray-200 rounded-xl px-3 py-1 flex items-center gap-1.5 text-xs">
+                      #{t}
+                      <X className="w-3 h-3 cursor-pointer text-gray-400 hover:text-gray-700" onClick={() => removeTag(t)} />
+                    </Badge>
                   ))}
                 </div>
-              )}
-            </div>
-
-            {/* Icon & Color */}
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <Label htmlFor="icon" className="text-sm font-medium text-gray-800">
-                  Icon (Emoji)
-                </Label>
-                <Input
-                  id="icon"
-                  placeholder="🤖"
-                  value={formData.icon}
-                  onChange={(e) => handleInputChange('icon', e.target.value)}
-                  className="mt-1 text-4xl text-center"
-                  maxLength={2}
-                />
               </div>
-              
-              <div>
-                <Label htmlFor="color" className="text-sm font-medium text-gray-800">
-                  Brand Color
-                </Label>
-                <div className="flex gap-2 mt-1">
+
+              <div className="grid grid-cols-2 gap-5">
+                <div>
+                  <Label htmlFor="icon" className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                    Icon Emoji
+                  </Label>
                   <Input
-                    id="color"
-                    type="color"
-                    value={formData.color}
-                    onChange={(e) => handleInputChange('color', e.target.value)}
-                    className="w-20 h-10"
+                    id="icon"
+                    value={formData.icon}
+                    onChange={(e) => handleInputChange('icon', e.target.value)}
+                    className="mt-1 h-12 rounded-2xl text-center text-2xl"
+                    maxLength={2}
                   />
-                  <Input
-                    value={formData.color}
-                    onChange={(e) => handleInputChange('color', e.target.value)}
-                    placeholder="#f97316"
-                    className="flex-1"
-                  />
+                </div>
+                <div>
+                  <Label htmlFor="color" className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                    Theme Color
+                  </Label>
+                  <div className="flex gap-2 mt-1">
+                    <input
+                      type="color"
+                      value={formData.color}
+                      onChange={(e) => handleInputChange('color', e.target.value)}
+                      className="w-14 h-12 rounded-2xl border border-gray-200 cursor-pointer p-1"
+                    />
+                    <Input
+                      value={formData.color}
+                      onChange={(e) => handleInputChange('color', e.target.value)}
+                      className="h-12 rounded-2xl font-mono text-xs uppercase"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-
           </div>
+        )}
 
-          <div className="flex justify-end mt-8">
-            <Button
-              onClick={() => setCurrentStep(2)}
-              disabled={!formData.name || !formData.description || !formData.category}
-              className="bg-orange-500 hover:bg-orange-600"
-            >
-              Next: Configuration
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* Step 2: Configuration */}
-      {currentStep === 2 && (
-        <Card className="bg-white border border-gray-200 p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">
-            Technical Configuration
-          </h2>
-
+        {/* STEP 5: PRICING & TIERS */}
+        {currentStep === 5 && (
           <div className="space-y-6">
-            
-            {/* API Endpoint */}
             <div>
-              <Label htmlFor="apiEndpoint" className="text-sm font-medium text-gray-800">
-                API Endpoint *
-              </Label>
-              <Input
-                id="apiEndpoint"
-                placeholder="https://api.youragent.com/run"
-                value={formData.apiEndpoint}
-                onChange={(e) => handleInputChange('apiEndpoint', e.target.value)}
-                className={`mt-1 ${formData.apiEndpoint && !isValidUrl(formData.apiEndpoint) ? 'border-red-400 focus:ring-red-300' : ''}`}
-              />
-              {formData.apiEndpoint && !isValidUrl(formData.apiEndpoint) ? (
-                <p className="text-xs text-red-500 mt-1">⚠ Must be a valid URL starting with https://</p>
-              ) : (
-                <p className="text-xs text-gray-500 mt-1">AgentBazaar will POST to this URL each time your agent is run</p>
-              )}
+              <span className="text-xs font-bold text-orange-600 uppercase tracking-widest">Step 5 of 7</span>
+              <h2 className="text-2xl font-black text-gray-900 mt-1 uppercase">Pricing & Monetization</h2>
+              <p className="text-sm text-gray-500">Set micro-payment cost per run settled on-chain via Hedera x402.</p>
             </div>
 
-            {/* API Contract Reference */}
-            <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
-              <p className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-2">📋 What AgentBazaar will send to your endpoint</p>
-              <pre className="text-xs text-blue-700 font-mono whitespace-pre-wrap leading-relaxed">{`POST {your-api-endpoint}
-Content-Type: application/json
-X-AgentBazaar-Run-Id: <run-uuid>
-
-{
-  "runId": "<uuid>",
-  "input": { ...your-input-fields },
-  "userId": "<buyer-user-id>"
-}
-
-// Expected response (200 OK):
-{
-  "output": { ...your-output-fields },
-  "status": "success"  // or "error"
-}`}</pre>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {[
+                { tier: 'Standard', fee: '1.0 HBAR', desc: 'Standard micro-execution for general users.', price: '1.0' },
+                { tier: 'Professional', fee: '3.0 HBAR', desc: 'High-throughput or heavy analysis pipelines.', price: '3.0' },
+                { tier: 'Enterprise', fee: '5.0 HBAR', desc: 'Multi-agent orchestration & deep audit suites.', price: '5.0' },
+              ].map((t) => {
+                const isSelected = formData.tier === t.tier;
+                return (
+                  <button
+                    key={t.tier}
+                    type="button"
+                    onClick={() => {
+                      setFormData(prev => ({ ...prev, tier: t.tier as any, pricePerRun: t.price }));
+                    }}
+                    className={`p-6 rounded-3xl border-2 text-left transition-all cursor-pointer ${
+                      isSelected
+                        ? 'border-orange-500 bg-orange-50/50 shadow-md ring-2 ring-orange-500/20'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-xs font-black uppercase text-gray-500 tracking-wider">{t.tier}</span>
+                      {isSelected && <Badge className="bg-orange-500 text-white">Active</Badge>}
+                    </div>
+                    <div className="text-2xl font-black text-gray-900">{t.fee}</div>
+                    <p className="text-xs text-gray-500 mt-2">{t.desc}</p>
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Webhook URL */}
-            <div>
-              <Label htmlFor="webhookUrl" className="text-sm font-medium text-gray-800">
-                Webhook URL (Optional)
-              </Label>
-              <Input
-                id="webhookUrl"
-                placeholder="https://api.youragent.com/webhook"
-                value={formData.webhookUrl}
-                onChange={(e) => handleInputChange('webhookUrl', e.target.value)}
-                className="mt-1"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                We'll send status updates to this URL
-              </p>
-            </div>
-
-            {/* Model Provider */}
-            <div>
-              <Label className="text-sm font-medium text-gray-800">
-                AI Model Provider *
-              </Label>
-              <select
-                value={formData.modelProvider}
-                onChange={(e) => handleInputChange('modelProvider', e.target.value)}
-                className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-gray-900"
-              >
-                <option value="" className="text-gray-900">Select provider...</option>
-                {MODEL_PROVIDERS.map((provider) => (
-                  <option key={provider.value} value={provider.value} className="text-gray-900">
-                    {provider.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Model Name */}
-            <div>
-              <Label htmlFor="modelName" className="text-sm font-medium text-gray-800">
-                Model Name
-              </Label>
-              <Input
-                id="modelName"
-                placeholder="e.g. claude-sonnet-4-5, gpt-4o, gemini-1.5-pro"
-                value={formData.modelName}
-                onChange={(e) => handleInputChange('modelName', e.target.value)}
-                className="mt-1"
-              />
-              <p className="text-xs text-gray-400 mt-1">The exact model ID passed to the provider API</p>
-            </div>
-
-            {/* Pricing */}
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-4">
               <div>
-                <Label htmlFor="pricePerRun" className="text-sm font-medium text-gray-800">
-                  Price Per Run ($ USDC) *
+                <Label htmlFor="pricePerRun" className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                  Custom Price Per Run (HBAR) *
                 </Label>
                 <Input
                   id="pricePerRun"
                   type="number"
-                  step="0.01"
-                  min="0.01"
-                  placeholder="0.10"
+                  step="0.1"
                   value={formData.pricePerRun}
                   onChange={(e) => handleInputChange('pricePerRun', e.target.value)}
-                  className="mt-1"
+                  className="mt-1 h-12 rounded-2xl font-mono text-base font-bold text-orange-600"
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  You earn: ${formData.pricePerRun ? (parseFloat(formData.pricePerRun) * 0.9).toFixed(2) : '0.00'} USDC
-                </p>
               </div>
-              
+
               <div>
-                <Label htmlFor="setupFee" className="text-sm font-medium text-gray-800">
-                  Setup Fee ($ USDC)
+                <Label htmlFor="setupFee" className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                  Setup / Lifetime Access Fee (HBAR)
                 </Label>
                 <Input
                   id="setupFee"
                   type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0"
+                  step="1"
                   value={formData.setupFee}
                   onChange={(e) => handleInputChange('setupFee', e.target.value)}
-                  className="mt-1"
+                  className="mt-1 h-12 rounded-2xl font-mono text-base font-bold text-gray-700"
                 />
               </div>
             </div>
-
-            {/* Input Fields Schema */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <Label className="text-sm font-medium text-gray-800">
-                  Input Fields *
-                </Label>
-                <Button onClick={addInputField} variant="outline" size="sm">
-                  <Plus className="w-4 h-4 mr-1" />
-                  Add Field
-                </Button>
-              </div>
-              
-              <div className="space-y-3">
-                {formData.inputFields.map((field, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2 p-3 bg-gray-50 rounded-lg">
-                    <Input
-                      placeholder="Field name"
-                      value={field.name}
-                      onChange={(e) => updateInputField(index, 'name', e.target.value)}
-                      className="col-span-3"
-                    />
-                    
-                    <select
-                      value={field.type}
-                      onChange={(e) => updateInputField(index, 'type', e.target.value)}
-                      className="col-span-2 px-2 py-1 border border-gray-300 rounded-lg text-sm text-gray-900"
-                    >
-                      <option value="text" className="text-gray-900">Text</option>
-                      <option value="number" className="text-gray-900">Number</option>
-                      <option value="boolean" className="text-gray-900">Boolean</option>
-                      <option value="array" className="text-gray-900">Array</option>
-                      <option value="object" className="text-gray-900">Object</option>
-                    </select>
-                    
-                    <Input
-                      placeholder="Description"
-                      value={field.description}
-                      onChange={(e) => updateInputField(index, 'description', e.target.value)}
-                      className="col-span-5"
-                    />
-                    
-                    <label className="col-span-1 flex items-center gap-1 text-xs text-gray-700 font-medium">
-                      <input
-                        type="checkbox"
-                        checked={field.required}
-                        onChange={(e) => updateInputField(index, 'required', e.target.checked)}
-                      />
-                      Required
-                    </label>
-                    
-                    <button
-                      onClick={() => removeInputField(index)}
-                      className="col-span-1 text-red-600 hover:text-red-700"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Output Fields Schema */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <Label className="text-sm font-medium text-gray-800">Output Fields</Label>
-                  <p className="text-xs text-gray-500 mt-0.5">Declare what your endpoint returns so buyers know the response shape</p>
-                </div>
-                <Button onClick={addOutputField} variant="outline" size="sm">
-                  <Plus className="w-4 h-4 mr-1" />
-                  Add Field
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {formData.outputFields.map((field, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2 p-3 bg-gray-50 rounded-lg">
-                    <Input
-                      placeholder="Field name"
-                      value={field.name}
-                      onChange={(e) => updateOutputField(index, 'name', e.target.value)}
-                      className="col-span-3"
-                    />
-                    <select
-                      value={field.type}
-                      onChange={(e) => updateOutputField(index, 'type', e.target.value)}
-                      className="col-span-2 px-2 py-1 border border-gray-300 rounded-lg text-sm text-gray-900"
-                    >
-                      <option value="text">Text</option>
-                      <option value="number">Number</option>
-                      <option value="boolean">Boolean</option>
-                      <option value="array">Array</option>
-                      <option value="object">Object</option>
-                      <option value="url">URL</option>
-                    </select>
-                    <Input
-                      placeholder="Description"
-                      value={field.description}
-                      onChange={(e) => updateOutputField(index, 'description', e.target.value)}
-                      className="col-span-6"
-                    />
-                    <button
-                      onClick={() => removeOutputField(index)}
-                      className="col-span-1 text-red-400 hover:text-red-600"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-                {formData.outputFields.length === 0 && (
-                  <p className="text-xs text-gray-400 italic">No output fields defined yet.</p>
-                )}
-              </div>
-            </div>
-
-            {/* Example Input/Output */}
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <Label htmlFor="exampleInput" className="text-sm font-medium text-gray-800">
-                  Example Input (JSON)
-                </Label>
-                <Textarea
-                  id="exampleInput"
-                  placeholder='{"url": "https://example.com"}'
-                  value={formData.exampleInput}
-                  onChange={(e) => handleInputChange('exampleInput', e.target.value)}
-                  rows={4}
-                  className="mt-1 font-mono text-sm"
-                />
-              </div>
-              <div>
-                <Label htmlFor="exampleOutput" className="text-sm font-medium text-gray-800">
-                  Example Output (JSON)
-                </Label>
-                <Textarea
-                  id="exampleOutput"
-                  placeholder='{"risk_score": 85, "verdict": "high risk"}'
-                  value={formData.exampleOutput}
-                  onChange={(e) => handleInputChange('exampleOutput', e.target.value)}
-                  rows={4}
-                  className="mt-1 font-mono text-sm"
-                />
-              </div>
-            </div>
-
-            {/* Documentation */}
-            <div>
-              <Label htmlFor="readme" className="text-sm font-medium text-gray-800">
-                Documentation (Markdown)
-              </Label>
-              <Textarea
-                id="readme"
-                placeholder="# How to use this agent&#10;&#10;This agent analyzes..."
-                value={formData.readme}
-                onChange={(e) => handleInputChange('readme', e.target.value)}
-                rows={8}
-                className="mt-1 font-mono text-sm"
-              />
-            </div>
-
           </div>
+        )}
 
-          <div className="flex justify-between mt-8">
-            <Button
-              onClick={() => setCurrentStep(1)}
-              variant="outline"
-            >
-              Back
-            </Button>
-            <Button
-              onClick={() => setCurrentStep(3)}
-              disabled={!formData.apiEndpoint || !isValidUrl(formData.apiEndpoint) || !formData.modelProvider || !formData.pricePerRun}
-              className="bg-orange-500 hover:bg-orange-600"
-              title={!formData.apiEndpoint ? 'API Endpoint is required' : !isValidUrl(formData.apiEndpoint) ? 'Enter a valid https:// URL' : ''}
-            >
-              Next: Credentials
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* Step 3: API Credentials */}
-      {currentStep === 3 && (
-        <Card className="bg-white border border-gray-200 p-6 mb-6">
-          <div className="flex items-center gap-3 mb-6">
-            <Lock className="w-6 h-6 text-orange-500" />
-            <h2 className="text-xl font-semibold text-gray-900">
-              API Credentials &amp; Agent Logic
-            </h2>
-          </div>
-
-          <Alert className="mb-6 bg-green-50 border-green-200">
-            <ShieldCheck className="w-4 h-4 text-green-600" />
-            <AlertDescription className="text-sm text-green-900">
-              <strong>API Keys securely vaulted:</strong> Any API keys you provide are encrypted
-              and stored on <strong>Story Protocol&apos;s CDR network</strong> at listing time.
-              They are never stored in plaintext and are only used to authenticate your agent
-              when it executes. AgentBazaar&apos;s platform wallet handles all vaulting on your
-              behalf — you never interact with CDR directly.
-            </AlertDescription>
-          </Alert>
-
-          {/* Agent Logic / System Prompt */}
-          <div className="mb-6">
-            <Label htmlFor="logic" className="text-sm font-medium text-gray-800">
-              Agent Logic / System Prompt *
-            </Label>
-            <Textarea
-              id="logic"
-              placeholder="You are a DeFi research agent. Your job is to…"
-              value={formData.logic}
-              onChange={(e) => handleInputChange('logic', e.target.value)}
-              rows={6}
-              className="mt-1 font-mono text-sm"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              The core strategy / system prompt for your agent. This is kept confidential
-              and only used during agent execution.
-            </p>
-          </div>
-
+        {/* STEP 6: EXEC CONFIG & KEY VAULT */}
+        {currentStep === 6 && (
           <div className="space-y-6">
-            {formData.modelProvider === 'openai' && (
-              <div>
-                <Label htmlFor="openai_api_key" className="text-sm font-medium text-gray-800">
-                  OpenAI API Key (Optional)
-                </Label>
-                <Input
-                  id="openai_api_key"
-                  type="password"
-                  placeholder="sk-..."
-                  value={formData.apiKeys.openai_api_key}
-                  onChange={(e) => handleApiKeyChange('openai_api_key', e.target.value)}
-                  className="mt-1 font-mono"
-                />
-                <p className="text-xs text-gray-600 mt-1">
-                  Required for OpenAI model inference if not handled by your endpoint.
-                </p>
-              </div>
-            )}
+            <div>
+              <span className="text-xs font-bold text-orange-600 uppercase tracking-widest">Step 6 of 7</span>
+              <h2 className="text-2xl font-black text-gray-900 mt-1 uppercase">Exec Config & Key Vault</h2>
+              <p className="text-sm text-gray-500">Configure request schema, system prompt logic, and AES-256-GCM encrypted secrets.</p>
+            </div>
 
-            {formData.modelProvider === 'anthropic' && (
+            <div className="space-y-6">
+              {/* System Prompt / Logic */}
               <div>
-                <Label htmlFor="anthropic_api_key" className="text-sm font-medium text-gray-800">
-                  Anthropic API Key (Optional)
+                <Label htmlFor="logic" className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                  Agent System Prompt & Execution Logic *
                 </Label>
-                <Input
-                  id="anthropic_api_key"
-                  type="password"
-                  placeholder="sk-ant-..."
-                  value={formData.apiKeys.anthropic_api_key}
-                  onChange={(e) => handleApiKeyChange('anthropic_api_key', e.target.value)}
-                  className="mt-1 font-mono"
+                <Textarea
+                  id="logic"
+                  value={formData.logic}
+                  onChange={(e) => handleInputChange('logic', e.target.value)}
+                  rows={4}
+                  className="mt-1 rounded-2xl font-mono text-xs"
                 />
-                <p className="text-xs text-gray-600 mt-1">
-                  Required for Anthropic model inference if not handled by your endpoint.
-                </p>
               </div>
-            )}
 
-            {formData.modelProvider === 'custom' && (
-              <div>
-                <Label htmlFor="custom_api_key" className="text-sm font-medium text-gray-800">
-                  Custom Endpoint API Key / Bearer Token (Optional)
-                </Label>
-                <Input
-                  id="custom_api_key"
-                  type="password"
-                  placeholder="Bearer token or API key..."
-                  value={formData.apiKeys.custom_api_key}
-                  onChange={(e) => handleApiKeyChange('custom_api_key', e.target.value)}
-                  className="mt-1 font-mono"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Leave blank if your custom endpoint doesn't require authentication.
-                </p>
-              </div>
-            )}
-            
-            {formData.modelProvider === 'multiple' && (
-              <Alert className="bg-yellow-50 border-yellow-200">
-                <AlertTriangle className="w-4 h-4 text-yellow-600" />
-                <AlertDescription className="text-sm text-yellow-900">
-                  Multiple provider credentials are not fully supported via the UI yet.
-                  Please deploy with a single provider first or contact support.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Additional Secrets Section */}
-            <div className="pt-6 border-t border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900">Additional Secrets (Optional)</h3>
-                  <p className="text-xs text-gray-500">Add keys for voice, search, or other 3rd party APIs.</p>
+              {/* Request Headers Section */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                    Request Headers ({formData.headers.length})
+                  </Label>
+                  <Button type="button" variant="outline" size="sm" onClick={addHeader} className="rounded-xl gap-1 text-xs">
+                    <Plus className="w-3.5 h-3.5" /> Add Header
+                  </Button>
                 </div>
-                <Button onClick={addCustomSecret} variant="outline" size="sm">
-                  <Plus className="w-3 h-3 mr-1" />
-                  Add Secret
-                </Button>
-              </div>
 
-              <div className="space-y-3">
-                {formData.customSecrets.map((secret, index) => (
-                  <div key={index} className="flex gap-3">
-                    <Input
-                      placeholder="Secret Name (e.g. ELEVENLABS_KEY)"
-                      value={secret.key}
-                      onChange={(e) => updateCustomSecret(index, 'key', e.target.value)}
-                      className="flex-1 font-mono text-xs uppercase"
-                    />
-                    <Input
-                      type="password"
-                      placeholder="Value"
-                      value={secret.value}
-                      onChange={(e) => updateCustomSecret(index, 'value', e.target.value)}
-                      className="flex-1 font-mono text-xs"
-                    />
-                    <Button 
-                      onClick={() => removeCustomSecret(index)} 
-                      variant="ghost" 
-                      size="sm" 
-                      className="text-gray-400 hover:text-red-500"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
+                {formData.headers.map((h, i) => (
+                  <div key={i} className="p-4 rounded-2xl border border-gray-200 bg-gray-50/50 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-mono font-bold text-gray-500">HEADER #{i + 1}</span>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => removeHeader(i)} className="text-red-500 hover:text-red-700 p-1 h-auto">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-[10px] text-gray-500 uppercase font-bold">Header Key</Label>
+                        <Input
+                          placeholder="Authorization"
+                          value={h.key}
+                          onChange={(e) => updateHeader(i, 'key', e.target.value)}
+                          className="h-10 rounded-xl font-mono text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] text-gray-500 uppercase font-bold">Default Secret / Value</Label>
+                        <div className="relative">
+                          <Input
+                            type={h.secret && showSecretIndex !== i ? 'password' : 'text'}
+                            placeholder={h.secret ? '••••••••' : 'Bearer token...'}
+                            value={h.value}
+                            onChange={(e) => updateHeader(i, 'value', e.target.value)}
+                            className="h-10 rounded-xl font-mono text-xs bg-white pr-9"
+                          />
+                          {h.secret && (
+                            <button
+                              type="button"
+                              onClick={() => setShowSecretIndex(showSecretIndex === i ? null : i)}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                            >
+                              {showSecretIndex === i ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updateHeader(i, 'secret', !h.secret)}
+                        className={`text-[10px] px-2.5 py-1 rounded-lg border font-bold flex items-center gap-1 ${
+                          h.secret ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-gray-200 text-gray-500'
+                        }`}
+                      >
+                        <Lock className="w-3 h-3" /> Encrypt as Secret
+                      </button>
+                    </div>
                   </div>
                 ))}
-                {formData.customSecrets.length === 0 && (
-                  <p className="text-[11px] text-gray-400 italic">No additional secrets added.</p>
-                )}
+              </div>
+
+              {/* Request Body Fields */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                    Input Body Fields ({formData.bodyFields.length})
+                  </Label>
+                  <Button type="button" variant="outline" size="sm" onClick={addBodyField} className="rounded-xl gap-1 text-xs">
+                    <Plus className="w-3.5 h-3.5" /> Add Field
+                  </Button>
+                </div>
+
+                {formData.bodyFields.map((f, i) => (
+                  <div key={i} className="p-4 rounded-2xl border border-gray-200 bg-gray-50/50 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-mono font-bold text-gray-500">INPUT FIELD #{i + 1}</span>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => removeBodyField(i)} className="text-red-500 hover:text-red-700 p-1 h-auto">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-[10px] text-gray-500 uppercase font-bold">Field Identifier (Key)</Label>
+                        <Input
+                          placeholder="e.g. prompt, tokenAddress"
+                          value={f.key}
+                          onChange={(e) => updateBodyField(i, 'key', e.target.value)}
+                          className="h-10 rounded-xl font-mono text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] text-gray-500 uppercase font-bold">Field Type</Label>
+                        <select
+                          value={f.type}
+                          onChange={(e) => updateBodyField(i, 'type', e.target.value)}
+                          className="w-full h-10 px-3 rounded-xl border border-gray-200 text-xs bg-white"
+                        >
+                          {FIELD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
+        )}
 
-          <div className="flex justify-between mt-8">
-            <Button
-              onClick={() => setCurrentStep(2)}
-              variant="outline"
-            >
-              Back
-            </Button>
-            <Button
-              onClick={() => setCurrentStep(4)}
-              disabled={formData.modelProvider === 'multiple'}
-              className="bg-orange-500 hover:bg-orange-600"
-            >
-              Next: Review
-            </Button>
-          </div>
-        </Card>
-      )}
+        {/* STEP 7: DEPLOY & PUBLISH */}
+        {currentStep === 7 && (
+          <div className="space-y-6">
+            <div>
+              <span className="text-xs font-bold text-orange-600 uppercase tracking-widest">Step 7 of 7</span>
+              <h2 className="text-2xl font-black text-gray-900 mt-1 uppercase">Review & Publish On-Chain</h2>
+              <p className="text-sm text-gray-500">Confirm agent parameters and launch to the Hedera testnet registry.</p>
+            </div>
 
-      {/* Step 4: Review & Submit */}
-      {currentStep === 4 && (
-        <Card className="bg-white border border-gray-200 p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">
-            Review & Submit
-          </h2>
-
-          {/* Preview */}
-          <div className="bg-gray-50 rounded-lg p-6 mb-6">
-            <div className="flex items-start gap-4">
-              <div 
-                className="w-16 h-16 rounded-xl flex items-center justify-center text-3xl"
-                style={{ backgroundColor: formData.color + '20' }}
-              >
-                {formData.icon}
-              </div>
-              
-              <div className="flex-1">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                  {formData.name || 'Your Agent Name'}
-                </h3>
-                <p className="text-gray-700 mb-4">
-                  {formData.description || 'Agent description will appear here'}
-                </p>
-                
-                <div className="flex items-center gap-4 text-sm">
-                  <span className="px-3 py-1 bg-white rounded-full text-gray-800 font-medium">
-                    {CATEGORIES.find(c => c.value === formData.category)?.label || 'Category'}
-                  </span>
-                  <span className="text-orange-600 font-bold">
-                    ${formData.pricePerRun || '0'} USDC per run
-                  </span>
+            <div className="bg-gray-50 border border-gray-200 rounded-3xl p-6 space-y-4">
+              <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
+                <div className="w-14 h-14 rounded-2xl bg-white border border-gray-200 flex items-center justify-center text-3xl shadow-sm">
+                  {formData.icon}
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-gray-900">{formData.name}</h3>
+                  <p className="text-xs text-gray-500 line-clamp-1">{formData.description}</p>
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-mono">
+                <div>
+                  <span className="text-gray-400 block">Deploy Mode:</span>
+                  <span className="font-bold text-gray-800 uppercase">{formData.deployMode}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block">Category:</span>
+                  <span className="font-bold text-gray-800 uppercase">{formData.category}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block">Price Per Run:</span>
+                  <span className="font-bold text-orange-600">{formData.pricePerRun} HBAR</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block">Settlement:</span>
+                  <span className="font-bold text-emerald-600">Blocky402 Exact</span>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-gray-200 text-xs text-gray-500">
+                <span className="font-bold text-gray-700 block mb-1">Target Endpoint:</span>
+                <span className="font-mono text-gray-800">{formData.apiEndpoint}</span>
+              </div>
             </div>
+
+            {/* Wallet Verification Alert */}
+            {!isConnected ? (
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center justify-between text-xs text-amber-800 font-medium">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-amber-600" />
+                  <span>Connect your Hedera wallet (HashPack) to register on-chain identity.</span>
+                </div>
+                <Button type="button" onClick={connect} size="sm" className="bg-orange-500 hover:bg-orange-600 text-white rounded-xl">
+                  Connect Wallet
+                </Button>
+              </div>
+            ) : (
+              <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-2xl flex items-center gap-2 text-xs text-emerald-800 font-medium">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span>Connected Hedera Account: <strong className="font-mono">{accountId}</strong></span>
+              </div>
+            )}
           </div>
+        )}
 
-          {/* Summary */}
-          <div className="space-y-4 mb-6">
-            <div className="flex justify-between py-2 border-b border-gray-200">
-              <span className="text-gray-700">Category</span>
-              <span className="font-medium text-gray-900">
-                {CATEGORIES.find(c => c.value === formData.category)?.label}
-              </span>
-            </div>
-            
-            <div className="flex justify-between py-2 border-b border-gray-200">
-              <span className="text-gray-700">Model Provider</span>
-              <span className="font-medium text-gray-900">
-                {MODEL_PROVIDERS.find(p => p.value === formData.modelProvider)?.label}
-              </span>
-            </div>
-            
-            <div className="flex justify-between py-2 border-b border-gray-200">
-              <span className="text-gray-700">Price Per Run</span>
-              <span className="font-medium text-gray-900">${formData.pricePerRun} USDC</span>
-            </div>
-            
-            <div className="flex justify-between py-2 border-b border-gray-200">
-              <span className="text-gray-700">Your Earnings (90%)</span>
-              <span className="font-bold text-green-600">
-                ${formData.pricePerRun ? (parseFloat(formData.pricePerRun) * 0.9).toFixed(2) : '0.00'} USDC
-              </span>
-            </div>
-            
-            <div className="flex justify-between py-2 border-b border-gray-200">
-              <span className="text-gray-700">Input Fields</span>
-              <span className="font-medium text-gray-900">{formData.inputFields.filter(f => f.name).length} fields</span>
-            </div>
-
-            <div className="flex justify-between py-2 border-b border-gray-200">
-              <span className="text-gray-700">Output Fields</span>
-              <span className="font-medium text-gray-900">{formData.outputFields.filter(f => f.name).length} fields</span>
-            </div>
-
-            <div className="flex justify-between py-2 border-b border-gray-200">
-              <span className="text-gray-700">API Endpoint</span>
-              {formData.apiEndpoint ? (
-                <span className="font-medium text-gray-900 text-xs truncate max-w-[280px] font-mono">{formData.apiEndpoint}</span>
-              ) : (
-                <span className="text-red-500 font-medium text-xs">⚠ Not set</span>
-              )}
-            </div>
-
-            <div className="flex justify-between py-2 border-b border-gray-200">
-              <span className="text-gray-700">Agent URL (slug)</span>
-              <span className="font-medium text-orange-600 font-mono text-xs">/agents/{slugPreview}</span>
-            </div>
-
-            <div className="flex justify-between py-2 border-b border-gray-200">
-              <span className="text-gray-700">Credentials Vaulted</span>
-              {(() => {
-                const hasKey = (formData.modelProvider === 'openai' && formData.apiKeys.openai_api_key) ||
-                               (formData.modelProvider === 'anthropic' && formData.apiKeys.anthropic_api_key) ||
-                               (formData.modelProvider === 'custom' && formData.apiKeys.custom_api_key) ||
-                               formData.customSecrets.some(s => s.key && s.value);
-                return hasKey
-                  ? <span className="font-medium text-green-600 text-xs">✓ API key provided</span>
-                  : <span className="text-gray-400 text-xs">None (endpoint handles auth)</span>;
-              })()}
-            </div>
-
-            <div className="flex justify-between py-2 border-b border-gray-200">
-              <span className="text-gray-700">Agent Logic</span>
-              {formData.logic.trim()
-                ? <span className="font-medium text-green-600 text-xs">✓ System prompt provided ({formData.logic.trim().length} chars)</span>
-                : <span className="text-red-500 text-xs">⚠ Not filled — required</span>
-              }
-            </div>
-          </div>
-
-          {/* Terms */}
-          <Alert className="mb-6 bg-yellow-50 border-yellow-200">
-            <AlertTriangle className="w-4 h-4 text-yellow-600" />
-            <AlertDescription className="text-sm text-yellow-900">
-              <strong>Review Process:</strong> Your agent will be reviewed within 24-48 hours. 
-              We'll notify you at your email once it's approved. All agents must comply with our 
-              marketplace guidelines and provide accurate, helpful results.
-            </AlertDescription>
-          </Alert>
-
-          {/* Error Display */}
-          {error && (
-            <Alert className="mb-6 bg-red-50 border-red-200">
-              <AlertTriangle className="w-4 h-4 text-red-600" />
-              <AlertDescription className="text-sm text-red-700">
-                {error}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <div className="flex justify-between mt-8">
+        {/* ── Action Navigation Buttons ────────────────────────────────────── */}
+        <div className="flex items-center justify-between pt-8 mt-8 border-t border-gray-100">
+          {currentStep > 1 ? (
             <Button
-              onClick={() => setCurrentStep(3)}
+              type="button"
               variant="outline"
+              onClick={prevStep}
               disabled={isLoading}
+              className="rounded-2xl border-gray-200 h-12 px-6 gap-2"
             >
-              Back
+              <ArrowLeft className="w-4 h-4" /> Back
             </Button>
+          ) : <div />}
+
+          {currentStep < 7 ? (
             <Button
+              type="button"
+              onClick={nextStep}
+              className="bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-2xl h-12 px-8 gap-2 cursor-pointer"
+            >
+              Next Step <ArrowRight className="w-4 h-4" />
+            </Button>
+          ) : (
+            <Button
+              type="button"
               onClick={handleSubmit}
               disabled={isLoading}
-              className="bg-orange-500 hover:bg-orange-600"
+              className="bg-orange-500 hover:bg-orange-600 text-white font-black rounded-2xl h-12 px-10 gap-2 cursor-pointer shadow-lg hover:shadow-xl active:scale-95 transition-all text-sm uppercase tracking-wider"
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Deploying...
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {statusMessage || 'Publishing Agent...'}
                 </>
               ) : (
                 <>
-                  <Rocket className="w-4 h-4 mr-2" />
-                  Deploy Agent
+                  <Rocket className="w-4 h-4" /> Publish Agent On-Chain
                 </>
               )}
             </Button>
-          </div>
-        </Card>
-      )}
-      </div>
+          )}
+        </div>
+
+      </Card>
     </div>
   );
 }
