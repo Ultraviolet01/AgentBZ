@@ -3,8 +3,7 @@ export const dynamic = "force-dynamic";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { HashConnectProvider } from "@/context/HashConnectContext";
+import { Providers } from "@/components/Providers";
 import { Toaster } from "sonner";
 import { AgentChatWidget } from "@/components/AgentChatWidget";
 
@@ -23,25 +22,24 @@ export default function RootLayout({
   return (
     <html lang="en" className="light">
       <body className={inter.className}>
-        <AuthProvider>
-          <HashConnectProvider>
-            <div className="flex flex-col lg:flex-row h-screen overflow-hidden bg-gray-50">
-              <Sidebar />
-              <main className="flex-1 overflow-y-auto custom-scrollbar">
-                {children}
-              </main>
-            </div>
-            <Toaster 
-              theme="light" 
-              position="bottom-right" 
-              toastOptions={{
-                className: "bg-white border-gray-200 text-gray-900 rounded-2xl shadow-lg",
-              }} 
-            />
-            <AgentChatWidget />
-          </HashConnectProvider>
-        </AuthProvider>
+        <Providers>
+          <div className="flex flex-col lg:flex-row h-screen overflow-hidden bg-gray-50">
+            <Sidebar />
+            <main className="flex-1 overflow-y-auto custom-scrollbar">
+              {children}
+            </main>
+          </div>
+          <Toaster 
+            theme="light" 
+            position="bottom-right" 
+            toastOptions={{
+              className: "bg-white border-gray-200 text-gray-900 rounded-2xl shadow-lg",
+            }} 
+          />
+          <AgentChatWidget />
+        </Providers>
       </body>
     </html>
   );
 }
+

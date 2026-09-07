@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useHashPack } from "@/hooks/useHashPack";
 import { useHashConnect } from "@/context/HashConnectContext";
 import {
   Maximize2,
@@ -16,6 +15,7 @@ import {
   CheckCircle2,
   Loader2,
 } from "lucide-react";
+
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -45,17 +45,7 @@ const QUICK_PROMPTS = [
 ];
 
 export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: AgentChatProps) {
-  const { isConnected: isHashPackConnected, connect: connectHashPack, sendDeposit } = useHashPack();
-  const { isConnected: isContextConnected, connect: connectContextModal, accountId, refreshBalance } = useHashConnect();
-  
-  const isConnected = isHashPackConnected || isContextConnected || !!accountId;
-  const connect = () => {
-    if (connectContextModal) {
-      connectContextModal();
-    } else {
-      connectHashPack();
-    }
-  };
+  const { isConnected, connect, sendDeposit, accountId, refreshBalance } = useHashConnect();
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -144,18 +134,26 @@ export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: Agent
     setLoading(false);
   }
 
-  // Step 2 — MetaMask confirms on-chain payment for total, server runs all agents
+  // Step 2 — Hedera wallet signs native TransferTransaction, server verifies and settles
   async function approveAndPay() {
     if (!pendingPlan) return;
     setLoading(true);
 
     try {
-      // MetaMask popup — buyer broadcasts ONE on-chain HBAR transfer for total cost
-      const targetAccount = (pendingPlan.paymentRequirements as any)?.payTo || "0x0C564a8cec1D4c1A158fea26004a9966e53F9dF3";
-      const txId = await sendDeposit(
-        targetAccount,
-        pendingPlan.estimatedCostHbar
+      if (!isConnected) {
+        connect();
+        setLoading(false);
+        return;
+      }
+
+      // Build & sign native Hedera TransferTransaction
+      const { paymentPayloadTransaction } = await sendDeposit(
+        pendingPlan.paymentRequirements as any
       );
+
+      if (!paymentPayloadTransaction) {
+        throw new Error("Failed to sign payment transaction with Hedera wallet");
+      }
 
       // Build x402 payment payload from signed transaction
       const paymentPayload = {
@@ -163,7 +161,7 @@ export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: Agent
         scheme: "exact",
         network: "hedera:testnet",
         accepted: pendingPlan.paymentRequirements,
-        payload: { transaction: txId },
+        payload: { transaction: paymentPayloadTransaction },
       };
 
       const xPayment = Buffer.from(JSON.stringify(paymentPayload)).toString(
@@ -210,10 +208,11 @@ export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: Agent
         ...prev,
         { role: "assistant", content: `Payment failed: ${err.message || "User rejected or wallet not connected"}` },
       ]);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
+
 
   return (
     <div className="flex flex-col h-full w-full bg-white select-text">

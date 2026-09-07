@@ -5,25 +5,22 @@ import {
   useContext,
   useEffect,
   useState,
+  useCallback,
   ReactNode,
 } from "react";
 import { ConnectWalletModal } from "@/components/ConnectWalletModal";
-import {
-  connectMetaMask,
-  getConnectedMetaMaskAccount,
-  getMetaMaskHbarBalance,
-  isMetaMaskInstalled,
-} from "@/lib/metamask";
+import { useHederaPayment } from "@/hooks/useHederaPayment";
+import type { PaymentRequirements } from "@/lib/hedera-payment";
 
 interface HashConnectContextType {
   accountId: string | null;
   isConnected: boolean;
   balance: string | null;
-  connect: () => void;
+  connect: (connector?: any) => void;
   disconnect: () => void;
   refreshBalance: () => Promise<void>;
+  sendDeposit: (paymentRequirements: PaymentRequirements) => Promise<{ paymentPayloadTransaction: string }>;
   isInitialized: boolean;
-  setManualAccount: (id: string) => void;
   isModalOpen: boolean;
   setIsModalOpen: (open: boolean) => void;
 }
@@ -35,114 +32,84 @@ const HashConnectContext = createContext<HashConnectContextType>({
   connect: () => {},
   disconnect: () => {},
   refreshBalance: async () => {},
+  sendDeposit: async () => ({ paymentPayloadTransaction: "" }),
   isInitialized: false,
-  setManualAccount: () => {},
   isModalOpen: false,
   setIsModalOpen: () => {},
 });
 
 export function HashConnectProvider({ children }: { children: ReactNode }) {
-  const [accountId, setAccountId] = useState<string | null>(null);
+  const {
+    accountId,
+    isConnected,
+    isInitialized,
+    connect: connectWallet,
+    disconnect: disconnectWallet,
+    sendDeposit,
+  } = useHederaPayment();
+
   const [balance, setBalance] = useState<string | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  async function refreshBalance() {
-    const acc = accountId || (await getConnectedMetaMaskAccount());
-    if (acc) {
-      const bal = await getMetaMaskHbarBalance(acc);
-      if (bal !== null) setBalance(bal);
-    }
-  }
-
-  // Check saved connection or MetaMask on mount
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    async function initWallet() {
-      try {
-        const metaAccount = await getConnectedMetaMaskAccount();
-        if (metaAccount) {
-          setAccountId(metaAccount);
-          const bal = await getMetaMaskHbarBalance(metaAccount);
-          if (bal) setBalance(bal);
-        }
-      } catch (err) {
-        console.warn("Wallet initialization warning:", err);
-      } finally {
-        setIsInitialized(true);
+  const fetchMirrorNodeBalance = useCallback(async (account: string) => {
+    try {
+      const res = await fetch(
+        `https://testnet.mirrornode.hedera.com/api/v1/accounts/${account}`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const tinybars = data?.balance?.balance;
+      if (typeof tinybars === "number") {
+        const hbar = (tinybars / 100_000_000).toFixed(2);
+        setBalance(`${hbar} ℏ`);
       }
-    }
-
-    initWallet();
-
-    // Listen to MetaMask account / chain changes
-    if (isMetaMaskInstalled()) {
-      const ethereum = (window as any).ethereum;
-
-      const handleAccountsChanged = async (accounts: string[]) => {
-        if (accounts.length === 0) {
-          setAccountId(null);
-          setBalance(null);
-          localStorage.removeItem("agentbazaar-connected-account");
-        } else {
-          const acc = accounts[0].toLowerCase();
-          setAccountId(acc);
-          localStorage.setItem("agentbazaar-connected-account", acc);
-          const bal = await getMetaMaskHbarBalance(acc);
-          if (bal) setBalance(bal);
-        }
-      };
-
-      const handleChainChanged = () => {
-        window.location.reload();
-      };
-
-      ethereum.on?.("accountsChanged", handleAccountsChanged);
-      ethereum.on?.("chainChanged", handleChainChanged);
-
-      return () => {
-        ethereum.removeListener?.("accountsChanged", handleAccountsChanged);
-        ethereum.removeListener?.("chainChanged", handleChainChanged);
-      };
+    } catch (err) {
+      console.warn("[MirrorNode] Balance fetch error:", err);
     }
   }, []);
 
-  function connect() {
-    setIsModalOpen(true);
-  }
-
-  async function setManualAccount(id: string) {
-    const trimmed = id.trim().toLowerCase();
-    setAccountId(trimmed);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("agentbazaar-connected-account", trimmed);
-      localStorage.setItem("agentbazaar-wallet-type", "metamask");
+  const refreshBalance = useCallback(async () => {
+    if (accountId) {
+      await fetchMirrorNodeBalance(accountId);
     }
-    const bal = await getMetaMaskHbarBalance(trimmed);
-    if (bal) setBalance(bal);
-  }
+  }, [accountId, fetchMirrorNodeBalance]);
 
-  async function disconnect() {
-    setAccountId(null);
+  useEffect(() => {
+    if (accountId) {
+      fetchMirrorNodeBalance(accountId);
+      const interval = setInterval(() => {
+        fetchMirrorNodeBalance(accountId);
+      }, 15000);
+      return () => clearInterval(interval);
+    } else {
+      setBalance(null);
+    }
+  }, [accountId, fetchMirrorNodeBalance]);
+
+  const connect = useCallback((connector?: any) => {
+    if (connector) {
+      connectWallet(connector);
+    } else {
+      setIsModalOpen(true);
+    }
+  }, [connectWallet]);
+
+  const disconnect = useCallback(async () => {
+    await disconnectWallet();
     setBalance(null);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("agentbazaar-connected-account");
-      localStorage.removeItem("agentbazaar-wallet-type");
-    }
-  }
+  }, [disconnectWallet]);
 
   return (
     <HashConnectContext.Provider
       value={{
         accountId,
-        isConnected: !!accountId,
+        isConnected,
         balance,
         connect,
         disconnect,
         refreshBalance,
+        sendDeposit,
         isInitialized,
-        setManualAccount,
         isModalOpen,
         setIsModalOpen,
       }}
@@ -154,4 +121,3 @@ export function HashConnectProvider({ children }: { children: ReactNode }) {
 }
 
 export const useHashConnect = () => useContext(HashConnectContext);
-

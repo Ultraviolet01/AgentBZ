@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useHashPack } from "@/hooks/useHashPack";
 import { useHashConnect } from "@/context/HashConnectContext";
 
 interface RunAgentButtonProps {
@@ -24,8 +23,7 @@ export function RunAgentButton({
   agentName,
   priceHbar,
 }: RunAgentButtonProps) {
-  const { isConnected, connect, sendDeposit, accountId } = useHashPack();
-  const { refreshBalance } = useHashConnect();
+  const { isConnected, connect, sendDeposit, refreshBalance } = useHashConnect();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ExecutionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +45,7 @@ export function RunAgentButton({
     setResult(null);
 
     try {
-      const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/agents/run`;
+      const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || ""}/api/agents/run`;
 
       // Step 1: First call — no payment, get 402 challenge
       const firstRes = await fetch(apiUrl, {
@@ -57,7 +55,8 @@ export function RunAgentButton({
       });
 
       if (firstRes.status !== 402) {
-        throw new Error("Expected 402 payment challenge");
+        const errorData = await firstRes.json().catch(() => ({}));
+        throw new Error(errorData.error || `Expected 402 payment challenge, got ${firstRes.status}`);
       }
 
       const { paymentRequirements, breakdown: feeBreakdown } =
@@ -65,25 +64,21 @@ export function RunAgentButton({
 
       setBreakdown(feeBreakdown);
 
-      // sendDeposit triggers MetaMask eth_sendTransaction on Hedera Testnet
-      const targetRecipient = paymentRequirements?.payTo || process.env.NEXT_PUBLIC_PLATFORM_ACCOUNT || "0x0C564a8cec1D4c1A158fea26004a9966e53F9dF3";
-      const txBase64 = await sendDeposit(
-        targetRecipient,
-        priceHbar + 0.5 // agent fee + platform fee
-      );
+      // Step 2: Sign native Hedera transaction (payer-signed, unsubmitted)
+      const { paymentPayloadTransaction } = await sendDeposit(paymentRequirements);
 
-      console.log("[RunAgentButton] txBase64 from sendDeposit:", txBase64);
+      if (!paymentPayloadTransaction) {
+        throw new Error("Failed to generate signed transaction payload");
+      }
 
-      // Step 3: Build x402 payment payload from signed transaction
+      // Step 3: Build x402 payment payload with signed transaction
       const paymentPayload = {
         x402Version: 2,
         scheme: "exact",
         network: "hedera:testnet",
         accepted: paymentRequirements,
-        payload: { transaction: txBase64 },
+        payload: { transaction: paymentPayloadTransaction },
       };
-
-      console.log("[RunAgentButton] paymentPayload being sent:", JSON.stringify(paymentPayload));
 
       const xPayment = Buffer.from(
         JSON.stringify(paymentPayload)
@@ -123,7 +118,7 @@ export function RunAgentButton({
         type="text"
         placeholder={
           agentName === "ScamSniff"
-            ? "Enter contract address (e.g. 0xABC...123)"
+            ? "Enter contract address (e.g. 0.0.12345)"
             : agentName === "ThreadSmith"
             ? "Enter a topic for your thread"
             : "Enter token name or address to watch"
@@ -156,10 +151,10 @@ export function RunAgentButton({
       <button
         onClick={handleRun}
         disabled={loading || !input.trim()}
-        className="w-full px-4 py-3 bg-[#6C3BFF] text-white rounded-lg disabled:opacity-50 font-medium cursor-pointer"
+        className="w-full px-4 py-3 bg-[#6C3BFF] hover:bg-[#5a2ee0] text-white rounded-lg disabled:opacity-50 font-medium cursor-pointer transition-colors"
       >
         {loading
-          ? "Waiting for MetaMask..."
+          ? "Signing & Settling on Hedera..."
           : !isConnected
           ? "Connect Wallet to Run"
           : `Run ${agentName} — ${priceHbar + 0.5} HBAR`}
@@ -179,7 +174,7 @@ export function RunAgentButton({
               href={result.hashscanUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="block text-xs text-blue-400 underline"
+              className="block text-xs text-blue-400 underline hover:text-blue-300"
             >
               ↗ View payment on HashScan (Hedera testnet)
             </a>
@@ -187,7 +182,7 @@ export function RunAgentButton({
               href={result.hcsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="block text-xs text-blue-400 underline"
+              className="block text-xs text-blue-400 underline hover:text-blue-300"
             >
               ↗ View HCS audit trail on HashScan
             </a>

@@ -1,14 +1,10 @@
-// apps/api/src/lib/blocky402.ts
-// Wire format based on Blocky402 quickstart documentation
-
+// apps/web/src/lib/blocky402.ts
+// Server-side Blocky402 payment validation and settlement for Web App API routes
 
 const BLOCKY402_URL =
-  process.env.BLOCKY402_URL ?? "https://api.testnet.blocky402.com";
-
-// ─── Step 1: Fetch feePayer from Blocky402 /supported ────────────────────────
-// MUST be fetched dynamically — do not hardcode.
-// From quickstart: feePayer is in supported.kinds[hedera:testnet].extra.feePayer
-// OR supported.signers["hedera:*"][0]
+  process.env.BLOCKY402_URL ||
+  process.env.NEXT_PUBLIC_BLOCKY402_URL ||
+  "https://api.testnet.blocky402.com";
 
 let _feePayer: string | null = null;
 
@@ -18,7 +14,7 @@ export async function getFeePayer(): Promise<string> {
   const res = await fetch(`${BLOCKY402_URL}/supported`);
   const data = await res.json();
 
-  const hederaKind = data.kinds.find(
+  const hederaKind = data.kinds?.find(
     (k: { network: string }) => k.network === "hedera:testnet"
   );
 
@@ -36,9 +32,6 @@ export async function getFeePayer(): Promise<string> {
   return _feePayer;
 }
 
-// Platform fee: 0.5 HBAR collected by AgentBazaar on every agent payment
-// Confirmed from docs.hedera.com — Fixed Fee: paid by sender,
-// collected in HBAR, independent of transfer size
 export const PLATFORM_FEE_HBAR = 0.5;
 
 export async function buildHederaPaymentRequirements(
@@ -48,41 +41,43 @@ export async function buildHederaPaymentRequirements(
 ) {
   const feePayer = await getFeePayer();
 
-  // Total amount = agent price + platform fee (both in tinybars)
-  // 1 HBAR = 100,000,000 tinybars (from Blocky402 quickstart)
   const agentPriceTinybars = Math.round(priceHbar * 100_000_000);
   const platformFeeTinybars = Math.round(PLATFORM_FEE_HBAR * 100_000_000);
   const totalTinybars = agentPriceTinybars + platformFeeTinybars;
 
+  const payTo =
+    process.env.AGENTBAZAAR_PAY_TO ||
+    process.env.NEXT_PUBLIC_PLATFORM_ACCOUNT ||
+    "0.0.10368450";
+  const platformAccountId =
+    process.env.HEDERA_ACCOUNT_ID ||
+    process.env.NEXT_PUBLIC_PLATFORM_ACCOUNT ||
+    "0.0.10368450";
+
   return {
     scheme: "exact" as const,
     network: "hedera:testnet" as const,
-    amount: String(totalTinybars), // total buyer pays (agent + platform fee)
-    payTo: process.env.AGENTBAZAAR_PAY_TO!,
+    amount: String(totalTinybars),
+    payTo,
     maxTimeoutSeconds: 300,
-    asset: "0.0.0", // HBAR
+    asset: "0.0.0",
     extra: {
       feePayer,
       customFees: [
         {
           type: "fixed",
-          amount: String(platformFeeTinybars), // 0.5 HBAR platform fee
-          denominatingTokenId: "0.0.0", // collected in HBAR
-          feeCollectorAccountId: process.env.HEDERA_ACCOUNT_ID!, // AgentBazaar
+          amount: String(platformFeeTinybars),
+          denominatingTokenId: "0.0.0",
+          feeCollectorAccountId: platformAccountId,
         },
       ],
       agentPriceTinybars,
       platformFeeTinybars,
     },
-    resource: `${process.env.NEXT_PUBLIC_APP_URL}${resourcePath}`,
+    resource: `${process.env.NEXT_PUBLIC_APP_URL || "https://agentbazaar.io"}${resourcePath}`,
     description,
   };
 }
-
-
-// ─── Step 3: Verify payment with Blocky402 / Hedera Testnet ───────────────────
-// From quickstart: POST /verify with { x402Version, paymentPayload, paymentRequirements }
-// Returns: { isValid: boolean, payer?: string, error?: string }
 
 export async function verifyWithBlocky402(
   paymentPayload: any,
@@ -100,7 +95,7 @@ export async function verifyWithBlocky402(
     });
 
     const data = await res.json();
-    console.log("[Blocky402 /verify] status:", res.status, "response:", JSON.stringify(data));
+    console.log("[Web Blocky402 /verify] status:", res.status, "response:", JSON.stringify(data));
 
     if (res.ok && data.isValid) {
       return { isValid: true, payer: data.payer };
@@ -111,16 +106,13 @@ export async function verifyWithBlocky402(
       error: data.error || data.message || `Blocky402 verification failed with status ${res.status}`,
     };
   } catch (err: any) {
-    console.error("[Blocky402] Verify API error:", err.message);
+    console.error("[Web Blocky402] Verify API error:", err.message);
     return {
       isValid: false,
       error: err.message || "Failed to reach Blocky402 verify endpoint",
     };
   }
 }
-
-// ─── Step 5: Settle payment with Blocky402 / Hedera Testnet ───────────────────
-// Returns: { success: boolean, transaction?: string, error?: string }
 
 export async function settleWithBlocky402(
   paymentPayload: any,
@@ -138,7 +130,7 @@ export async function settleWithBlocky402(
     });
 
     const data = await res.json();
-    console.log("[Blocky402 /settle] status:", res.status, "response:", JSON.stringify(data));
+    console.log("[Web Blocky402 /settle] status:", res.status, "response:", JSON.stringify(data));
 
     if (res.ok && data.success && data.transaction) {
       return { success: true, transaction: data.transaction };
@@ -149,11 +141,10 @@ export async function settleWithBlocky402(
       error: data.error || data.message || `Blocky402 settlement failed with status ${res.status}`,
     };
   } catch (err: any) {
-    console.error("[Blocky402] Settle API error:", err.message);
+    console.error("[Web Blocky402] Settle API error:", err.message);
     return {
       success: false,
       error: err.message || "Failed to reach Blocky402 settle endpoint",
     };
   }
 }
-
