@@ -17,6 +17,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import Marketplace from '@/components/Marketplace';
+import { HashPackButton } from '@/components/HashPackButton';
 import { cn } from '@/lib/utils';
 
 export default function RootPage() {
@@ -113,6 +114,7 @@ function LandingPage() {
 
           {/* Desktop nav */}
           <div className="hidden sm:flex items-center gap-3">
+            <HashPackButton />
             <Button
               variant="ghost"
               onClick={handleSignIn}
@@ -131,7 +133,8 @@ function LandingPage() {
           </div>
 
           {/* Mobile hamburger */}
-          <div className="sm:hidden" ref={menuRef}>
+          <div className="sm:hidden flex items-center gap-2" ref={menuRef}>
+            <HashPackButton />
             <button
               onClick={() => setMobileMenuOpen((v) => !v)}
               className="p-2 rounded-lg hover:bg-gray-100 transition-colors"

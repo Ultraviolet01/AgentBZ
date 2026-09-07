@@ -25,7 +25,7 @@ export default function HederaProviders({ children }: { children: ReactNode }) {
         url: typeof window !== "undefined" ? window.location.origin : "https://agentbazaar.io",
       }}
       projectId={WALLETCONNECT_PROJECT_ID}
-      connectors={[HashpackConnector, KabilaConnector, BladeConnector, HWCConnector, MetamaskConnector]}
+      connectors={[HWCConnector, HashpackConnector, KabilaConnector, BladeConnector, MetamaskConnector]}
       chains={[HederaTestnet, HederaMainnet]}
     >
       <HashConnectProvider>{children}</HashConnectProvider>
