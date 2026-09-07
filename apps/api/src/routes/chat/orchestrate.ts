@@ -97,7 +97,15 @@ Respond ONLY with valid JSON in this exact structure (no markdown, no backticks)
         if (text) {
           const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
           if (parsed.agentsToCall && parsed.agentsToCall.length > 0) {
-            return parsed;
+            const baseCost = parsed.agentsToCall.reduce((sum: number, item: any) => {
+              const matched = availableAgents.find(a => a.id === item.agentId || a.name === item.agentName);
+              return sum + (matched ? matched.priceHbar : 1.0);
+            }, 0);
+            return {
+              plan: parsed.plan,
+              agentsToCall: parsed.agentsToCall,
+              estimatedCostHbar: parseFloat((baseCost + PLATFORM_FEE_HBAR).toFixed(2)),
+            };
           }
         }
       }
