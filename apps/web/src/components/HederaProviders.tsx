@@ -8,7 +8,6 @@ import {
   KabilaConnector,
   BladeConnector,
   HWCConnector,
-  MetamaskConnector,
 } from "@buidlerlabs/hashgraph-react-wallets/connectors";
 import { HashConnectProvider } from "@/context/HashConnectContext";
 
@@ -25,7 +24,7 @@ export default function HederaProviders({ children }: { children: ReactNode }) {
         url: typeof window !== "undefined" ? window.location.origin : "https://agentbazaar.io",
       }}
       projectId={WALLETCONNECT_PROJECT_ID}
-      connectors={[HWCConnector, HashpackConnector, KabilaConnector, BladeConnector, MetamaskConnector]}
+      connectors={[HWCConnector, HashpackConnector, KabilaConnector, BladeConnector]}
       chains={[HederaTestnet, HederaMainnet]}
     >
       <HashConnectProvider>{children}</HashConnectProvider>

@@ -70,7 +70,7 @@ export function buildPaymentTransaction(
   tx.setTransactionId(TransactionId.generate(feePayer));
 
   // Debit total tinybars from payer
-  tx.addHbarTransfer(payer, Hbar.fromTinybars(-totalTinybars));
+  tx.addHbarTransfer(payer, Hbar.fromTinybars((-totalTinybars).toString()));
 
   let totalCustomFeesTinybars = 0n;
 
@@ -82,7 +82,7 @@ export function buildPaymentTransaction(
         if (feeTinybars > 0n) {
           totalCustomFeesTinybars += feeTinybars;
           const collector = AccountId.fromString(fee.feeCollectorAccountId);
-          tx.addHbarTransfer(collector, Hbar.fromTinybars(feeTinybars));
+          tx.addHbarTransfer(collector, Hbar.fromTinybars(feeTinybars.toString()));
         }
       }
     }
@@ -93,7 +93,7 @@ export function buildPaymentTransaction(
   if (agentPriceTinybars <= 0n) {
     throw new Error('Calculated agent price is non-positive');
   }
-  tx.addHbarTransfer(payTo, Hbar.fromTinybars(agentPriceTinybars));
+  tx.addHbarTransfer(payTo, Hbar.fromTinybars(agentPriceTinybars.toString()));
 
   // Freeze against Hedera Testnet client
   const client = Client.forTestnet();

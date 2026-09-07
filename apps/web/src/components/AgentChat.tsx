@@ -67,11 +67,11 @@ export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: Agent
   // Returns:
   // - If direct question: { response } -> show immediately
   // - If complex task: 402 with { plan, agentsToCall, estimatedCostHbar } -> show approve button
-  async function handleSend() {
-    if (!input.trim() || loading) return;
+  async function handleSend(overrideMessage?: string) {
+    const userMessage = (overrideMessage ?? input).trim();
+    if (!userMessage || loading) return;
 
-    const userMessage = input.trim();
-    setInput("");
+    if (!overrideMessage) setInput("");
     setLoading(true);
     setPendingPlan(null);
 
