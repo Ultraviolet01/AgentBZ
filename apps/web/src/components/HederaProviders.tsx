@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import { HWBridgeProvider } from "@buidlerlabs/hashgraph-react-wallets";
-import { HederaTestnet } from "@buidlerlabs/hashgraph-react-wallets/chains";
+import { HederaTestnet, HederaMainnet } from "@buidlerlabs/hashgraph-react-wallets/chains";
 import {
   HashpackConnector,
   KabilaConnector,
@@ -26,7 +26,7 @@ export default function HederaProviders({ children }: { children: ReactNode }) {
       }}
       projectId={WALLETCONNECT_PROJECT_ID}
       connectors={[HashpackConnector, KabilaConnector, BladeConnector, HWCConnector, MetamaskConnector]}
-      chains={[HederaTestnet]}
+      chains={[HederaTestnet, HederaMainnet]}
     >
       <HashConnectProvider>{children}</HashConnectProvider>
     </HWBridgeProvider>
