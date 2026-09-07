@@ -394,7 +394,7 @@ export default function DashboardPage() {
               )}
             </div>
             <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-              <span className="text-xs text-gray-500 font-medium">Hedera Testnet (EVM 296)</span>
+              <span className="text-xs text-gray-500 font-medium">Hedera Testnet</span>
               {isConnected ? (
                 <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
