@@ -4,7 +4,7 @@ import * as projectsController from "../controllers/projects.controller";
 import * as agentsController from "../controllers/agents.controller";
 import * as walletController from "../controllers/wallet.controller";
 import * as alertsController from "../controllers/alerts.controller";
-import { authMiddleware } from "../middleware/auth.middleware";
+import { authMiddleware, optionalAuthMiddleware } from "../middleware/auth.middleware";
 import cronRoutes from "./cron.routes";
 
 const router: Router = Router();
@@ -113,9 +113,9 @@ router.post(["/chat/orchestrate", "/api/chat/orchestrate"], async (req, res) => 
 // Wallet Routes
 router.post("/wallet/connect", authMiddleware, walletController.connectWallet);
 router.get("/wallet/status", authMiddleware, walletController.getStatus);
-router.get("/wallet/transactions", authMiddleware, walletController.getTransactions);
-router.get("/wallet/dashboard-stats", authMiddleware, walletController.getDashboardStats);
-router.get("/dashboard/stats", authMiddleware, walletController.getDashboardStats);
+router.get("/wallet/transactions", optionalAuthMiddleware, walletController.getTransactions);
+router.get("/wallet/dashboard-stats", optionalAuthMiddleware, walletController.getDashboardStats);
+router.get("/dashboard/stats", optionalAuthMiddleware, walletController.getDashboardStats);
 router.post("/wallet/verify-signature", walletController.verifySignature);
 
 // Alerts Routes

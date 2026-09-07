@@ -4,6 +4,7 @@
 // Agents run in sequence after payment settles (A2A chaining)
 // ETHGlobal extra points: A2A multi-agent + agent discovery
 
+import jwt from "jsonwebtoken";
 import { PrismaClient } from "@agentbazaar/database";
 import {
   buildHederaPaymentRequirements,
@@ -15,12 +16,65 @@ import type { AuditEntry } from "../../lib/hcs";
 
 const db = new PrismaClient();
 const PLATFORM_FEE_HBAR = 0.5;
+const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || "at_super-secret-key";
 
-// ─── Parse user intent and select agents ─────────────────────────────────────
-// ETHGlobal extra point: Agent discovery — reads live registry
+async function resolveUserId(req: Request, payerAddress?: string): Promise<string | null> {
+  // 1. Try Bearer token or Cookie in req.headers
+  try {
+    const authHeader = req.headers.get("authorization");
+    let token: string | undefined;
+    if (authHeader?.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    }
+    if (!token) {
+      const cookieHeader = req.headers.get("cookie");
+      if (cookieHeader) {
+        const match =
+          cookieHeader.match(/accessToken=([^;]+)/) ||
+          cookieHeader.match(/auth_token=([^;]+)/);
+        if (match) token = match[1];
+      }
+    }
+    if (token) {
+      const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET) as {
+        userId?: string;
+        id?: string;
+      };
+      const uid = decoded?.userId || decoded?.id;
+      if (uid) {
+        const user = await db.user.findUnique({ where: { id: uid } });
+        if (user) return user.id;
+      }
+    }
+  } catch (err) {
+    // token verification failed or expired, fallback to payer lookup
+  }
 
-// ─── Parse user intent and select agents ─────────────────────────────────────
-// ETHGlobal extra point: Agent discovery — reads live registry
+  // 2. Try payer Hedera/EVM address matching walletAddress
+  if (payerAddress && payerAddress !== "0.0.unknown") {
+    try {
+      const user = await db.user.findFirst({
+        where: {
+          walletAddress: {
+            equals: payerAddress,
+            mode: "insensitive",
+          },
+        },
+      });
+      if (user) return user.id;
+    } catch (err) {}
+  }
+
+  // 3. Fallback: find the most recent user so stats are never lost
+  try {
+    const fallbackUser = await db.user.findFirst({
+      orderBy: { createdAt: "desc" },
+    });
+    if (fallbackUser) return fallbackUser.id;
+  } catch (err) {}
+
+  return null;
+}
 
 async function parseIntentAndSelectAgents(
   userMessage: string,
@@ -492,6 +546,64 @@ export async function POST(req: Request) {
       orchestrationHcsTxId = await logToHCS(entry);
     } catch (hcsErr: any) {
       console.warn("[HCS] Orchestration log notice:", hcsErr.message);
+    }
+
+    // ── Persist run history & transactions in database ─────────────────────────
+    try {
+      const userId = await resolveUserId(req, payer);
+      if (userId) {
+        // Link payer wallet to user if not already linked
+        if (payer && payer !== "0.0.unknown") {
+          await db.user.update({
+            where: { id: userId },
+            data: { walletAddress: payer },
+          }).catch(() => {});
+        }
+
+        // 1. Create AgentRun records for each executed agent
+        for (let i = 0; i < agentsToCall.length; i++) {
+          const a = agentsToCall[i];
+          const res = agentResults[i];
+          const matchedAgent = availableAgents.find((ag) => ag.id === a.agentId);
+          const cost = (matchedAgent?.priceHbar ?? 1.0) + (i === 0 ? PLATFORM_FEE_HBAR : 0);
+
+          await db.agentRun.create({
+            data: {
+              userId,
+              agentType: a.agentName.toLowerCase(),
+              creditsUsed: cost,
+              inputData: a.inputs || { message },
+              outputData: {
+                content: res?.output || "",
+                metadata: {
+                  agentName: a.agentName,
+                  costHbar: cost,
+                  txHash: transaction,
+                  payer,
+                  hcsTxId: orchestrationHcsTxId,
+                },
+              },
+              status: "COMPLETED",
+              artifactCid: transaction,
+            },
+          });
+        }
+
+        // 2. Create unified Transaction record
+        await db.transaction.create({
+          data: {
+            userId,
+            amount: estimatedCostHbar,
+            type: "AGENT_RUN",
+            status: "CONFIRMED",
+            description: `Orchestrated ${agentsToCall.map((a: any) => a.agentName).join(" → ")}`,
+            txHash: transaction,
+          },
+        });
+        console.log(`[Orchestrator] Persisted ${agentsToCall.length} runs & transaction for user ${userId}, tx: ${transaction}`);
+      }
+    } catch (dbErr: any) {
+      console.warn("[Orchestrator] DB record persist notice:", dbErr.message);
     }
 
     // ── Return result ──────────────────────────────────────────────────────────

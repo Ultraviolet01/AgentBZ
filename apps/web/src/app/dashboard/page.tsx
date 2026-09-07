@@ -65,12 +65,13 @@ export default function DashboardPage() {
   // Fetch dashboard stats from backend
   const fetchDashboardData = async () => {
     try {
+      const q = accountId ? `?walletAddress=${encodeURIComponent(accountId)}` : "";
       // Try dedicated stats endpoint, fallback to direct runs + transactions
       let res;
       try {
-        res = await api.get("/wallet/dashboard-stats");
+        res = await api.get(`/wallet/dashboard-stats${q}`);
       } catch {
-        res = await fetch("/api/dashboard/stats").then(r => r.json()).then(data => ({ data }));
+        res = await fetch(`/api/dashboard/stats${q}`).then(r => r.json()).then(data => ({ data }));
       }
 
       if (res?.data) {
@@ -137,7 +138,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [accountId]);
 
   // Fetch real-time HBAR balance if Hedera account is connected
   useEffect(() => {

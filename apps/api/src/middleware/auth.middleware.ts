@@ -35,3 +35,23 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
     res.status(401).json({ error: "Invalid session", code: "INVALID_TOKEN" });
   }
 };
+
+export const optionalAuthMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  let token = req.cookies?.accessToken || req.cookies?.auth_token;
+
+  if (!token) {
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    }
+  }
+
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET) as { userId?: string; id?: string };
+      (req as any).userId = decoded.userId || decoded.id;
+    } catch {}
+  }
+
+  next();
+};

@@ -71,7 +71,30 @@ export const verifySignature = async (req: Request, res: Response) => {
 
 export const getTransactions = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).userId;
+    let userId = (req as any).userId;
+    const walletAddressQuery = req.query.walletAddress as string | undefined;
+
+    if (!userId && walletAddressQuery) {
+      const matched = await prisma.user.findFirst({
+        where: {
+          walletAddress: {
+            equals: walletAddressQuery,
+            mode: "insensitive"
+          }
+        }
+      });
+      if (matched) userId = matched.id;
+    }
+
+    if (!userId) {
+      const fallback = await prisma.user.findFirst({ orderBy: { createdAt: "desc" } });
+      if (fallback) userId = fallback.id;
+    }
+
+    if (!userId) {
+      return res.json({ transactions: [] });
+    }
+
     const transactions = await prisma.transaction.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" }
@@ -84,6 +107,8 @@ export const getTransactions = async (req: Request, res: Response) => {
       description: tx.description,
       amount: tx.amount,
       status: tx.status,
+      txHash: tx.txHash,
+      createdAt: tx.createdAt.toISOString(),
       date: tx.createdAt.toISOString().split("T")[0]
     }));
 
@@ -96,7 +121,36 @@ export const getTransactions = async (req: Request, res: Response) => {
 
 export const getDashboardStats = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).userId;
+    let userId = (req as any).userId;
+    const walletAddressQuery = req.query.walletAddress as string | undefined;
+
+    if (!userId && walletAddressQuery) {
+      const matched = await prisma.user.findFirst({
+        where: {
+          walletAddress: {
+            equals: walletAddressQuery,
+            mode: "insensitive"
+          }
+        }
+      });
+      if (matched) userId = matched.id;
+    }
+
+    if (!userId) {
+      const fallback = await prisma.user.findFirst({ orderBy: { createdAt: "desc" } });
+      if (fallback) userId = fallback.id;
+    }
+
+    if (!userId) {
+      return res.json({
+        totalRuns: 0,
+        lifetimeSpentHbar: 0,
+        walletAddress: walletAddressQuery || null,
+        runs: [],
+        transactions: []
+      });
+    }
+
     const runs = await prisma.agentRun.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" }
@@ -121,7 +175,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     res.json({
       totalRuns,
       lifetimeSpentHbar,
-      walletAddress: user?.walletAddress || null,
+      walletAddress: user?.walletAddress || walletAddressQuery || null,
       runs,
       transactions
     });

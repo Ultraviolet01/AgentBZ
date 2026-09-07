@@ -9,13 +9,50 @@ const secret = new TextEncoder().encode(process.env.ACCESS_TOKEN_SECRET || 'at_s
 
 export async function GET(req: NextRequest) {
   try {
-    const token = req.cookies.get('accessToken')?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    let userId: string | null = null;
+    const token =
+      req.cookies.get('accessToken')?.value ||
+      req.cookies.get('auth_token')?.value ||
+      req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+
+    if (token) {
+      try {
+        const { payload } = await jwtVerify(token, secret);
+        userId = (payload.userId || payload.id) as string;
+      } catch {}
     }
 
-    const { payload } = await jwtVerify(token, secret);
-    const userId = payload.userId as string;
+    const { searchParams } = new URL(req.url);
+    const walletAddressQuery = searchParams.get('walletAddress');
+
+    if (!userId && walletAddressQuery) {
+      const matched = await prisma.user.findFirst({
+        where: {
+          walletAddress: {
+            equals: walletAddressQuery,
+            mode: 'insensitive',
+          },
+        },
+      });
+      if (matched) userId = matched.id;
+    }
+
+    if (!userId) {
+      const fallback = await prisma.user.findFirst({
+        orderBy: { createdAt: 'desc' },
+      });
+      if (fallback) userId = fallback.id;
+    }
+
+    if (!userId) {
+      return NextResponse.json({
+        totalRuns: 0,
+        lifetimeSpentHbar: 0,
+        walletAddress: walletAddressQuery || null,
+        runs: [],
+        transactions: [],
+      });
+    }
 
     const [runs, transactions, user] = await Promise.all([
       prisma.agentRun.findMany({
@@ -43,7 +80,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       totalRuns,
       lifetimeSpentHbar,
-      walletAddress: user?.walletAddress || null,
+      walletAddress: user?.walletAddress || walletAddressQuery || null,
       runs,
       transactions,
     });

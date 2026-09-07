@@ -53,6 +53,16 @@ export const runScamSniff = async (req: Request, res: Response) => {
         }
       });
 
+      await tx.transaction.create({
+        data: {
+          userId,
+          amount: 1.0,
+          type: "AGENT_RUN",
+          status: "CONFIRMED",
+          description: `Ran ScamSniff security audit${url ? ` on ${url}` : ""}`,
+        }
+      });
+
       if (projectId) {
         await tx.projectMemory.create({
           data: {
@@ -127,6 +137,16 @@ export const runThreadSmith = async (req: Request, res: Response) => {
         outputData: { content: generatedContent },
         creditsUsed,
         status: "COMPLETED"
+      }
+    });
+
+    await prisma.transaction.create({
+      data: {
+        userId,
+        amount: creditsUsed,
+        type: "AGENT_RUN",
+        status: "CONFIRMED",
+        description: `Ran ThreadSmith generation (${contentType || "Thread"})`,
       }
     });
 
