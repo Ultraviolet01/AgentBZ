@@ -72,28 +72,8 @@ export function buildPaymentTransaction(
   // Debit total tinybars from payer
   tx.addHbarTransfer(payer, Hbar.fromTinybars((-totalTinybars).toString()));
 
-  let totalCustomFeesTinybars = 0n;
-
-  // Credit custom fees (platform fees) to designated collectors
-  if (paymentRequirements.extra.customFees && paymentRequirements.extra.customFees.length > 0) {
-    for (const fee of paymentRequirements.extra.customFees) {
-      if (fee.amount && fee.feeCollectorAccountId) {
-        const feeTinybars = BigInt(fee.amount);
-        if (feeTinybars > 0n) {
-          totalCustomFeesTinybars += feeTinybars;
-          const collector = AccountId.fromString(fee.feeCollectorAccountId);
-          tx.addHbarTransfer(collector, Hbar.fromTinybars(feeTinybars.toString()));
-        }
-      }
-    }
-  }
-
-  // Credit agent price (total minus custom fees) to payTo
-  const agentPriceTinybars = totalTinybars - totalCustomFeesTinybars;
-  if (agentPriceTinybars <= 0n) {
-    throw new Error('Calculated agent price is non-positive');
-  }
-  tx.addHbarTransfer(payTo, Hbar.fromTinybars(agentPriceTinybars.toString()));
+  // Credit total tinybars to payTo (Blocky402 exact scheme verifies payTo receives the full amount)
+  tx.addHbarTransfer(payTo, Hbar.fromTinybars(totalTinybars.toString()));
 
   // Freeze against Hedera Testnet client
   const client = Client.forTestnet();
