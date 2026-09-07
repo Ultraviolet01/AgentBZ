@@ -55,7 +55,26 @@ async function parseIntentAndSelectAgents(
         )
         .join("\n");
 
-      const system = `You are the AgentBazaar orchestrator. Select which agents to call.\nAvailable agents:\n${agentList}\n\nRespond ONLY with valid JSON in this exact structure (no markdown, no backticks):\n{\n  "plan": "brief explanation",\n  "agentsToCall": [\n    { "agentId": "id", "agentName": "name", "inputs": { "key": "value" } }\n  ],\n  "estimatedCostHbar": number\n}`;
+      const system = `You are the AgentBazaar orchestrator. Analyze the user's request and select ONLY the minimum necessary agent(s) required to fulfill the user's explicit intent.
+
+Available agents:
+${agentList}
+
+Rules:
+- If the user wants to write/create a thread, tweet, post, article, or summary -> Select ONLY ThreadSmith.
+- If the user wants to audit, inspect, or check security/scams on a contract/token -> Select ONLY ScamSniff.
+- If the user wants to monitor, watch, or track DEX pools or liquidity -> Select ONLY LaunchWatch.
+- ONLY select multiple agents if the user explicitly asks for a multi-step task (e.g. "audit X and write a thread about it").
+- Set estimatedCostHbar to the exact sum of the selected agent prices (${PLATFORM_FEE_HBAR} HBAR platform fee included).
+
+Respond ONLY with valid JSON in this exact structure (no markdown, no backticks):
+{
+  "plan": "brief explanation",
+  "agentsToCall": [
+    { "agentId": "id", "agentName": "name", "inputs": { "topic": "..." } }
+  ],
+  "estimatedCostHbar": number
+}`;
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -95,17 +114,32 @@ async function parseIntentAndSelectAgents(
     inputs: Record<string, string>;
   }[] = [];
 
-  // Match ThreadSmith (social, writing, threads, marketing)
-  if (
+  const isWritingIntent =
     lower.includes("thread") ||
     lower.includes("tweet") ||
     lower.includes("write") ||
     lower.includes("post") ||
-    lower.includes("content") ||
     lower.includes("article") ||
-    lower.includes("summary") ||
-    lower.includes("story")
-  ) {
+    lower.includes("story") ||
+    lower.includes("compose");
+
+  const isSecurityIntent =
+    lower.includes("scam") ||
+    lower.includes("honeypot") ||
+    lower.includes("audit") ||
+    lower.includes("exploit") ||
+    lower.includes("vulnerability") ||
+    lower.includes("security check");
+
+  const isMonitoringIntent =
+    lower.includes("launchwatch") ||
+    lower.includes("liquidity alert") ||
+    lower.includes("monitor pool") ||
+    lower.includes("track pool") ||
+    lower.includes("dex alert");
+
+  // Primary routing based on clear intent
+  if (isWritingIntent) {
     const threadAgent = availableAgents.find((a) =>
       a.name.toLowerCase().includes("thread") || (a.description || "").toLowerCase().includes("thread")
     );
@@ -122,18 +156,7 @@ async function parseIntentAndSelectAgents(
     }
   }
 
-  // Match ScamSniff (security, audits, contracts, scams, honeypots)
-  if (
-    lower.includes("scam") ||
-    lower.includes("audit") ||
-    lower.includes("contract") ||
-    lower.includes("security") ||
-    lower.includes("honeypot") ||
-    lower.includes("check") ||
-    lower.includes("safe") ||
-    lower.includes("risk") ||
-    lower.includes("token")
-  ) {
+  if (isSecurityIntent) {
     const scamAgent = availableAgents.find((a) =>
       a.name.toLowerCase().includes("scam") || a.name.toLowerCase().includes("sniff")
     );
@@ -150,17 +173,7 @@ async function parseIntentAndSelectAgents(
     }
   }
 
-  // Match LaunchWatch (launches, monitoring, new coins, DEX alerts)
-  if (
-    lower.includes("launch") ||
-    lower.includes("watch") ||
-    lower.includes("alert") ||
-    lower.includes("dex") ||
-    lower.includes("liquidity") ||
-    lower.includes("pool") ||
-    lower.includes("snipe") ||
-    lower.includes("track")
-  ) {
+  if (isMonitoringIntent) {
     const launchAgent = availableAgents.find((a) =>
       a.name.toLowerCase().includes("launch") || a.name.toLowerCase().includes("watch")
     );
