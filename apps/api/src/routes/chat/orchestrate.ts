@@ -4,8 +4,6 @@
 // Agents run in sequence after payment settles (A2A chaining)
 // ETHGlobal extra points: A2A multi-agent + agent discovery
 
-import { ChatAnthropic } from "@langchain/anthropic";
-import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { PrismaClient } from "@agentbazaar/database";
 import {
   buildHederaPaymentRequirements,
@@ -487,7 +485,7 @@ export async function POST(req: Request) {
         success: true,
         extra: {
           userMessage: message,
-          agentsUsed: agentsToCall.map((a) => a.agentName),
+          agentsUsed: agentsToCall.map((a: any) => a.agentName),
           totalCostHbar: estimatedCostHbar,
         },
       };
