@@ -17,8 +17,8 @@ Rules:
 - Web3 and crypto native tone`;
 
   const modelsToTry = [
-    "claude-haiku-4-5-20251001",
     "claude-sonnet-4-5",
+    "claude-haiku-4-5-20251001",
   ];
 
   let lastError: any = null;
