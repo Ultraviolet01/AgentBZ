@@ -175,7 +175,12 @@ export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: Agent
           "Content-Type": "application/json",
           "X-Payment": xPayment,
         },
-        body: JSON.stringify({ message: pendingPlan.originalMessage }),
+        body: JSON.stringify({
+          message: pendingPlan.originalMessage,
+          plan: pendingPlan.plan,
+          agentsToCall: pendingPlan.agentsToCall,
+          estimatedCostHbar: pendingPlan.estimatedCostHbar,
+        }),
       });
 
       const data = await res.json();

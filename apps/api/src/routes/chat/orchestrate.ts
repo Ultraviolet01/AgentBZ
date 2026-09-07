@@ -297,7 +297,13 @@ async function synthesiseOutputs(
 
 export async function POST(req: Request) {
   try {
-    const { message } = await req.json();
+    const body = await req.json();
+    const {
+      message,
+      plan: clientPlan,
+      agentsToCall: clientAgentsToCall,
+      estimatedCostHbar: clientEstimatedCostHbar,
+    } = body;
 
     if (!message) {
       return Response.json({ error: "Message required" }, { status: 400 });
@@ -317,9 +323,15 @@ export async function POST(req: Request) {
       },
     });
 
-    // ── Parse intent and build plan ────────────────────────────────────────────
+    // ── Parse intent or reuse verified plan ────────────────────────────────────
     const { plan, agentsToCall, estimatedCostHbar } =
-      await parseIntentAndSelectAgents(message, availableAgents);
+      clientAgentsToCall && clientAgentsToCall.length > 0 && typeof clientEstimatedCostHbar === "number"
+        ? {
+            plan: clientPlan || `Orchestrate ${clientAgentsToCall.map((a: any) => a.agentName).join(" & ")}`,
+            agentsToCall: clientAgentsToCall,
+            estimatedCostHbar: clientEstimatedCostHbar,
+          }
+        : await parseIntentAndSelectAgents(message, availableAgents);
 
     // ── No X-Payment header — return plan + 402 ────────────────────────────────
     // Frontend shows plan to user, then HashPack signs ONE payment for total
@@ -358,7 +370,7 @@ export async function POST(req: Request) {
     }
 
     // ── X-Payment header present — verify + settle ONCE for total ──────────────
-    let paymentPayload: object;
+    let paymentPayload: any;
     try {
       paymentPayload = JSON.parse(
         Buffer.from(xPaymentHeader, "base64").toString("utf-8")
@@ -370,13 +382,15 @@ export async function POST(req: Request) {
       );
     }
 
-    // Re-build requirements for verification (same baseAgentCost as 402 path)
+    // Use accepted requirements from signed payload, or re-build if missing
     const baseAgentCost = estimatedCostHbar - PLATFORM_FEE_HBAR;
-    const paymentRequirements = await buildHederaPaymentRequirements(
-      baseAgentCost,
-      `/api/chat/orchestrate`,
-      `Pay to run ${agentsToCall.length} agent(s) on AgentBazaar`
-    );
+    const paymentRequirements =
+      paymentPayload?.accepted ||
+      (await buildHederaPaymentRequirements(
+        baseAgentCost,
+        `/api/chat/orchestrate`,
+        `Pay to run ${agentsToCall.length} agent(s) on AgentBazaar`
+      ));
 
     const { isValid, payer, error: verifyError } = await verifyWithBlocky402(
       paymentPayload,

@@ -108,7 +108,7 @@ export async function verifyWithBlocky402(
 
     return {
       isValid: false,
-      error: data.error || data.message || `Blocky402 verification failed with status ${res.status}`,
+      error: data.invalidReason || data.error || data.message || `Blocky402 verification failed with status ${res.status}`,
     };
   } catch (err: any) {
     console.error("[Blocky402] Verify API error:", err.message);
@@ -146,7 +146,7 @@ export async function settleWithBlocky402(
 
     return {
       success: false,
-      error: data.error || data.message || `Blocky402 settlement failed with status ${res.status}`,
+      error: data.invalidReason || data.error || data.message || `Blocky402 settlement failed with status ${res.status}`,
     };
   } catch (err: any) {
     console.error("[Blocky402] Settle API error:", err.message);
