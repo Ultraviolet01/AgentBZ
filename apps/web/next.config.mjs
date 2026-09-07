@@ -17,7 +17,7 @@ const CDR_EXTERNALS = [
   '@libp2p/http',
   'undici',
   '@hashgraph/sdk',
-  'hashconnect',
+  '@hashgraph/proto',
 ];
 
 const nextConfig = {
@@ -27,21 +27,28 @@ const nextConfig = {
       serverComponentsExternalPackages: CDR_EXTERNALS,
     },
     webpack(config, { isServer }) {
-      if (isServer) {
-        const prev = config.externals || [];
-        config.externals = [
-          ...(Array.isArray(prev) ? prev : [prev]),
-          ({ request }, callback) => {
-            const pkg = request?.split('/')[0] ?? '';
-            if (CDR_EXTERNALS.some(ext => request?.startsWith(ext) || pkg === ext)) {
-              return callback(null, `commonjs ${request}`);
-            }
-            return callback();
-          },
-        ];
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        '@react-native-async-storage/async-storage': false,
+        'react-native': false,
+      };
+
+      if (!isServer) {
+        config.resolve.fallback = {
+          ...config.resolve.fallback,
+          fs: false,
+          net: false,
+          tls: false,
+          crypto: false,
+          stream: false,
+          http: false,
+          https: false,
+          zlib: false,
+        };
       }
       return config;
     },
+
   typescript: {
     ignoreBuildErrors: true,
   },

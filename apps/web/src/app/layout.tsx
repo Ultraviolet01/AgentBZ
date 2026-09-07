@@ -1,13 +1,10 @@
 import type { Metadata } from "next";
 export const dynamic = "force-dynamic";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 import { Providers } from "@/components/Providers";
 import { Toaster } from "sonner";
 import { AgentChatWidget } from "@/components/AgentChatWidget";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "AgentBazaar | AI Agent Marketplace",
@@ -21,7 +18,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="light">
-      <body className={inter.className}>
+      <body className="font-sans antialiased">
+
         <Providers>
           <div className="flex flex-col lg:flex-row h-screen overflow-hidden bg-gray-50">
             <Sidebar />

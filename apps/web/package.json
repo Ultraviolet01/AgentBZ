@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3010",
     "build": "prisma generate --schema=../../packages/database/prisma/schema.prisma && next build",
-    "start": "next start",
+    "start": "next start -p 3010",
     "lint": "next lint",
     "postinstall": "prisma generate --schema=../../packages/database/prisma/schema.prisma"
   },
@@ -14,6 +14,7 @@
     "@agentbazaar/types": "workspace:*",
     "@anthropic-ai/sdk": "^0.20.9",
     "@buidlerlabs/hashgraph-react-wallets": "^2.5.0",
+    "@hashgraph/proto": "^2.25.0",
     "@hashgraph/sdk": "^2.81.0",
     "@helia/unixfs": "^7.2.1",
     "@piplabs/cdr-sdk": "^0.2.1",
@@ -27,6 +28,7 @@
     "@x402/core": "^2.25.0",
     "@x402/fetch": "^2.25.0",
     "@x402/hedera": "^2.25.0",
+    "@x402/svm": "^2.25.0",
     "bcryptjs": "^2.4.3",
     "canvas-confetti": "^1.9.4",
     "class-variance-authority": "^0.7.1",
@@ -46,6 +48,8 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^2.3.0",
     "viem": "^2.47.17",
+    "@walletconnect/modal": "^2.7.0",
+    "@hashgraph/hedera-wallet-connect": "^1.5.1",
     "zustand": "^4.5.2"
   },
   "devDependencies": {
