@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Dialog, 
   DialogContent, 
@@ -16,7 +16,8 @@ import {
   RefreshCw,
   Zap,
   CheckCircle2,
-  ArrowRight
+  ArrowRight,
+  AlertTriangle,
 } from "lucide-react";
 import { useWallet } from "@buidlerlabs/hashgraph-react-wallets";
 import {
@@ -39,23 +40,31 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
   const hwcSession = useWallet(HWCConnector);
   const [connectingWallet, setConnectingWallet] = useState<string | null>(null);
 
+  // Trigger extension detection query whenever modal opens
+  useEffect(() => {
+    if (open && typeof window !== "undefined") {
+      window.postMessage({ type: "hedera-extension-query" }, "*");
+      window.postMessage({ type: "hashconnect-query-extension" }, "*");
+    }
+  }, [open]);
+
   const handleConnectHashPack = async () => {
     setConnectingWallet("hashpack");
     try {
+      if (typeof window !== "undefined") {
+        window.postMessage({ type: "hedera-extension-query" }, "*");
+        window.postMessage({ type: "hashconnect-query-extension" }, "*");
+      }
+      await new Promise((r) => setTimeout(r, 150));
       await hashpackSession.connect();
       toast.success("Connected to HashPack wallet on Hedera Testnet!");
       onOpenChange(false);
     } catch (err: any) {
-      console.warn("[HashPack] Extension connect error, attempting WalletConnect pairing:", err);
-      toast.info("HashPack extension not detected. Opening WalletConnect pairing modal...");
-      try {
-        await hwcSession.connect();
-        toast.success("Connected via WalletConnect on Hedera Testnet!");
-        onOpenChange(false);
-      } catch (wcErr: any) {
-        console.error("[WalletConnect] error:", wcErr);
-        toast.error("Please install HashPack extension or scan the QR code to connect");
-      }
+      console.warn("[HashPack] Extension connect error:", err);
+      toast.error(
+        "Could not connect HashPack extension. Please make sure HashPack is unlocked and on Testnet, or use the 'WalletConnect / QR Code' button below.",
+        { duration: 6000 }
+      );
     } finally {
       setConnectingWallet(null);
     }
@@ -122,7 +131,15 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
           </div>
         </DialogHeader>
 
-        <div className="space-y-3 pt-3">
+        {/* Network guidance banner */}
+        <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-2xl flex items-start gap-2.5 text-xs text-amber-900">
+          <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="leading-snug">
+            <span className="font-bold">Important:</span> Ensure your HashPack wallet is switched to <span className="font-bold underline">Testnet</span> (in HashPack top network selector) to pair with AgentBazaar.
+          </div>
+        </div>
+
+        <div className="space-y-3 pt-1">
           {/* HashPack Wallet Option */}
           <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50/80 to-indigo-50/60 border border-purple-200/80 hover:border-purple-300 transition-all flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
