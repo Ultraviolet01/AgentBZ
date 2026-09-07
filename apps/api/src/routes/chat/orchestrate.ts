@@ -43,6 +43,7 @@ async function parseIntentAndSelectAgents(
   estimatedCostHbar: number;
 }> {
   // 1. Try Anthropic LLM if configured
+  // 1. Try Anthropic LLM if configured
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const agentList = availableAgents
@@ -54,37 +55,32 @@ async function parseIntentAndSelectAgents(
         )
         .join("\n");
 
-      const prompt = ChatPromptTemplate.fromMessages([
-        [
-          "system",
-          `You are the AgentBazaar orchestrator. Select which agents to call.
-Available agents:
-${agentList}
+      const system = `You are the AgentBazaar orchestrator. Select which agents to call.\nAvailable agents:\n${agentList}\n\nRespond ONLY with valid JSON in this exact structure (no markdown, no backticks):\n{\n  "plan": "brief explanation",\n  "agentsToCall": [\n    { "agentId": "id", "agentName": "name", "inputs": { "key": "value" } }\n  ],\n  "estimatedCostHbar": number\n}`;
 
-Respond ONLY with JSON (no markdown, no backticks):
-{
-  "plan": "brief explanation",
-  "agentsToCall": [
-    { "agentId": "id", "agentName": "name", "inputs": { "key": "value" } }
-  ],
-  "estimatedCostHbar": number
-}`,
-        ],
-        ["human", userMessage],
-      ]);
-
-      const llm = new ChatAnthropic({
-        model: "claude-haiku-4-5-20251001",
-        anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-        maxTokens: 1024,
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": process.env.ANTHROPIC_API_KEY.trim(),
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 1024,
+          system,
+          messages: [{ role: "user", content: userMessage }],
+        }),
       });
 
-      const chain = prompt.pipe(llm);
-      const response = await chain.invoke({});
-      const text = response.content as string;
-      const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
-      if (parsed.agentsToCall && parsed.agentsToCall.length > 0) {
-        return parsed;
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.content?.[0]?.text as string;
+        if (text) {
+          const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+          if (parsed.agentsToCall && parsed.agentsToCall.length > 0) {
+            return parsed;
+          }
+        }
       }
     } catch (e) {
       console.warn("[Orchestrator] Anthropic LLM discovery notice, using semantic discovery:", (e as any)?.message);
