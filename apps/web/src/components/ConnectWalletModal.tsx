@@ -19,7 +19,12 @@ import {
   ArrowRight
 } from "lucide-react";
 import { useWallet } from "@buidlerlabs/hashgraph-react-wallets";
-import { HashpackConnector, KabilaConnector } from "@buidlerlabs/hashgraph-react-wallets/connectors";
+import {
+  HashpackConnector,
+  KabilaConnector,
+  BladeConnector,
+  HWCConnector,
+} from "@buidlerlabs/hashgraph-react-wallets/connectors";
 import { toast } from "sonner";
 
 interface ConnectWalletModalProps {
@@ -30,6 +35,8 @@ interface ConnectWalletModalProps {
 export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalProps) {
   const hashpackSession = useWallet(HashpackConnector);
   const kabilaSession = useWallet(KabilaConnector);
+  const bladeSession = useWallet(BladeConnector);
+  const hwcSession = useWallet(HWCConnector);
   const [connectingWallet, setConnectingWallet] = useState<string | null>(null);
 
   const handleConnectHashPack = async () => {
@@ -39,8 +46,30 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
       toast.success("Connected to HashPack wallet on Hedera Testnet!");
       onOpenChange(false);
     } catch (err: any) {
-      console.error("[HashPack] connect error:", err);
-      toast.error(err?.message || "Failed to connect HashPack wallet");
+      console.warn("[HashPack] Extension connect error, attempting WalletConnect pairing:", err);
+      toast.info("HashPack extension not detected. Opening WalletConnect pairing modal...");
+      try {
+        await hwcSession.connect();
+        toast.success("Connected via WalletConnect on Hedera Testnet!");
+        onOpenChange(false);
+      } catch (wcErr: any) {
+        console.error("[WalletConnect] error:", wcErr);
+        toast.error("Please install HashPack extension or scan the QR code to connect");
+      }
+    } finally {
+      setConnectingWallet(null);
+    }
+  };
+
+  const handleConnectHWC = async () => {
+    setConnectingWallet("hwc");
+    try {
+      await hwcSession.connect();
+      toast.success("Connected to Hedera wallet!");
+      onOpenChange(false);
+    } catch (err: any) {
+      console.error("[WalletConnect] connect error:", err);
+      toast.error(err?.message || "WalletConnect pairing was closed or rejected");
     } finally {
       setConnectingWallet(null);
     }
@@ -55,6 +84,20 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
     } catch (err: any) {
       console.error("[Kabila] connect error:", err);
       toast.error(err?.message || "Failed to connect Kabila wallet");
+    } finally {
+      setConnectingWallet(null);
+    }
+  };
+
+  const handleConnectBlade = async () => {
+    setConnectingWallet("blade");
+    try {
+      await bladeSession.connect();
+      toast.success("Connected to Blade wallet on Hedera Testnet!");
+      onOpenChange(false);
+    } catch (err: any) {
+      console.error("[Blade] connect error:", err);
+      toast.error(err?.message || "Failed to connect Blade wallet");
     } finally {
       setConnectingWallet(null);
     }
@@ -96,7 +139,7 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
                   )}
                 </h3>
                 <p className="text-xs text-gray-500">
-                  Hedera native browser extension & mobile wallet
+                  Hedera native browser extension & mobile app
                 </p>
               </div>
             </div>
@@ -119,10 +162,49 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
             </Button>
           </div>
 
-          {/* Kabila Wallet Option */}
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50/80 to-cyan-50/60 border border-blue-200/80 hover:border-blue-300 transition-all flex items-center justify-between gap-4">
+          {/* WalletConnect (QR Code & Universal) Option */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50/80 to-indigo-50/60 border border-blue-200/80 hover:border-blue-300 transition-all flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-600 text-white font-black text-lg flex items-center justify-center shadow-md flex-shrink-0">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-700 text-white font-black text-lg flex items-center justify-center shadow-md flex-shrink-0">
+                <Zap className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+                  WalletConnect / QR Code
+                  {hwcSession.isConnected && (
+                    <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.2 rounded-full font-bold">
+                      Connected
+                    </span>
+                  )}
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Scan QR code with HashPack Mobile or any Hedera wallet
+                </p>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              onClick={handleConnectHWC}
+              disabled={connectingWallet !== null}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer"
+            >
+              {connectingWallet === "hwc" ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : hwcSession.isConnected ? (
+                "Active"
+              ) : (
+                <>
+                  Scan QR <ArrowRight className="w-3.5 h-3.5" />
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Kabila Wallet Option */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-cyan-50/80 to-blue-50/60 border border-cyan-200/80 hover:border-cyan-300 transition-all flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-cyan-600 to-blue-600 text-white font-black text-lg flex items-center justify-center shadow-md flex-shrink-0">
                 K
               </div>
               <div>
@@ -144,11 +226,50 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
               type="button"
               onClick={handleConnectKabila}
               disabled={connectingWallet !== null}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer"
+              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer"
             >
               {connectingWallet === "kabila" ? (
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
               ) : kabilaSession.isConnected ? (
+                "Active"
+              ) : (
+                <>
+                  Connect <ArrowRight className="w-3.5 h-3.5" />
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Blade Wallet Option */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50/80 to-teal-50/60 border border-emerald-200/80 hover:border-emerald-300 transition-all flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white font-black text-lg flex items-center justify-center shadow-md flex-shrink-0">
+                ⚔
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+                  Blade Wallet
+                  {bladeSession.isConnected && (
+                    <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.2 rounded-full font-bold">
+                      Connected
+                    </span>
+                  )}
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Fast & secure Hedera ecosystem wallet
+                </p>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              onClick={handleConnectBlade}
+              disabled={connectingWallet !== null}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer"
+            >
+              {connectingWallet === "blade" ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : bladeSession.isConnected ? (
                 "Active"
               ) : (
                 <>

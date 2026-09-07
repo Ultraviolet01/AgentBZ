@@ -3,7 +3,13 @@
 import { ReactNode } from "react";
 import { HWBridgeProvider } from "@buidlerlabs/hashgraph-react-wallets";
 import { HederaTestnet } from "@buidlerlabs/hashgraph-react-wallets/chains";
-import { HashpackConnector, KabilaConnector } from "@buidlerlabs/hashgraph-react-wallets/connectors";
+import {
+  HashpackConnector,
+  KabilaConnector,
+  BladeConnector,
+  HWCConnector,
+  MetamaskConnector,
+} from "@buidlerlabs/hashgraph-react-wallets/connectors";
 import { HashConnectProvider } from "@/context/HashConnectContext";
 
 const WALLETCONNECT_PROJECT_ID =
@@ -19,7 +25,7 @@ export default function HederaProviders({ children }: { children: ReactNode }) {
         url: typeof window !== "undefined" ? window.location.origin : "https://agentbazaar.io",
       }}
       projectId={WALLETCONNECT_PROJECT_ID}
-      connectors={[HashpackConnector, KabilaConnector]}
+      connectors={[HashpackConnector, KabilaConnector, BladeConnector, HWCConnector, MetamaskConnector]}
       chains={[HederaTestnet]}
     >
       <HashConnectProvider>{children}</HashConnectProvider>

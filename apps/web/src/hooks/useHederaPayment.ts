@@ -2,7 +2,12 @@
 
 import { useCallback } from "react";
 import { useWallet, useAccountId, useBalance } from "@buidlerlabs/hashgraph-react-wallets";
-import { HashpackConnector, KabilaConnector } from "@buidlerlabs/hashgraph-react-wallets/connectors";
+import {
+  HashpackConnector,
+  KabilaConnector,
+  BladeConnector,
+  HWCConnector,
+} from "@buidlerlabs/hashgraph-react-wallets/connectors";
 import {
   buildPaymentTransaction,
   serializeSignedTransaction,
@@ -12,6 +17,8 @@ import {
 export function useHederaPayment() {
   const hashpackSession = useWallet(HashpackConnector);
   const kabilaSession = useWallet(KabilaConnector);
+  const bladeSession = useWallet(BladeConnector);
+  const hwcSession = useWallet(HWCConnector);
   const activeSession = useWallet();
 
   const { data: accountIdFromHook } = useAccountId();
@@ -19,12 +26,18 @@ export function useHederaPayment() {
   const isConnected =
     hashpackSession.isConnected ||
     kabilaSession.isConnected ||
+    bladeSession.isConnected ||
+    hwcSession.isConnected ||
     activeSession.isConnected;
 
   const activeConnectedSession = hashpackSession.isConnected
     ? hashpackSession
     : kabilaSession.isConnected
     ? kabilaSession
+    : bladeSession.isConnected
+    ? bladeSession
+    : hwcSession.isConnected
+    ? hwcSession
     : activeSession;
 
   const accountId =
@@ -37,16 +50,29 @@ export function useHederaPayment() {
       if (connector === "kabila" || connector === KabilaConnector) {
         return kabilaSession.connect();
       }
-      return hashpackSession.connect();
+      if (connector === "blade" || connector === BladeConnector) {
+        return bladeSession.connect();
+      }
+      if (connector === "hwc" || connector === HWCConnector) {
+        return hwcSession.connect();
+      }
+      try {
+        return await hashpackSession.connect();
+      } catch (err) {
+        console.warn("[Hedera] HashPack extension connect failed, falling back to WalletConnect modal:", err);
+        return await hwcSession.connect();
+      }
     },
-    [hashpackSession, kabilaSession]
+    [hashpackSession, kabilaSession, bladeSession, hwcSession]
   );
 
   const disconnect = useCallback(async () => {
     if (hashpackSession.isConnected) await hashpackSession.disconnect();
     if (kabilaSession.isConnected) await kabilaSession.disconnect();
+    if (bladeSession.isConnected) await bladeSession.disconnect();
+    if (hwcSession.isConnected) await hwcSession.disconnect();
     if (activeSession.isConnected) await activeSession.disconnect();
-  }, [hashpackSession, kabilaSession, activeSession]);
+  }, [hashpackSession, kabilaSession, bladeSession, hwcSession, activeSession]);
 
   const sendDeposit = useCallback(
     async (
