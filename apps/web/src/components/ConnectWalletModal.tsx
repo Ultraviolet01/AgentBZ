@@ -51,6 +51,11 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
   const handleConnectHashPack = async () => {
     setConnectingWallet("hashpack");
     try {
+      if (typeof window !== "undefined") {
+        window.postMessage({ type: "hedera-extension-query" }, "*");
+        window.postMessage({ type: "hashconnect-query-extension" }, "*");
+      }
+
       // Ensure DAppConnector knows HashPack extension is present
       const sdk = (hashpackSession?.connector as any)?.sdk;
       if (sdk && Array.isArray(sdk.extensions)) {
@@ -65,18 +70,20 @@ export function ConnectWalletModal({ open, onOpenChange }: ConnectWalletModalPro
         }
       }
 
-      if (typeof window !== "undefined") {
-        window.postMessage({ type: "hedera-extension-query" }, "*");
-        window.postMessage({ type: "hashconnect-query-extension" }, "*");
+      try {
+        await hashpackSession.connect();
+        toast.success("Connected to HashPack wallet on Hedera Testnet!");
+        onOpenChange(false);
+      } catch (extErr: any) {
+        console.warn("[HashPack] Extension direct connect fallback to HWC modal:", extErr);
+        onOpenChange(false);
+        await hwcSession.connect();
+        toast.success("Connected to Hedera wallet!");
       }
-
-      await hashpackSession.connect();
-      toast.success("Connected to HashPack wallet on Hedera Testnet!");
-      onOpenChange(false);
     } catch (err: any) {
-      console.warn("[HashPack] Extension connect error:", err);
+      console.warn("[HashPack] Connect error:", err);
       toast.error(
-        err?.message || "Could not connect HashPack extension. Please make sure HashPack is unlocked and on Testnet.",
+        err?.message || "Could not connect HashPack wallet. Please make sure HashPack is unlocked and on Testnet.",
         { duration: 6000 }
       );
     } finally {
