@@ -21,8 +21,8 @@ RUN pnpm install --frozen-lockfile
 # Copy API source
 COPY apps/api ./apps/api
 
-# Generate Prisma client
-RUN pnpm db:generate
+# Generate Prisma client and compile database package
+RUN pnpm --filter database build
 
 # Build API
 RUN pnpm --filter api build

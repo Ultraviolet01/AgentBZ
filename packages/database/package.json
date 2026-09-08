@@ -2,10 +2,10 @@
   "name": "@agentbazaar/database",
   "version": "0.0.0",
   "private": true,
-  "main": "./index.ts",
-  "types": "./index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "prisma generate",
+    "build": "prisma generate && tsc",
     "push": "prisma db push",
     "generate": "prisma generate",
     "studio": "prisma studio"
