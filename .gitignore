@@ -71,3 +71,10 @@ scripts/test-*.ts
 apps/web/src/app/api/test-cdr/
 
 .vercel
+
+# Local workspace docs & notes
+architecture.md
+handoff.md
+memory.md
+prd.md
+project-plan.md
