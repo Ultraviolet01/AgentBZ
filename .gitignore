@@ -69,3 +69,5 @@ apps/api/test-*.js
 packages/database/test-*.js
 scripts/test-*.ts
 apps/web/src/app/api/test-cdr/
+
+.vercel

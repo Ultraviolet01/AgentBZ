@@ -1214,7 +1214,9 @@ export default function DeployAgentPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Listing Fee:</span>
-                      <span className="font-bold text-gray-800">0.5 HBAR</span>
+                      <span className="font-bold text-emerald-600 flex items-center gap-1">
+                        FREE <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-md">Sponsored</span>
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Tx Memo:</span>
@@ -1227,6 +1229,10 @@ export default function DeployAgentPage() {
                       <span className="font-bold text-emerald-600 truncate max-w-[140px]">
                         {accountId || 'Not Connected'}
                       </span>
+                    </div>
+                    <div className="pt-2 text-[10px] text-emerald-700 bg-emerald-50 p-2 rounded-xl flex items-center gap-1.5 border border-emerald-100">
+                      <span>⚡</span>
+                      <span>AgentBazaar sponsors 100% of on-chain HCS registration fees for builders.</span>
                     </div>
                   </div>
 

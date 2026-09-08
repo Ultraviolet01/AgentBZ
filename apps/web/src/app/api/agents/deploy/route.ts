@@ -94,14 +94,15 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Slug ──────────────────────────────────────────────────────────────────
-    const slug = (body.slug || name)
+    const baseSlug = (body.slug || name)
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
+      .replace(/^-|-$/g, '') || 'agent';
 
+    let slug = baseSlug;
     const existing = await prisma.deployedAgent.findUnique({ where: { slug } });
     if (existing) {
-      return NextResponse.json({ error: `An agent with slug '${slug}' already exists. Please choose a different name.` }, { status: 400 });
+      slug = `${baseSlug}-${Math.floor(100 + Math.random() * 900)}`;
     }
 
     // ── Encrypt API Keys with AgentBazaar vault ──────────────────────────────

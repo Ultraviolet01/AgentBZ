@@ -60,10 +60,6 @@ export function buildPaymentTransaction(
 
   const tx = new TransferTransaction();
 
-  // Explicitly set Transaction ID and Testnet consensus nodes so protobuf serialization is complete
-  tx.setTransactionId(TransactionId.generate(payer));
-  tx.setNodeAccountIds([new AccountId(3), new AccountId(4), new AccountId(5)]);
-
   // Debit total tinybars from payer
   tx.addHbarTransfer(payer, Hbar.fromTinybars((-totalTinybars).toString()));
 
@@ -78,9 +74,6 @@ export function buildPaymentTransaction(
   } else if (paymentRequirements.description) {
     tx.setTransactionMemo(paymentRequirements.description.slice(0, 100));
   }
-
-  // Freeze the transaction
-  tx.freeze();
 
   return tx;
 }
