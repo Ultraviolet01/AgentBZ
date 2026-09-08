@@ -18,6 +18,36 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="light">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                function shouldSuppress(err, file, stack) {
+                  var str = (err || '') + ' ' + (file || '') + ' ' + (stack || '');
+                  return str.indexOf('chrome-extension://') !== -1 ||
+                         str.indexOf('M_ID') !== -1 ||
+                         str.indexOf('WalletConnect is not initialized') !== -1;
+                }
+                window.addEventListener('error', function(e) {
+                  if (shouldSuppress(e.message, e.filename, e.error && e.error.stack)) {
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                  }
+                }, true);
+                window.addEventListener('unhandledrejection', function(e) {
+                  var reason = e.reason;
+                  var str = reason ? (reason.message || reason.stack || String(reason)) : '';
+                  if (shouldSuppress(str, '', '')) {
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                  }
+                }, true);
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className="font-sans antialiased">
 
         <Providers>
