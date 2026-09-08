@@ -6,7 +6,10 @@ import { useAuthStore } from '@/lib/store/auth.store';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 
-const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_ID =
+  process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
+  process.env.GOOGLE_CLIENT_ID ||
+  '748508305969-32kl8e0lkpgisie77oiattl78lnqujvk.apps.googleusercontent.com';
 
 type CredentialResponse = { credential?: string };
 
@@ -35,18 +38,16 @@ export function GoogleSignInButton({ onError }: { onError?: (message: string) =>
         setAuth(data.user);
         toast.success('Signed in with Google');
 
-        if (data.isNew || !data.user?.onboardingCompleted) {
+        if (data.isNew || !data.user.onboardingCompleted) {
           router.push('/onboarding');
         } else {
           router.push('/');
         }
         router.refresh();
       } catch (err: any) {
-        console.error('[Google Sign-In Error]:', err);
-        let message = err?.response?.data?.error || err?.message || 'Google sign-in failed. Please try again.';
-        if (typeof message === 'object') message = JSON.stringify(message);
+        let message = err?.response?.data?.error || 'Google sign-in failed. Please try again.';
+        if (typeof message === 'object') message = 'Google sign-in failed. Please try again.';
         onError?.(message);
-        toast.error(message);
       }
     },
     [router, setAuth, onError]

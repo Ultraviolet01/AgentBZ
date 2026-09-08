@@ -1,6 +1,27 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalDependencies": ["**/.env.*local"],
+  "globalEnv": [
+    "DATABASE_URL",
+    "DIRECT_URL",
+    "JWT_SECRET",
+    "ACCESS_TOKEN_SECRET",
+    "REFRESH_TOKEN_SECRET",
+    "GOOGLE_CLIENT_ID",
+    "NEXT_PUBLIC_GOOGLE_CLIENT_ID",
+    "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID",
+    "NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID",
+    "ANTHROPIC_API_KEY",
+    "HEDERA_NETWORK",
+    "HEDERA_ACCOUNT_ID",
+    "HEDERA_PRIVATE_KEY",
+    "HEDERA_PUBLIC_KEY",
+    "HEDERA_EVM_ADDRESS",
+    "BLOCKY402_URL",
+    "NEXT_PUBLIC_BLOCKY402_URL",
+    "AGENTBAZAAR_PAY_TO",
+    "AGENTBAZAAR_FEE_COLLECTOR_ID"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

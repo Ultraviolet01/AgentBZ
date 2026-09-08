@@ -11,14 +11,10 @@ import {
 } from "@buidlerlabs/hashgraph-react-wallets/connectors";
 import { HashConnectProvider } from "@/context/HashConnectContext";
 
-const WALLETCONNECT_PROJECT_ID = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
-
-if (!WALLETCONNECT_PROJECT_ID && typeof window !== "undefined") {
-  console.error(
-    "[HederaProviders] NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set. " +
-    "Get one at https://cloud.reown.com — wallet connections will not work without it."
-  );
-}
+const WALLETCONNECT_PROJECT_ID =
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
+  process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID ||
+  "430247b6f8ddd120bf8c01995510965a";
 
 export default function HederaProviders({ children }: { children: ReactNode }) {
   return (
