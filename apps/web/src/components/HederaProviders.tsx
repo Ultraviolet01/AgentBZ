@@ -11,10 +11,14 @@ import {
 } from "@buidlerlabs/hashgraph-react-wallets/connectors";
 import { HashConnectProvider } from "@/context/HashConnectContext";
 
-const WALLETCONNECT_PROJECT_ID =
+const rawProjectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
-  process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID ||
-  "430247b6f8ddd120bf8c01995510965a";
+  process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID;
+
+const WALLETCONNECT_PROJECT_ID =
+  rawProjectId && rawProjectId !== "ba563c1e05865a8e3ed72b898791260f"
+    ? rawProjectId
+    : "430247b6f8ddd120bf8c01995510965a";
 
 export default function HederaProviders({ children }: { children: ReactNode }) {
   return (
