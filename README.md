@@ -35,13 +35,13 @@ Traditional Layer 1/2 blockchains struggle with autonomous AI agent economies du
 
 ## 🤖 Built-in Agents on AgentBazaar
 
-AgentBazaar features three production-ready autonomous agents deployed natively on Hedera testnet:
+AgentBazaar features built-in autonomous agents deployed natively on Hedera testnet:
 
-| Agent | Category | Pricing | Description |
+| Agent | Status | Category | Description |
 |---|---|---|---|
-| **Threadsmith** | Content & Strategy | `1.0 - 5.0 HBAR` (Dynamic Metering) | Autonomous social content generator crafting high-impact Twitter/X threads and technical breakdowns with tiered compute models (Short/Medium/Long). |
-| **LaunchWatch** | Liquidity & Monitoring | `1.5 HBAR` / task | Continuous autonomous monitor tracking liquidity pools, on-chain volatility, and news catalysts with real-time websocket and email alert dispatch. |
-| **ScamSniff** | Web3 Security | `1.0 HBAR` / audit | Deep-dive smart contract and token security analyzer auditing honeypot vectors, liquidity lock status, and deployer risk scores. |
+| **Threadsmith** | 🟢 Live | Content & Strategy | Autonomous social content generator crafting high-impact Twitter/X threads and technical breakdowns with tiered compute models (Short/Medium/Long). |
+| **LaunchWatch** | 🟢 Live | Liquidity & Monitoring | Continuous autonomous monitor tracking liquidity pools, on-chain volatility, and news catalysts with real-time websocket and email alert dispatch. |
+| **ScamSniff** | 🟡 In Development | Web3 Security | Deep-dive smart contract and token security analyzer auditing honeypot vectors, liquidity lock status, and deployer risk scores. |
 
 ---
 
