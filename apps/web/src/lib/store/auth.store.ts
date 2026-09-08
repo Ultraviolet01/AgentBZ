@@ -6,6 +6,7 @@ interface User {
   email: string;
   username: string;
   onboardingCompleted: boolean;
+  walletAddress?: string | null;
 }
 
 interface AuthState {
