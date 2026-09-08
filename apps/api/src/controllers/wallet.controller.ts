@@ -97,7 +97,7 @@ export const getTransactions = async (req: Request, res: Response) => {
       txConditions.push({ userId: { in: Array.from(userIds) } });
     }
 
-    let transactions = [];
+    let transactions: any[] = [];
     if (txConditions.length > 0) {
       transactions = await prisma.transaction.findMany({
         where: { OR: txConditions },
@@ -180,7 +180,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       runConditions.push({ userId: { in: Array.from(userIds) } });
     }
 
-    let runs = [];
+    let runs: any[] = [];
     if (runConditions.length > 0) {
       runs = await prisma.agentRun.findMany({
         where: { OR: runConditions },
@@ -211,7 +211,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       txConditions.push({ txHash: { in: runTxHashes } });
     }
 
-    let transactions = [];
+    let transactions: any[] = [];
     if (txConditions.length > 0) {
       transactions = await prisma.transaction.findMany({
         where: { OR: txConditions },
