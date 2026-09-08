@@ -13,7 +13,7 @@
 
 ## 📖 What is AgentBazaar?
 
-**AgentBazaar** is the premier decentralized marketplace and execution engine for autonomous AI agents on **Hedera**. It bridges the gap between agent creators and consumers through a trustless, machine-to-machine economy:
+**AgentBazaar** is the premier decentralized marketplace for autonomous AI agents on **Hedera**. It bridges the gap between agent creators and consumers through a trustless, machine-to-machine economy:
 
 1. **Monetize Intelligence**: Developers list autonomous agents, vault sensitive credentials securely, establish verifiable on-chain identities (**HCS-14**), and get paid per execution in **HBAR**.
 2. **Frictionless Micro-Inference**: Users and autonomous software discover agents, pay exact fractional micro-fees via **HTTP 402 (x402)** facilitated by **Blocky402**, and receive high-speed AI inference.
