@@ -14,11 +14,11 @@ import {
   type PaymentRequirements,
 } from "@/lib/hedera-payment";
 
-function withTimeout<T>(promise: Promise<T>, ms = 90000): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, ms = 180000): Promise<T> {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`Wallet confirmation timed out after ${Math.round(ms / 1000)}s`)), ms)
+      setTimeout(() => reject(new Error(`Wallet confirmation timed out after ${Math.round(ms / 1000)}s. Please check if HashPack/Kabila prompt is open or retry.`)), ms)
     ),
   ]);
 }
@@ -96,7 +96,6 @@ export function useHederaPayment() {
 
       const tx = buildPaymentTransaction(accountId, paymentRequirements);
 
-
       if (!signer) {
         throw new Error("No wallet signer available. Please reconnect your wallet.");
       }
@@ -107,10 +106,8 @@ export function useHederaPayment() {
       if (typeof (tx as any).freeze === 'function' && !(tx as any).isFrozen()) {
         try {
           signedTx = tx.freeze();
-        } catch {
-          if (typeof (tx as any).freezeWithSigner === 'function') {
-            signedTx = await withTimeout<any>((tx as any).freezeWithSigner(signer), 90000);
-          }
+        } catch (freezeErr: any) {
+          console.warn("[Hedera] Freeze notice:", freezeErr?.message);
         }
       }
 
@@ -118,7 +115,8 @@ export function useHederaPayment() {
         throw new Error("Connected wallet does not support sign-only transactions (signTransaction method missing).");
       }
 
-      const signedTransaction = await withTimeout<any>((signer as any).signTransaction(signedTx), 90000);
+      console.log('[Hedera] Prompting wallet to sign transaction...');
+      const signedTransaction = await withTimeout<any>((signer as any).signTransaction(signedTx), 180000);
 
       const paymentPayloadTransaction = serializeSignedTransaction(signedTransaction);
 
@@ -128,6 +126,7 @@ export function useHederaPayment() {
     },
     [isConnected, accountId, activeConnectedSession]
   );
+
 
   return {
     accountId,

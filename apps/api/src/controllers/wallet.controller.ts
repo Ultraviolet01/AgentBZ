@@ -185,25 +185,8 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       runs = await prisma.agentRun.findMany({
         where: { OR: runConditions },
         orderBy: { createdAt: "desc" },
+        take: 50,
       });
-    }
-
-    // Also check if any runs have matching payer in metadata if not caught yet
-    if (walletAddressQuery) {
-      const payerRuns = await prisma.agentRun.findMany({
-        where: {
-          outputData: {
-            path: ["metadata", "payer"],
-            equals: walletAddressQuery,
-          },
-        },
-        orderBy: { createdAt: "desc" },
-      });
-      for (const pr of payerRuns) {
-        if (!runs.some((r) => r.id === pr.id)) {
-          runs.push(pr);
-        }
-      }
     }
 
     // Fallback if no specific user filter matched: return recent platform runs
@@ -213,6 +196,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
         take: 50,
       });
     }
+
 
     // 2. Query transactions
     const txConditions: any[] = [];

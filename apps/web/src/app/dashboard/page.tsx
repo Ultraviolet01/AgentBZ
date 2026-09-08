@@ -159,10 +159,12 @@ export default function DashboardPage() {
     window.addEventListener("agentbazaar:run-completed", handleRunCompleted);
     window.addEventListener("focus", handleRunCompleted);
 
-    // Periodic live sync every 15s
+    // Periodic live sync every 30s when tab is active
     const interval = setInterval(() => {
-      fetchDashboardData(true);
-    }, 15000);
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        fetchDashboardData(true);
+      }
+    }, 30000);
 
     return () => {
       window.removeEventListener("agentbazaar:run-completed", handleRunCompleted);
@@ -170,6 +172,7 @@ export default function DashboardPage() {
       clearInterval(interval);
     };
   }, [fetchDashboardData]);
+
 
 
   // Fetch real-time HBAR balance if Hedera account is connected
