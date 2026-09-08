@@ -21,12 +21,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import dynamic from "next/dynamic";
-
-const HashPackButton = dynamic(
-  () => import("./HashPackButton").then((mod) => mod.HashPackButton),
-  { ssr: false }
-);
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -257,15 +251,12 @@ export default function Sidebar() {
           </div>
           <span className="font-black text-gray-900 uppercase tracking-tighter">AgentBazaar</span>
         </Link>
-        <div className="flex items-center gap-2">
-          <HashPackButton />
-          <button 
-            onClick={() => setIsMobileMenuOpen(true)}
-            className="p-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            <Menu className="w-6 h-6" />
-          </button>
-        </div>
+        <button 
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="p-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition-colors"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
       </header>
 
       {/* Mobile Backdrop & Slide Drawer */}
