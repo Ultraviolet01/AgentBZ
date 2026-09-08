@@ -77,30 +77,51 @@ export function useHederaPayment() {
   const sendDeposit = useCallback(
     async (
       paymentRequirements: PaymentRequirements
-    ): Promise<{ paymentPayloadTransaction: string }> => {
+    ): Promise<{ paymentPayloadTransaction: string; transactionId?: string }> => {
       if (!isConnected || !accountId) {
         throw new Error("Hedera wallet not connected. Please connect HashPack or Kabila.");
       }
 
       const signer = activeConnectedSession?.signer;
-      if (!signer || typeof (signer as any).signTransaction !== "function") {
-        throw new Error("Connected wallet signer does not support signTransaction");
+      if (!signer) {
+        throw new Error("Connected wallet signer does not support transactions");
       }
 
-      // Build native TransferTransaction with Blocky402 feePayer and frozen against Testnet
+      // Build native TransferTransaction frozen against Testnet
       const tx = buildPaymentTransaction(accountId, paymentRequirements);
 
-      // Sign without executing (sign-only)
-      const signedTx = await (signer as any).signTransaction(tx);
+      let paymentPayloadTransaction = '';
+      let transactionId = '';
 
-      if (!signedTx) {
-        throw new Error("User cancelled or wallet rejected the transaction signature");
+      // Try signer.call first (HederaJsonRpcMethod.SignAndExecuteTransaction)
+      // which properly opens the HashPack confirmation dialog with amount, memo & fees
+      if (typeof (signer as any).call === 'function') {
+        try {
+          const res = await (signer as any).call(tx);
+          transactionId = res?.transactionId?.toString?.() || '';
+          paymentPayloadTransaction = transactionId || serializeSignedTransaction(tx);
+          console.log('[Hedera] Transaction executed via signer.call:', transactionId);
+          return { paymentPayloadTransaction, transactionId };
+        } catch (callErr: any) {
+          console.warn('[Hedera] signer.call error, falling back to signTransaction:', callErr);
+          // If user explicitly rejected in wallet, rethrow
+          if (callErr?.message?.includes('reject') || callErr?.message?.includes('cancel')) {
+            throw callErr;
+          }
+        }
       }
 
-      // Base64-encode the signed transaction bytes for Blocky402 x402 payload
-      const paymentPayloadTransaction = serializeSignedTransaction(signedTx);
+      // Fallback: try signer.signTransaction
+      if (typeof (signer as any).signTransaction === 'function') {
+        const signedTx = await (signer as any).signTransaction(tx);
+        if (!signedTx) {
+          throw new Error('User cancelled or wallet rejected the transaction signature');
+        }
+        paymentPayloadTransaction = serializeSignedTransaction(signedTx);
+        return { paymentPayloadTransaction };
+      }
 
-      return { paymentPayloadTransaction };
+      throw new Error('Connected wallet does not support signing or executing transactions');
     },
     [isConnected, accountId, activeConnectedSession]
   );

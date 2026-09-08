@@ -19,7 +19,7 @@ interface HashConnectContextType {
   connect: (connector?: any) => void;
   disconnect: () => void;
   refreshBalance: () => Promise<void>;
-  sendDeposit: (paymentRequirements: PaymentRequirements) => Promise<{ paymentPayloadTransaction: string }>;
+  sendDeposit: (paymentRequirements: PaymentRequirements) => Promise<{ paymentPayloadTransaction: string; transactionId?: string }>;
   isInitialized: boolean;
   isModalOpen: boolean;
   setIsModalOpen: (open: boolean) => void;

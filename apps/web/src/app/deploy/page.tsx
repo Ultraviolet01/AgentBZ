@@ -278,9 +278,11 @@ export default function DeployAgentPage() {
       };
 
       let paymentPayloadTransaction = '';
+      let transactionId = '';
       try {
         const depositResult = await sendDeposit(listingRequirements);
         paymentPayloadTransaction = depositResult.paymentPayloadTransaction;
+        transactionId = depositResult.transactionId || '';
       } catch (signErr: any) {
         console.warn('[Deploy] Wallet signature error/notice:', signErr);
         throw new Error(signErr.message || 'Transaction signing was rejected or cancelled in your wallet.');
@@ -332,6 +334,7 @@ export default function DeployAgentPage() {
         builderAccountId: accountId || undefined,
         deployMode: formData.deployMode,
         paymentPayloadTransaction,
+        transactionId,
         agentIdentity,
         executionConfig: {
           headers: formData.headers,
@@ -354,7 +357,7 @@ export default function DeployAgentPage() {
         slug: data.agent?.slug || agentSlug,
         name: formData.name,
         hcs14TopicId: data.hcs14TopicId || process.env.NEXT_PUBLIC_HCS_TOPIC_ID || '0.0.10396393',
-        hashscanUrl: data.hashscanUrl || `https://hashscan.io/testnet/topic/${data.hcs14TopicId || '0.0.10396393'}`,
+        hashscanUrl: data.hashscanUrl || (transactionId ? `https://hashscan.io/testnet/transaction/${transactionId}` : `https://hashscan.io/testnet/topic/${data.hcs14TopicId || '0.0.10396393'}`),
       });
     } catch (err: any) {
       setError(err.message || 'Deployment error');
