@@ -61,13 +61,9 @@ export function buildPaymentTransaction(
   }
 
   const payer = AccountId.fromString(payerAccountId);
-  const feePayer = paymentRequirements.extra?.feePayer ? AccountId.fromString(paymentRequirements.extra.feePayer) : payer;
   const payTo = AccountId.fromString(paymentRequirements.payTo);
 
   const tx = new TransferTransaction();
-
-  // Set transaction ID paying account to payer so HashPack recognises the connected user
-  tx.setTransactionId(TransactionId.generate(payer));
 
   // Debit total tinybars from payer
   tx.addHbarTransfer(payer, Hbar.fromTinybars((-totalTinybars).toString()));
@@ -83,10 +79,6 @@ export function buildPaymentTransaction(
   } else if (paymentRequirements.description) {
     tx.setTransactionMemo(paymentRequirements.description.slice(0, 100));
   }
-
-  // Freeze against Hedera Testnet client
-  const client = Client.forTestnet();
-  tx.freezeWith(client);
 
   return tx;
 }

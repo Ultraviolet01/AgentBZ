@@ -87,31 +87,55 @@ export function useHederaPayment() {
         throw new Error("Connected wallet signer does not support transactions");
       }
 
-      // Build native TransferTransaction frozen against Testnet
+      console.log("[Hedera] Preparing transaction for signer with account:", accountId);
+
       const tx = buildPaymentTransaction(accountId, paymentRequirements);
 
-      let paymentPayloadTransaction = '';
       let transactionId = '';
+      let paymentPayloadTransaction = '';
 
-      // Try signer.call first (HederaJsonRpcMethod.SignAndExecuteTransaction)
-      // which properly opens the HashPack confirmation dialog with amount, memo & fees
+      // 1. Freeze with signer (allows signer to set node account IDs & transaction ID)
+      if (typeof (tx as any).freezeWithSigner === 'function') {
+        try {
+          await (tx as any).freezeWithSigner(signer);
+        } catch (freezeErr) {
+          console.warn('[Hedera] freezeWithSigner notice:', freezeErr);
+        }
+      }
+
+      // 2. Execute with signer (triggers HashPack popup with approval prompt)
+      if (typeof (tx as any).executeWithSigner === 'function') {
+        try {
+          const response = await (tx as any).executeWithSigner(signer);
+          transactionId = response?.transactionId?.toString() || '';
+          paymentPayloadTransaction = transactionId || serializeSignedTransaction(tx);
+          console.log('[Hedera] executeWithSigner succeeded, tx ID:', transactionId);
+          return { paymentPayloadTransaction, transactionId };
+        } catch (execErr: any) {
+          console.warn('[Hedera] executeWithSigner error, falling back:', execErr);
+          if (execErr?.message?.includes('reject') || execErr?.message?.includes('cancel') || execErr?.message?.includes('User rejected')) {
+            throw execErr;
+          }
+        }
+      }
+
+      // 3. Fallback: signer.call(tx)
       if (typeof (signer as any).call === 'function') {
         try {
           const res = await (signer as any).call(tx);
           transactionId = res?.transactionId?.toString?.() || '';
           paymentPayloadTransaction = transactionId || serializeSignedTransaction(tx);
-          console.log('[Hedera] Transaction executed via signer.call:', transactionId);
+          console.log('[Hedera] signer.call succeeded, tx ID:', transactionId);
           return { paymentPayloadTransaction, transactionId };
         } catch (callErr: any) {
-          console.warn('[Hedera] signer.call error, falling back to signTransaction:', callErr);
-          // If user explicitly rejected in wallet, rethrow
-          if (callErr?.message?.includes('reject') || callErr?.message?.includes('cancel')) {
+          console.warn('[Hedera] signer.call error:', callErr);
+          if (callErr?.message?.includes('reject') || callErr?.message?.includes('cancel') || callErr?.message?.includes('User rejected')) {
             throw callErr;
           }
         }
       }
 
-      // Fallback: try signer.signTransaction
+      // 4. Fallback: signer.signTransaction(tx)
       if (typeof (signer as any).signTransaction === 'function') {
         const signedTx = await (signer as any).signTransaction(tx);
         if (!signedTx) {
