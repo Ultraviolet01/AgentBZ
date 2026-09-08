@@ -1,33 +1,9 @@
 import axios from 'axios';
 import { useAuthStore } from './store/auth.store';
 
-const getBaseURL = () => {
-  if (typeof window !== 'undefined') {
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const envUrl = process.env.NEXT_PUBLIC_API_URL;
-    // If running in production browser on a domain (e.g. Vercel) but NEXT_PUBLIC_API_URL is localhost or unset, use relative /api
-    if (!isLocal && (!envUrl || envUrl.includes('localhost') || envUrl.includes('127.0.0.1'))) {
-      return '/api';
-    }
-    return envUrl || '/api';
-  }
-  return process.env.NEXT_PUBLIC_API_URL || '/api';
-};
-
 const api = axios.create({
-  baseURL: getBaseURL(),
+  baseURL: '/api',
   withCredentials: true,
-});
-
-api.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const envUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (!isLocal && (!config.baseURL || config.baseURL.includes('localhost') || config.baseURL.includes('127.0.0.1'))) {
-      config.baseURL = '/api';
-    }
-  }
-  return config;
 });
 
 let isRefreshing = false;
@@ -74,7 +50,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !isRetry && isProtectedRequest) {
       if (isRefreshing) {
         // Queue this request to retry once the in-progress refresh completes
-        return new Promise(function(resolve, reject) {
+        return new Promise(function (resolve, reject) {
           failedQueue.push({ resolve, reject });
         })
           .then(() => api(originalRequest))
@@ -84,9 +60,9 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      return new Promise(function(resolve, reject) {
+      return new Promise(function (resolve, reject) {
         axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL || '/api'}/auth/refresh`,
+          '/api/auth/refresh',
           {},
           { withCredentials: true }
         )

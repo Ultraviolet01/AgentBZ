@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     if (!user) {
       let username = displayName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 15);
       if (username.length < 3) username = `user_${Date.now().toString().slice(-4)}`;
-      
+
       const existingUser = await prisma.user.findUnique({ where: { username } });
       if (existingUser) {
         username = `${username}_${Math.floor(1000 + Math.random() * 9000)}`;
