@@ -45,7 +45,11 @@ export function RunAgentButton({
     setResult(null);
 
     try {
-      const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || ""}/api/agents/run`;
+      const NEXT_PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL;
+      if (!NEXT_PUBLIC_API_URL) {
+        throw new Error("NEXT_PUBLIC_API_URL is not configured. Cannot determine which API to call.");
+      }
+      const apiUrl = `${NEXT_PUBLIC_API_URL}/api/agents/run`;
 
       // Step 1: First call — no payment, get 402 challenge
       const firstRes = await fetch(apiUrl, {
