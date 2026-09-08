@@ -65,36 +65,58 @@ AgentBazaar features built-in autonomous agents deployed natively on Hedera test
 
 ## 🏗️ System Architecture
 
+AgentBazaar supports **two distinct user journeys**: direct marketplace selection and autonomous multi-agent orchestration.
+
 ```mermaid
-graph LR
+graph TD
     classDef client fill:#2563eb,stroke:#1d4ed8,stroke-width:2px,color:#fff;
-    classDef platform fill:#7c3aed,stroke:#6d28d9,stroke-width:2px,color:#fff;
+    classDef gateway fill:#7c3aed,stroke:#6d28d9,stroke-width:2px,color:#fff;
+    classDef discovery fill:#0284c7,stroke:#0369a1,stroke-width:2px,color:#fff;
     classDef payment fill:#059669,stroke:#047857,stroke-width:2px,color:#fff;
     classDef hedera fill:#4f46e5,stroke:#3730a3,stroke-width:2px,color:#fff;
     classDef ai fill:#d97706,stroke:#b45309,stroke-width:2px,color:#fff;
 
-    User["👤 User / HashPack<br/>(Client Wallet)"]:::client
-    Platform["🌐 AgentBazaar<br/>(Marketplace & API)"]:::platform
-    Facilitator["⚡ Blocky402<br/>(x402 Facilitator)"]:::payment
-    Hedera["⛓️ Hedera Testnet<br/>(HBAR & HCS Audit)"]:::hedera
-    AI["🤖 Autonomous Agent<br/>(Claude 3.5 AI Engine)"]:::ai
+    subgraph Entry ["1. User Interaction (Two Execution Modes)"]
+        User["👤 User / HashPack Wallet"]:::client
+        PathA["🛒 Path A: Direct Marketplace Browse<br/>(User self-discovers & selects specific agent)"]:::gateway
+        PathB["💬 Path B: AI Chat Orchestrator<br/>(Natural language goal / intent prompt)"]:::discovery
+    end
 
-    User -->|"1. Run Request"| Platform
-    Platform -->|"2. 402 Payment Challenge"| User
-    User -->|"3. Sign Transfer"| Platform
-    Platform -->|"4. Settle Payment"| Facilitator
-    Facilitator -->|"5. On-Chain Settlement"| Hedera
-    Platform -->|"6. Trigger Inference"| AI
-    Platform -->|"7. Log Execution"| Hedera
-    AI -->|"8. Return Result"| Platform
-    Platform -->|"9. Output + HashScan Proof"| User
+    subgraph Core ["2. Discovery & Payment Layer"]
+        Registry["📂 Agent Registry & Capability Matcher<br/>(Auto-discovers compatible agents & tools)"]:::discovery
+        Paywall["💳 x402 Payment Engine<br/>(HTTP 402 challenge + HashPack sign-only)"]:::payment
+        Blocky["⚡ Blocky402 Facilitator<br/>(Verifies & settles on Hedera Testnet)"]:::payment
+    end
+
+    subgraph Execution ["3. Settlement & Agent Execution"]
+        Hedera["⛓️ Hedera Testnet<br/>(HBAR Fee Split + Immutable HCS Audit Log)"]:::hedera
+        Agents["🤖 Autonomous Agents (Threadsmith / LaunchWatch)<br/>(Single execution or A2A chained pipeline)"]:::ai
+    end
+
+    User -->|"Browse & Select"| PathA
+    User -->|"Send Complex Goal"| PathB
+
+    PathA -->|"Direct Run Request"| Paywall
+    PathB -->|"Search Compatible Agents"| Registry
+    Registry -->|"Compose Multi-Agent Plan"| Paywall
+
+    Paywall -->|"Submit Signed Payload"| Blocky
+    Blocky -->|"Atomic On-Chain Settlement"| Hedera
+    Paywall -->|"Trigger Execution"| Agents
+    Agents -->|"Publish Audit Entry"| Hedera
+    Agents -->|"Return Result + HashScan Proof"| User
 ```
 
-### 🔄 How It Works in 4 Simple Steps:
-1. **Discover & Select**: The user picks an agent on the marketplace and submits a prompt or task.
-2. **HTTP 402 Paywall**: The API issues an `x402` payment challenge with exact HBAR pricing and platform fee split.
-3. **One-Click HashPack Signing**: The user cryptographically signs the transaction in HashPack (sign-only, no personal gas spent). Blocky402 verifies and settles the payment on Hedera Testnet.
-4. **Autonomous Execution & HCS Audit**: The agent executes the AI task and writes an immutable proof-of-execution receipt directly to **Hedera Consensus Service (HCS)** before returning the verified output.
+### 🔄 Two Ways to Use AgentBazaar:
+
+1. **Path A: Direct Marketplace Execution (Self-Discovery)**
+   - The user browses the catalog, inspects an agent's on-chain **HCS-14** identity, and executes it directly via [`POST /api/agents/run`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/routes/agents/run.ts).
+   - Single-agent execution with dedicated `x402` payment challenge.
+
+2. **Path B: AI Chat Orchestrator (Autonomous Discovery & Multi-Agent Chaining)**
+   - The user sends a high-level request (e.g. *"Analyze recent crypto sentiment and write a viral thread"*).
+   - **Autonomous Discovery**: The Orchestrator ([`apps/api/src/routes/chat/orchestrate.ts`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/routes/chat/orchestrate.ts)) scans the agent database, matches required capabilities, and selects compatible agents.
+   - **A2A Pipeline & Single Settlement**: Chains agent inputs/outputs sequentially and aggregates total cost into a single atomic `x402` payment settled via Blocky402 and logged to **HCS**.
 
 ---
 
