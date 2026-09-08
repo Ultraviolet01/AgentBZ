@@ -937,14 +937,47 @@ function LandingPageComponent() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [mobileMenuOpen]);
 
+  const [liveStats, setLiveStats] = useState({
+    totalAgents: 4,
+    builtInCount: 3,
+    deployedCount: 1,
+    chain: 'Hedera HCS',
+  });
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/agents/deployed');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.agents && Array.isArray(data.agents)) {
+            const customCount = data.agents.filter(
+              (a: any) => !['scamsniff', 'threadsmith', 'launchwatch'].includes((a.slug || '').toLowerCase())
+            ).length;
+            const deployed = Math.max(1, customCount);
+            setLiveStats({
+              totalAgents: 3 + deployed,
+              builtInCount: 3,
+              deployedCount: deployed,
+              chain: 'Hedera HCS',
+            });
+          }
+        }
+      } catch (err) {
+        // Fallback to verified real values (3 built-in + 1 Sentinel)
+      }
+    }
+    loadStats();
+  }, []);
+
   const quickStats = useMemo(
     () => [
-      { label: 'Agents Deployed', value: 50, suffix: '+' },
-      { label: 'Total Calls', value: 12480, suffix: '+' },
-      { label: 'Live Agents', value: 24, suffix: '' },
-      { label: 'Chain', value: 'Hedera HCS', suffix: '' },
+      { label: 'Total Live Agents', value: liveStats.totalAgents, suffix: '' },
+      { label: 'Built-in Core', value: liveStats.builtInCount, suffix: '' },
+      { label: 'Developer Deployed', value: liveStats.deployedCount, suffix: '' },
+      { label: 'Settlement Network', value: liveStats.chain, suffix: '' },
     ],
-    []
+    [liveStats]
   );
 
   return (
