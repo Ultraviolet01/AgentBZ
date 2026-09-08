@@ -75,6 +75,15 @@ export function buildPaymentTransaction(
   // Credit total tinybars to payTo (Blocky402 exact scheme verifies payTo receives the full amount)
   tx.addHbarTransfer(payTo, Hbar.fromTinybars(totalTinybars.toString()));
 
+  // Set memo if provided or extract from agentIdentity
+  if (paymentRequirements.memo) {
+    tx.setTransactionMemo(paymentRequirements.memo.slice(0, 100));
+  } else if (paymentRequirements.extra?.agentIdentity?.slug) {
+    tx.setTransactionMemo(`ABZ:Deploy:${paymentRequirements.extra.agentIdentity.slug}`.slice(0, 100));
+  } else if (paymentRequirements.description) {
+    tx.setTransactionMemo(paymentRequirements.description.slice(0, 100));
+  }
+
   // Freeze against Hedera Testnet client
   const client = Client.forTestnet();
   tx.freezeWith(client);

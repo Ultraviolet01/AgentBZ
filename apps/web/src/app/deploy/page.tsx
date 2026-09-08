@@ -71,7 +71,7 @@ const FIELD_TYPES = ['text', 'textarea', 'number', 'file', 'password', 'boolean'
 
 export default function DeployAgentPage() {
   const router = useRouter();
-  const { isConnected, connect, accountId } = useHashConnect();
+  const { isConnected, connect, accountId, sendDeposit } = useHashConnect();
 
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -235,11 +235,59 @@ export default function DeployAgentPage() {
 
   // ── Step 7: On-Chain Submit & Deploy ───────────────────────────────────────
   const handleSubmit = async () => {
+    if (!isConnected) {
+      connect();
+      setError('Please connect your Hedera wallet (HashPack) to sign and deploy the agent on-chain.');
+      return;
+    }
+
     setIsLoading(true);
     setError('');
-    setStatusMessage('Encrypting secrets with AES-256-GCM vault & registering HCS-14 identity...');
+    setStatusMessage('Preparing on-chain deployment transaction...');
 
     try {
+      const agentSlug = formData.slug || formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+      // Agent Identity metadata for on-chain memo and HCS-14 audit trail
+      const agentIdentity = {
+        name: formData.name,
+        slug: agentSlug,
+        category: formData.category,
+        deployMode: formData.deployMode,
+        modelProvider: formData.modelProvider,
+        modelName: formData.modelName,
+        apiEndpoint: formData.apiEndpoint,
+        pricePerRun: formData.pricePerRun,
+        builderAccountId: accountId || '0.0.10368450',
+      };
+
+      // 1. Trigger Hedera Wallet Transaction Signature (HashPack popup)
+      setStatusMessage('Waiting for HashPack transaction signature with Agent Identity...');
+
+      const listingRequirements = {
+        scheme: 'exact' as const,
+        network: 'hedera:testnet' as const,
+        amount: '50000000', // 0.5 HBAR registration fee in tinybars
+        payTo: process.env.NEXT_PUBLIC_PLATFORM_ACCOUNT || '0.0.10368450',
+        memo: `ABZ:Deploy:${agentSlug}`.slice(0, 100),
+        extra: {
+          feePayer: process.env.NEXT_PUBLIC_PLATFORM_ACCOUNT || '0.0.10368450',
+          action: 'agent_deployment',
+          agentIdentity,
+        }
+      };
+
+      let paymentPayloadTransaction = '';
+      try {
+        const depositResult = await sendDeposit(listingRequirements);
+        paymentPayloadTransaction = depositResult.paymentPayloadTransaction;
+      } catch (signErr: any) {
+        console.warn('[Deploy] Wallet signature error/notice:', signErr);
+        throw new Error(signErr.message || 'Transaction signing was rejected or cancelled in your wallet.');
+      }
+
+      setStatusMessage('Encrypting secrets with AES-256-GCM vault & registering on Hedera HCS...');
+
       // Build API Keys array
       const apiKeysList: { name: string; value: string }[] = [];
       if (formData.apiKeys.anthropic_api_key)
@@ -265,7 +313,7 @@ export default function DeployAgentPage() {
 
       const payload = {
         name: formData.name,
-        slug: formData.slug || formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        slug: agentSlug,
         description: formData.description,
         longDescription: formData.longDescription || formData.description,
         category: formData.category,
@@ -283,6 +331,8 @@ export default function DeployAgentPage() {
         apiKeys: apiKeysList,
         builderAccountId: accountId || undefined,
         deployMode: formData.deployMode,
+        paymentPayloadTransaction,
+        agentIdentity,
         executionConfig: {
           headers: formData.headers,
           bodyFields: formData.bodyFields,
@@ -301,10 +351,10 @@ export default function DeployAgentPage() {
 
       setSuccessData({
         agentId: data.agent?.id || data.agentId,
-        slug: data.agent?.slug || formData.slug,
+        slug: data.agent?.slug || agentSlug,
         name: formData.name,
         hcs14TopicId: data.hcs14TopicId || process.env.NEXT_PUBLIC_HCS_TOPIC_ID || '0.0.10396393',
-        hashscanUrl: `https://hashscan.io/testnet/topic/${data.hcs14TopicId || '0.0.10396393'}`,
+        hashscanUrl: data.hashscanUrl || `https://hashscan.io/testnet/topic/${data.hcs14TopicId || '0.0.10396393'}`,
       });
     } catch (err: any) {
       setError(err.message || 'Deployment error');
@@ -984,68 +1034,234 @@ export default function DeployAgentPage() {
           </div>
         )}
 
-        {/* STEP 7: DEPLOY & PUBLISH */}
+        {/* STEP 7: DEPLOY & PUBLISH (COMPREHENSIVE SUMMARY & ON-CHAIN SIGNING) */}
         {currentStep === 7 && (
           <div className="space-y-6">
-            <div>
-              <span className="text-xs font-bold text-orange-600 uppercase tracking-widest">Step 7 of 7</span>
-              <h2 className="text-2xl font-black text-gray-900 mt-1 uppercase">Review & Publish On-Chain</h2>
-              <p className="text-sm text-gray-500">Confirm agent parameters and launch to the Hedera testnet registry.</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <span className="text-xs font-bold text-orange-600 uppercase tracking-widest">Step 7 of 7 — Final Review</span>
+                <h2 className="text-2xl font-black text-gray-900 mt-1 uppercase">Agent Deployment Summary</h2>
+                <p className="text-sm text-gray-500">Review your agent configuration before signing the on-chain deployment transaction.</p>
+              </div>
+              <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 px-3 py-1 font-bold text-xs self-start">
+                Hedera Testnet
+              </Badge>
             </div>
 
-            <div className="bg-gray-50 border border-gray-200 rounded-3xl p-6 space-y-4">
-              <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
-                <div className="w-14 h-14 rounded-2xl bg-white border border-gray-200 flex items-center justify-center text-3xl shadow-sm">
-                  {formData.icon}
+            {/* ── Summary Overview Grid ────────────────────────────────────────── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+              {/* Left 2 Cols: Main Configuration Specs */}
+              <div className="lg:col-span-2 space-y-4">
+                
+                {/* 1. Identity & Branding Summary */}
+                <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm space-y-4">
+                  <div className="flex items-start gap-4 pb-4 border-b border-gray-100">
+                    <div 
+                      className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-sm flex-shrink-0"
+                      style={{ backgroundColor: `${formData.color}15`, border: `2px solid ${formData.color}30` }}
+                    >
+                      {formData.icon || '🤖'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-xs font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider bg-gray-100 text-gray-700">
+                          {formData.category}
+                        </span>
+                        <span className="text-xs font-mono text-gray-400">
+                          /agents/{formData.slug || formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}
+                        </span>
+                      </div>
+                      <h3 className="text-xl font-black text-gray-900 tracking-tight">{formData.name || 'Untitled Agent'}</h3>
+                      <p className="text-xs text-gray-600 line-clamp-2 mt-1">{formData.description || 'No description provided'}</p>
+                    </div>
+                  </div>
+
+                  {formData.tags.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] font-bold text-gray-400 uppercase mr-1">Tags:</span>
+                      {formData.tags.map(tag => (
+                        <span key={tag} className="text-[11px] font-mono bg-gray-50 border border-gray-200 text-gray-700 px-2 py-0.5 rounded-lg">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <h3 className="text-xl font-black text-gray-900">{formData.name}</h3>
-                  <p className="text-xs text-gray-500 line-clamp-1">{formData.description}</p>
+
+                {/* 2. Architecture & Endpoint Specs */}
+                <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm space-y-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-orange-500" /> Target Execution Architecture
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+                    <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                      <span className="text-gray-400 block text-[10px] uppercase font-bold">Deploy Mode</span>
+                      <span className="font-bold text-gray-900 uppercase">{formData.deployMode}</span>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                      <span className="text-gray-400 block text-[10px] uppercase font-bold">Model Provider</span>
+                      <span className="font-bold text-gray-900 uppercase">{formData.modelProvider}</span>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                      <span className="text-gray-400 block text-[10px] uppercase font-bold">Model Name</span>
+                      <span className="font-bold text-gray-900 truncate block">{formData.modelName}</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100 space-y-1 font-mono text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Endpoint URL:</span>
+                      <span className="font-bold text-gray-800 break-all">{formData.apiEndpoint}</span>
+                    </div>
+                    {formData.webhookUrl && (
+                      <div className="flex justify-between pt-1 border-t border-gray-200">
+                        <span className="text-gray-400">Webhook URL:</span>
+                        <span className="font-bold text-gray-800 break-all">{formData.webhookUrl}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {formData.logic && (
+                    <div className="text-xs">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">System Logic / Prompt</span>
+                      <p className="bg-gray-50 p-3 rounded-2xl border border-gray-100 text-gray-700 line-clamp-2 font-mono text-[11px]">
+                        {formData.logic}
+                      </p>
+                    </div>
+                  )}
                 </div>
+
+                {/* 3. Request Schema & Vault Summary */}
+                <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+                    <Code className="w-4 h-4 text-orange-500" /> Request Schema & Secrets
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between">
+                      <div>
+                        <span className="text-gray-400 block text-[10px] uppercase font-bold">Headers Configured</span>
+                        <span className="font-bold text-gray-900 font-mono">{formData.headers.length} header(s)</span>
+                      </div>
+                      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">
+                        AES-256-GCM Vault
+                      </Badge>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between">
+                      <div>
+                        <span className="text-gray-400 block text-[10px] uppercase font-bold">Input Body Fields</span>
+                        <span className="font-bold text-gray-900 font-mono">{formData.bodyFields.length} field(s)</span>
+                      </div>
+                      <Badge className="bg-orange-50 text-orange-700 border-orange-200 text-[10px]">
+                        JSON Schema
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-mono">
-                <div>
-                  <span className="text-gray-400 block">Deploy Mode:</span>
-                  <span className="font-bold text-gray-800 uppercase">{formData.deployMode}</span>
+              {/* Right Col: Monetization & On-Chain Settlement Card */}
+              <div className="space-y-4">
+                
+                {/* Pricing & Revenue Share */}
+                <div className="bg-gradient-to-br from-orange-500 to-amber-600 rounded-3xl p-6 text-white shadow-lg space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-widest bg-white/20 px-3 py-1 rounded-full">
+                      Monetization
+                    </span>
+                    <span className="text-xs font-bold text-orange-100">x402 Micro-Pay</span>
+                  </div>
+
+                  <div>
+                    <span className="text-xs text-orange-100 font-medium block">Price Per Execution</span>
+                    <div className="flex items-baseline gap-1 mt-1">
+                      <span className="text-3xl font-black">{formData.pricePerRun}</span>
+                      <span className="text-sm font-bold text-orange-100">HBAR</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-white/20 space-y-2 text-xs">
+                    <div className="flex justify-between items-center text-orange-100">
+                      <span>Creator Share (90%):</span>
+                      <strong className="text-white font-mono">{(parseFloat(formData.pricePerRun || '0') * 0.9).toFixed(3)} ℏ</strong>
+                    </div>
+                    <div className="flex justify-between items-center text-orange-100">
+                      <span>Protocol Share (10%):</span>
+                      <strong className="text-white font-mono">{(parseFloat(formData.pricePerRun || '0') * 0.1).toFixed(3)} ℏ</strong>
+                    </div>
+                    <div className="flex justify-between items-center text-orange-100">
+                      <span>Settlement:</span>
+                      <strong className="text-white">Blocky402 Exact</strong>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-gray-400 block">Category:</span>
-                  <span className="font-bold text-gray-800 uppercase">{formData.category}</span>
+
+                {/* On-Chain Listing Details & Wallet Info */}
+                <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm space-y-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" /> On-Chain Identity & Signing
+                  </h4>
+
+                  <div className="space-y-2.5 text-xs font-mono bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Registry Topic:</span>
+                      <span className="font-bold text-orange-600">0.0.10396393</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Listing Fee:</span>
+                      <span className="font-bold text-gray-800">0.5 HBAR</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Tx Memo:</span>
+                      <span className="font-bold text-gray-700 truncate max-w-[150px]">
+                        ABZ:Deploy:{formData.slug || formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between pt-1 border-t border-gray-200">
+                      <span className="text-gray-400">Builder Account:</span>
+                      <span className="font-bold text-emerald-600 truncate max-w-[140px]">
+                        {accountId || 'Not Connected'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Wallet Connection Status */}
+                  {!isConnected ? (
+                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl space-y-3">
+                      <div className="flex items-center gap-2 text-xs text-amber-900 font-bold">
+                        <Wallet className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                        <span>Wallet Required</span>
+                      </div>
+                      <p className="text-[11px] text-amber-800 leading-relaxed">
+                        Connect HashPack to sign the deployment transaction with your embedded agent identity.
+                      </p>
+                      <Button
+                        type="button"
+                        onClick={connect}
+                        className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl h-10 text-xs shadow-sm cursor-pointer"
+                      >
+                        Connect Hedera Wallet
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+                        ✓
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-emerald-950">Wallet Connected & Ready</p>
+                        <p className="text-[11px] text-emerald-700 font-mono">{accountId}</p>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
-                <div>
-                  <span className="text-gray-400 block">Price Per Run:</span>
-                  <span className="font-bold text-orange-600">{formData.pricePerRun} HBAR</span>
-                </div>
-                <div>
-                  <span className="text-gray-400 block">Settlement:</span>
-                  <span className="font-bold text-emerald-600">Blocky402 Exact</span>
-                </div>
+
               </div>
 
-              <div className="pt-2 border-t border-gray-200 text-xs text-gray-500">
-                <span className="font-bold text-gray-700 block mb-1">Target Endpoint:</span>
-                <span className="font-mono text-gray-800">{formData.apiEndpoint}</span>
-              </div>
             </div>
-
-            {/* Wallet Verification Alert */}
-            {!isConnected ? (
-              <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center justify-between text-xs text-amber-800 font-medium">
-                <div className="flex items-center gap-2">
-                  <Wallet className="w-4 h-4 text-amber-600" />
-                  <span>Connect your Hedera wallet (HashPack) to register on-chain identity.</span>
-                </div>
-                <Button type="button" onClick={connect} size="sm" className="bg-orange-500 hover:bg-orange-600 text-white rounded-xl">
-                  Connect Wallet
-                </Button>
-              </div>
-            ) : (
-              <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-2xl flex items-center gap-2 text-xs text-emerald-800 font-medium">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span>Connected Hedera Account: <strong className="font-mono">{accountId}</strong></span>
-              </div>
-            )}
           </div>
         )}
 
@@ -1081,11 +1297,11 @@ export default function DeployAgentPage() {
               {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  {statusMessage || 'Publishing Agent...'}
+                  {statusMessage || 'Signing & Publishing Agent...'}
                 </>
               ) : (
                 <>
-                  <Rocket className="w-4 h-4" /> Publish Agent On-Chain
+                  <Rocket className="w-4 h-4" /> 🚀 Sign & Deploy Agent On-Chain
                 </>
               )}
             </Button>
