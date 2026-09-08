@@ -129,7 +129,7 @@ export default function LaunchWatchPage() {
       const xPayment = Buffer.from(JSON.stringify(paymentPayload)).toString("base64");
 
       // ── Step 4: Settle payment and activate monitoring ────────────────────
-      toast.loading("Settling on Hedera via Blocky402 and initializing LaunchWatch...", { id: "launchwatch-toast" });
+      toast.loading("Wallet signature confirmed! Settling on Hedera via Blocky402 and initializing LaunchWatch...", { id: "launchwatch-toast" });
       const secondRes = await fetch('/api/agents/run', {
         method: 'POST',
         headers: {

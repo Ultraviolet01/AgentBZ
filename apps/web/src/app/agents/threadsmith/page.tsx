@@ -265,7 +265,7 @@ export default function ThreadSmithPage() {
       // ── Step 4: Submit Payment & Synthesize Content ───────────────────────
       setIsPaying(false);
       setIsGenerating(true);
-      toast.loading("Payment settling via Blocky402... Synthesizing intelligence...", { id: "payment-toast" });
+      toast.loading("Wallet signature confirmed! Settling on Hedera & synthesizing intelligence...", { id: "payment-toast" });
 
       const secondRes = await fetch("/api/agents/run", {
         method: "POST",
