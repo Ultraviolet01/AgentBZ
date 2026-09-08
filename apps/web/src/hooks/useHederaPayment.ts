@@ -104,8 +104,14 @@ export function useHederaPayment() {
       console.log('[Hedera] Requesting wallet signature (sign-only, no submit)...');
 
       let signedTx: any = tx;
-      if (typeof (tx as any).freezeWithSigner === 'function') {
-        signedTx = await withTimeout<any>((tx as any).freezeWithSigner(signer), 6000);
+      if (typeof (tx as any).freeze === 'function' && !(tx as any).isFrozen()) {
+        try {
+          signedTx = tx.freeze();
+        } catch {
+          if (typeof (tx as any).freezeWithSigner === 'function') {
+            signedTx = await withTimeout<any>((tx as any).freezeWithSigner(signer), 6000);
+          }
+        }
       }
 
       if (typeof (signer as any).signTransaction !== 'function') {

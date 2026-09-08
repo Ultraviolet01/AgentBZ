@@ -66,6 +66,23 @@ export function buildPaymentTransaction(
   // Credit total tinybars to payTo (Blocky402 exact scheme verifies payTo receives the full amount)
   tx.addHbarTransfer(payTo, Hbar.fromTinybars(totalTinybars.toString()));
 
+  const feePayerStr = paymentRequirements.extra?.feePayer || "0.0.7162784";
+  const feePayer = AccountId.fromString(feePayerStr);
+
+  // Set the transaction ID with Blocky402 facilitator as the node fee payer
+  tx.setTransactionId(TransactionId.generate(feePayer));
+
+  // Set standard Hedera testnet consensus node account IDs
+  tx.setNodeAccountIds([
+    AccountId.fromString("0.0.3"),
+    AccountId.fromString("0.0.4"),
+    AccountId.fromString("0.0.5"),
+    AccountId.fromString("0.0.6"),
+    AccountId.fromString("0.0.7"),
+    AccountId.fromString("0.0.8"),
+    AccountId.fromString("0.0.9"),
+  ]);
+
   // Set memo if provided or extract from agentIdentity
   if (paymentRequirements.memo) {
     tx.setTransactionMemo(paymentRequirements.memo.slice(0, 100));
