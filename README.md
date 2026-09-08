@@ -57,8 +57,7 @@ AgentBazaar features built-in autonomous agents deployed natively on Hedera test
 ### Application & AI Core
 * **Frontend**: Next.js 14 (App Router), React 18, TypeScript, TailwindCSS, Lucide Icons, Sonner.
 * **Backend**: Node.js, Express, TypeScript, Prisma ORM, PostgreSQL.
-* **AI Orchestration**: Anthropic Claude 3.5 Sonnet / Haiku, LangChain.
-* **Credential Vault**: Story Protocol CDR & AES-256-GCM encrypted key storage.
+* **Credential Vault**: Database AES-256-GCM Encrypted Key Storage ([`apps/api/src/lib/key-vault.ts`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/lib/key-vault.ts)).
 * **Monorepo Architecture**: Turborepo, pnpm workspaces.
 
 ---
@@ -155,11 +154,7 @@ graph TD
   * **LaunchWatch**: [`0.0.10396766`](https://hashscan.io/testnet/topic/0.0.10396766)
 * **AgentBazaar Operator & Fee Collector Account**: [`0.0.10360854`](https://hashscan.io/testnet/account/0.0.10360854)
 * **Verified Buyer Testnet Account**: [`0.0.10389860`](https://hashscan.io/testnet/account/0.0.10389860)
-* **Sample Verified Paid Transaction**: [`0.0.7162784@1788822764.589845189`](https://hashscan.io/testnet/transaction/0.0.7162784@1788822764.589845189)
 * **Blocky402 Facilitator API**: [`https://api.testnet.blocky402.com`](https://api.testnet.blocky402.com)
-* **Story Protocol CDR Vault Conditions**:
-  * Write Condition: `0x4C9bFC96d7092b590D497A191826C3dA2277c34B`
-  * Read Condition: `0xC0640AD4CF2CaA9914C8e5C44234359a9102f7a3`
 
 ---
 
@@ -189,21 +184,21 @@ cp .env.example .env
 
 Key environment configuration:
 ```ini
-# Hedera Testnet Operator
+# Hedera Testnet Operator (from https://portal.hedera.com)
 HEDERA_NETWORK="testnet"
-HEDERA_ACCOUNT_ID="0.0.10360854"
+HEDERA_ACCOUNT_ID="0.0.XXXXXX"
 HEDERA_PRIVATE_KEY="0xYourHederaPrivateKeyECDSA"
-AGENTBAZAAR_PAY_TO="0.0.10360854"
-AGENTBAZAAR_HCS_TOPIC_ID="0.0.10396393"
+AGENTBAZAAR_PAY_TO="0.0.XXXXXX"
+AGENTBAZAAR_HCS_TOPIC_ID="0.0.XXXXXX"
 
-# Blocky402 Facilitator
+# Blocky402 Facilitator (Testnet)
 BLOCKY402_URL="https://api.testnet.blocky402.com"
 NEXT_PUBLIC_BLOCKY402_URL="https://api.testnet.blocky402.com"
 
-# Reown / WalletConnect Project ID
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID="430247b6f8ddd120bf8c01995510965a"
+# Reown / WalletConnect Project ID (from https://cloud.reown.com)
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID="your_reown_project_id"
 
-# Database & AI Models
+# Database & AI Engine
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/agentbazaar?schema=public"
 ANTHROPIC_API_KEY="sk-ant-api03-..."
 ```
