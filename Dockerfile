@@ -8,7 +8,6 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY packages/database/package.json ./packages/database/
 COPY packages/types/package.json ./packages/types/
-COPY packages/config/package.json ./packages/config/
 COPY apps/api/package.json ./apps/api/
 
 # Copy prisma schema and packages
