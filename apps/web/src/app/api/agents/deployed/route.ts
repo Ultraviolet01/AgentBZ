@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const sanitizedAgents = agents.map(agent => ({
+    const sanitizedAgents = agents.map((agent: any) => ({
       id: agent.id,
       name: agent.name,
       slug: agent.slug,
@@ -68,14 +68,15 @@ export async function GET(req: NextRequest) {
       color: agent.color,
       pricePerRun: agent.pricePerRun,
       setupFee: agent.setupFee,
-      runsCount: agent.totalRuns || agent._count.runs,
-      reviewsCount: agent._count.reviews,
+      runsCount: agent.totalRuns || agent._count?.runs || 0,
+      reviewsCount: agent._count?.reviews || 0,
       rating: agent.avgRating || 5.0,
-      deployMode: agent.deployMode,
+      deployMode: agent.deployMode || "PUBLIC",
       creator: agent.user?.username || 'Community Builder',
       builderAccountId: agent.builderAccountId || '0.0.10368450',
       createdAt: agent.createdAt,
     }));
+
 
     return NextResponse.json({
       success: true,
