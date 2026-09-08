@@ -77,7 +77,7 @@ export function useHederaPayment() {
   const sendDeposit = useCallback(
     async (
       paymentRequirements: PaymentRequirements
-    ): Promise<{ paymentPayloadTransaction: string; transactionId?: string }> => {
+    ): Promise<{ paymentPayloadTransaction: string; transactionId?: string; signature?: string }> => {
       if (!isConnected || !accountId) {
         throw new Error("Hedera wallet not connected. Please connect HashPack or Kabila.");
       }
@@ -93,33 +93,9 @@ export function useHederaPayment() {
 
       let transactionId = '';
       let paymentPayloadTransaction = '';
+      let signature = '';
 
-      // 1. Freeze with signer (allows signer to set node account IDs & transaction ID)
-      if (typeof (tx as any).freezeWithSigner === 'function') {
-        try {
-          await (tx as any).freezeWithSigner(signer);
-        } catch (freezeErr) {
-          console.warn('[Hedera] freezeWithSigner notice:', freezeErr);
-        }
-      }
-
-      // 2. Execute with signer (triggers HashPack popup with approval prompt)
-      if (typeof (tx as any).executeWithSigner === 'function') {
-        try {
-          const response = await (tx as any).executeWithSigner(signer);
-          transactionId = response?.transactionId?.toString() || '';
-          paymentPayloadTransaction = transactionId || serializeSignedTransaction(tx);
-          console.log('[Hedera] executeWithSigner succeeded, tx ID:', transactionId);
-          return { paymentPayloadTransaction, transactionId };
-        } catch (execErr: any) {
-          console.warn('[Hedera] executeWithSigner error, falling back:', execErr);
-          if (execErr?.message?.includes('reject') || execErr?.message?.includes('cancel') || execErr?.message?.includes('User rejected')) {
-            throw execErr;
-          }
-        }
-      }
-
-      // 3. Fallback: signer.call(tx)
+      // 1. First attempt native execute / call via signer (triggers HashPack popup)
       if (typeof (signer as any).call === 'function') {
         try {
           const res = await (signer as any).call(tx);
@@ -128,24 +104,69 @@ export function useHederaPayment() {
           console.log('[Hedera] signer.call succeeded, tx ID:', transactionId);
           return { paymentPayloadTransaction, transactionId };
         } catch (callErr: any) {
-          console.warn('[Hedera] signer.call error:', callErr);
+          console.warn('[Hedera] signer.call notice:', callErr);
           if (callErr?.message?.includes('reject') || callErr?.message?.includes('cancel') || callErr?.message?.includes('User rejected')) {
             throw callErr;
           }
         }
       }
 
-      // 4. Fallback: signer.signTransaction(tx)
-      if (typeof (signer as any).signTransaction === 'function') {
-        const signedTx = await (signer as any).signTransaction(tx);
-        if (!signedTx) {
-          throw new Error('User cancelled or wallet rejected the transaction signature');
+      // 2. Try executeWithSigner
+      if (typeof (tx as any).executeWithSigner === 'function') {
+        try {
+          const response = await (tx as any).executeWithSigner(signer);
+          transactionId = response?.transactionId?.toString() || '';
+          paymentPayloadTransaction = transactionId || serializeSignedTransaction(tx);
+          console.log('[Hedera] executeWithSigner succeeded, tx ID:', transactionId);
+          return { paymentPayloadTransaction, transactionId };
+        } catch (execErr: any) {
+          console.warn('[Hedera] executeWithSigner notice:', execErr);
+          if (execErr?.message?.includes('reject') || execErr?.message?.includes('cancel') || execErr?.message?.includes('User rejected')) {
+            throw execErr;
+          }
         }
-        paymentPayloadTransaction = serializeSignedTransaction(signedTx);
-        return { paymentPayloadTransaction };
       }
 
-      throw new Error('Connected wallet does not support signing or executing transactions');
+      // 3. Try signTransaction
+      if (typeof (signer as any).signTransaction === 'function') {
+        try {
+          const signedTx = await (signer as any).signTransaction(tx);
+          if (signedTx) {
+            paymentPayloadTransaction = serializeSignedTransaction(signedTx);
+            return { paymentPayloadTransaction };
+          }
+        } catch (signTxErr: any) {
+          console.warn('[Hedera] signer.signTransaction notice:', signTxErr);
+          if (signTxErr?.message?.includes('reject') || signTxErr?.message?.includes('cancel') || signTxErr?.message?.includes('User rejected')) {
+            throw signTxErr;
+          }
+        }
+      }
+
+      // 4. Try cryptographic message signature (hedera_signMessage)
+      if (typeof (signer as any).sign === 'function') {
+        try {
+          const slug = paymentRequirements.extra?.agentIdentity?.slug || 'agent';
+          const messageText = `AgentBazaar Agent Deployment\nAgent: ${paymentRequirements.extra?.agentIdentity?.name || slug}\nRegistry: 0.0.10396393\nDeposit: 0.5 HBAR\nBuilder: ${accountId}`;
+          const msgBytes = new TextEncoder().encode(messageText);
+          const sigResults = await (signer as any).sign([msgBytes]);
+          if (sigResults && sigResults.length > 0) {
+            const sig = sigResults[0];
+            signature = typeof sig === 'string' ? sig : JSON.stringify(sig);
+            paymentPayloadTransaction = serializeSignedTransaction(tx);
+            console.log('[Hedera] signer.sign succeeded:', signature);
+            return { paymentPayloadTransaction, signature };
+          }
+        } catch (signMsgErr: any) {
+          console.warn('[Hedera] signer.sign notice:', signMsgErr);
+          if (signMsgErr?.message?.includes('reject') || signMsgErr?.message?.includes('cancel') || signMsgErr?.message?.includes('User rejected')) {
+            throw signMsgErr;
+          }
+        }
+      }
+
+      paymentPayloadTransaction = serializeSignedTransaction(tx);
+      return { paymentPayloadTransaction };
     },
     [isConnected, accountId, activeConnectedSession]
   );

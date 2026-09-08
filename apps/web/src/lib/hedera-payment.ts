@@ -1,6 +1,7 @@
 import {
   AccountId,
   Hbar,
+  TransactionId,
   TransferTransaction,
 } from '@hashgraph/sdk';
 
@@ -32,10 +33,8 @@ export interface PaymentRequirements {
 }
 
 /**
- * Builds an unsubmitted Hedera TransferTransaction for Blocky402 / deployment payment.
- * Debits the payer for total tinybars and credits payTo.
- * The transaction is left unfrozen so that freezeWithSigner / executeWithSigner
- * can populate the active wallet's nodeAccountIds and transactionId.
+ * Builds an initialized and frozen Hedera TransferTransaction.
+ * Populates nodeAccountIds and transactionId so protobuf serialization is valid for HashPack.
  */
 export function buildPaymentTransaction(
   payerAccountId: string,
@@ -61,6 +60,10 @@ export function buildPaymentTransaction(
 
   const tx = new TransferTransaction();
 
+  // Explicitly set Transaction ID and Testnet consensus nodes so protobuf serialization is complete
+  tx.setTransactionId(TransactionId.generate(payer));
+  tx.setNodeAccountIds([new AccountId(3), new AccountId(4), new AccountId(5)]);
+
   // Debit total tinybars from payer
   tx.addHbarTransfer(payer, Hbar.fromTinybars((-totalTinybars).toString()));
 
@@ -75,6 +78,9 @@ export function buildPaymentTransaction(
   } else if (paymentRequirements.description) {
     tx.setTransactionMemo(paymentRequirements.description.slice(0, 100));
   }
+
+  // Freeze the transaction
+  tx.freeze();
 
   return tx;
 }
