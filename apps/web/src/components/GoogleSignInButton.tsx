@@ -35,16 +35,18 @@ export function GoogleSignInButton({ onError }: { onError?: (message: string) =>
         setAuth(data.user);
         toast.success('Signed in with Google');
 
-        if (data.isNew || !data.user.onboardingCompleted) {
+        if (data.isNew || !data.user?.onboardingCompleted) {
           router.push('/onboarding');
         } else {
           router.push('/');
         }
         router.refresh();
       } catch (err: any) {
-        let message = err?.response?.data?.error || 'Google sign-in failed. Please try again.';
-        if (typeof message === 'object') message = 'Google sign-in failed. Please try again.';
+        console.error('[Google Sign-In Error]:', err);
+        let message = err?.response?.data?.error || err?.message || 'Google sign-in failed. Please try again.';
+        if (typeof message === 'object') message = JSON.stringify(message);
         onError?.(message);
+        toast.error(message);
       }
     },
     [router, setAuth, onError]

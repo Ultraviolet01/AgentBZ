@@ -1,9 +1,33 @@
 import axios from 'axios';
 import { useAuthStore } from './store/auth.store';
 
+const getBaseURL = () => {
+  if (typeof window !== 'undefined') {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const envUrl = process.env.NEXT_PUBLIC_API_URL;
+    // If running in production browser on a domain (e.g. Vercel) but NEXT_PUBLIC_API_URL is localhost or unset, use relative /api
+    if (!isLocal && (!envUrl || envUrl.includes('localhost') || envUrl.includes('127.0.0.1'))) {
+      return '/api';
+    }
+    return envUrl || '/api';
+  }
+  return process.env.NEXT_PUBLIC_API_URL || '/api';
+};
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || '/api',
+  baseURL: getBaseURL(),
   withCredentials: true,
+});
+
+api.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const envUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (!isLocal && (!config.baseURL || config.baseURL.includes('localhost') || config.baseURL.includes('127.0.0.1'))) {
+      config.baseURL = '/api';
+    }
+  }
+  return config;
 });
 
 let isRefreshing = false;

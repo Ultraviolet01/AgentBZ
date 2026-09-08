@@ -92,6 +92,14 @@ export async function POST(req: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
     });
 
+    res.cookies.set('auth_token', accessToken, {
+      httpOnly: true,
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    });
+
     return res;
   } catch (error: any) {
     console.error('Google Auth API Error:', error);
