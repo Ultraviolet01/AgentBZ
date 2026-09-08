@@ -29,10 +29,16 @@ import {
   ExternalLink,
   ShieldCheck
 } from 'lucide-react';
+import { useHashConnect } from '@/context/HashConnectContext';
+import { useAuthStore } from '@/lib/store/auth.store';
+import { toast } from 'sonner';
 
 type MonitoringType = 'project' | 'token_milestone' | 'crypto_news';
 
 export default function LaunchWatchPage() {
+  const { accountId, isConnected, connect, sendDeposit, refreshBalance } = useHashConnect();
+  const { user } = useAuthStore();
+
   const [step, setStep] = useState<'type' | 'setup' | 'active'>('type');
   const [monitoringType, setMonitoringType] = useState<MonitoringType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -64,37 +70,122 @@ export default function LaunchWatchPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!isConnected) {
+      toast.info("Please connect your Hedera wallet to pay for monitoring setup");
+      connect();
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       setPaymentStatus('broadcasting');
 
-      const response = await fetch('/api/agents/launchwatch/setup', {
+      const payloadBody = {
+        agentId: "launchwatch",
+        inputs: {
+          monitoringType,
+          query: formData.projectUrl || formData.tokenSymbol || formData.contractAddress || "Crypto Market Intelligence",
+          ...formData,
+        },
+        userId: user?.id,
+        walletAddress: accountId,
+      };
+
+      // ── Step 1: Request 402 challenge ─────────────────────────────────────
+      toast.info("Requesting payment challenge from Hedera testnet...", { id: "launchwatch-toast" });
+      const firstRes = await fetch('/api/agents/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          monitoringType,
-          ...formData
-        })
+        credentials: 'include',
+        body: JSON.stringify(payloadBody),
       });
 
-      const data = await response.json();
-
-      if (data.success) {
-        setActiveMonitors([...activeMonitors, { ...data.monitor, txHash: data.txHash }]);
-        setStep('active');
-        setPaymentStatus('done');
-      } else {
-        throw new Error(data.error || 'Setup failed');
+      if (firstRes.status !== 402) {
+        const errorData = await firstRes.json().catch(() => ({}));
+        throw new Error(errorData.error || `Expected 402 challenge, got ${firstRes.status}`);
       }
+
+      const { paymentRequirements } = await firstRes.json();
+
+      // ── Step 2: Sign native Hedera payment transaction ────────────────────
+      toast.loading("Please sign payment transaction in your wallet...", { id: "launchwatch-toast" });
+      const { paymentPayloadTransaction } = await sendDeposit(paymentRequirements);
+
+      if (!paymentPayloadTransaction) {
+        throw new Error("Failed to sign payment transaction with Hedera wallet");
+      }
+
+      // ── Step 3: Build x402 Payment Payload ────────────────────────────────
+      const paymentPayload = {
+        x402Version: 2,
+        scheme: "exact",
+        network: "hedera:testnet",
+        accepted: paymentRequirements,
+        payload: { transaction: paymentPayloadTransaction },
+      };
+
+      const xPayment = Buffer.from(JSON.stringify(paymentPayload)).toString("base64");
+
+      // ── Step 4: Settle payment and activate monitoring ────────────────────
+      toast.loading("Settling on Hedera via Blocky402 and initializing LaunchWatch...", { id: "launchwatch-toast" });
+      const secondRes = await fetch('/api/agents/run', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Payment': xPayment,
+        },
+        credentials: 'include',
+        body: JSON.stringify(payloadBody),
+      });
+
+      if (!secondRes.ok) {
+        const err = await secondRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Monitoring setup failed');
+      }
+
+      const data = await secondRes.json();
+      const tx = data.hederaTransaction || data.txHash || null;
+      if (tx) setLastTxHash(tx);
+
+      setActiveMonitors([...activeMonitors, { 
+        id: `lw_${Date.now()}`,
+        type: monitoringType,
+        target: formData.projectUrl || formData.tokenSymbol || formData.contractAddress || 'Market Stream',
+        frequency: formData.checkFrequency,
+        status: 'ACTIVE',
+        txHash: tx,
+        output: data.output,
+      }]);
+
+      setStep('active');
+      setPaymentStatus('done');
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("agentbazaar:run-completed", { detail: data }));
+      }
+
+      if (refreshBalance) {
+        refreshBalance().catch(console.warn);
+      }
+
+      toast.success("LaunchWatch Initialized & Settled on Hedera", {
+        id: "launchwatch-toast",
+        description: tx ? `Tx: ${tx.slice(0, 16)}…` : "Recorded on HCS",
+      });
     } catch (error: any) {
       console.error('Setup error:', error);
-      alert('Failed to setup monitoring: ' + error.message);
+      toast.error('Failed to setup monitoring', {
+        id: "launchwatch-toast",
+        description: error.message || 'Payment or initialization failed',
+      });
       setPaymentStatus('idle');
     } finally {
       setIsLoading(false);
     }
   };
+
 
   const handleStopMonitoring = async (monitorId: string) => {
     try {

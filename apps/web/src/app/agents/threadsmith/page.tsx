@@ -38,9 +38,14 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { useHashConnect } from "@/context/HashConnectContext";
+import { useAuthStore } from "@/lib/store/auth.store";
 import api from "@/lib/api";
 
 export default function ThreadSmithPage() {
+  const { accountId, isConnected, connect, sendDeposit, refreshBalance } = useHashConnect();
+  const { user } = useAuthStore();
+
   const [input, setInput] = useState('');
   const [contentType, setContentType] = useState('thread');
   const [tone, setTone] = useState('professional');
@@ -55,7 +60,8 @@ export default function ThreadSmithPage() {
   const [lastTxHash, setLastTxHash] = useState<string | null>(null);
 
   const statusMessages = [
-    "Initializing Neural Fabric...",
+    "Prompting Hedera x402 payment...",
+    "Verifying with Blocky402 facilitator...",
     "Querying Project Memory Index...",
     "Analyzing On-Chain Audit Logs...",
     "Synthesizing Narrative Structure...",
@@ -65,7 +71,7 @@ export default function ThreadSmithPage() {
 
   useEffect(() => {
     let interval: any;
-    if (isGenerating) {
+    if (isGenerating || isPaying) {
       interval = setInterval(() => {
         setStatusIdx((prev) => (prev + 1) % statusMessages.length);
       }, 2500);
@@ -73,55 +79,123 @@ export default function ThreadSmithPage() {
       setStatusIdx(0);
     }
     return () => clearInterval(interval);
-  }, [isGenerating, statusMessages.length]);
+  }, [isGenerating, isPaying, statusMessages.length]);
 
   const handleGenerate = async () => {
-    if (!input) return toast.error("Please enter some content or context");
+    if (!input.trim()) return toast.error("Please enter some content or context");
 
-    let txHash: string | null = null;
+    if (!isConnected) {
+      toast.info("Please connect your Hedera wallet to pay for synthesis");
+      connect();
+      return;
+    }
 
-    // ── Execute ─────────────────────────────────────────────────────────────
-    setIsGenerating(true);
+    setIsPaying(true);
+    setIsGenerating(false);
     setOutput("");
-    
+
     try {
-      const response = await fetch('/api/agents/threadsmith/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          input,
+      const payloadBody = {
+        agentId: "threadsmith",
+        inputs: {
+          prompt: input,
+          topic: input,
           contentType,
           tone,
           quality,
           useMemory,
-          txHash,            // on-chain payment proof (null if free/demo path)
-        })
+        },
+        userId: user?.id,
+        walletAddress: accountId,
+      };
+
+      // ── Step 1: Request 402 challenge ─────────────────────────────────────
+      toast.info("Requesting payment challenge from Hedera testnet...", { id: "payment-toast" });
+      const firstRes = await fetch("/api/agents/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payloadBody),
       });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Generation failed');
+
+      if (firstRes.status !== 402) {
+        const errorData = await firstRes.json().catch(() => ({}));
+        throw new Error(errorData.error || `Expected 402 payment challenge, got ${firstRes.status}`);
       }
 
-      const data = await response.json();
-      setOutput(data.content);
-      if (data.txHash) {
-        setLastTxHash(data.txHash);
+      const { paymentRequirements, breakdown } = await firstRes.json();
+
+      // ── Step 2: Prompt Hedera Wallet (HashPack / Kabila) ───────────────────
+      toast.loading("Please sign payment transaction in your wallet...", { id: "payment-toast" });
+      const { paymentPayloadTransaction } = await sendDeposit(paymentRequirements);
+
+      if (!paymentPayloadTransaction) {
+        throw new Error("Failed to sign payment transaction with Hedera wallet");
       }
-      toast.success("Synthesis Complete", {
-        description: data.txHash
-          ? `Settled on-chain · ${data.txHash.slice(0, 10)}…`
-          : "Content synthesis finished.",
+
+      // ── Step 3: Build x402 Payment Payload ────────────────────────────────
+      const paymentPayload = {
+        x402Version: 2,
+        scheme: "exact",
+        network: "hedera:testnet",
+        accepted: paymentRequirements,
+        payload: { transaction: paymentPayloadTransaction },
+      };
+
+      const xPayment = Buffer.from(JSON.stringify(paymentPayload)).toString("base64");
+
+      // ── Step 4: Submit Payment & Synthesize Content ───────────────────────
+      setIsPaying(false);
+      setIsGenerating(true);
+      toast.loading("Payment settling via Blocky402... Synthesizing intelligence...", { id: "payment-toast" });
+
+      const secondRes = await fetch("/api/agents/run", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Payment": xPayment,
+        },
+        credentials: "include",
+        body: JSON.stringify(payloadBody),
+      });
+
+      if (!secondRes.ok) {
+        const err = await secondRes.json().catch(() => ({}));
+        throw new Error(err.error || "Execution failed");
+      }
+
+      const data = await secondRes.json();
+      const content = data.output || data.response || data.content || "";
+      setOutput(content);
+      const tx = data.hederaTransaction || data.txHash || null;
+      if (tx) {
+        setLastTxHash(tx);
+      }
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("agentbazaar:run-completed", { detail: data }));
+      }
+
+      if (refreshBalance) {
+        refreshBalance().catch(console.warn);
+      }
+
+      toast.success("Synthesis Complete & Settled on Hedera", {
+        id: "payment-toast",
+        description: tx ? `Tx: ${tx.slice(0, 16)}…` : "Recorded on HCS",
       });
     } catch (error: any) {
-      console.error('Generation error:', error);
-      toast.error("Generation Failed", { description: error.message });
+      console.error("Generation error:", error);
+      toast.error("Execution Failed", {
+        id: "payment-toast",
+        description: error.message || "Failed to process payment and synthesis",
+      });
     } finally {
+      setIsPaying(false);
       setIsGenerating(false);
     }
   };
+
 
   const handleCopy = () => {
     navigator.clipboard.writeText(output);
