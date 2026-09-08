@@ -11,7 +11,9 @@ import {
 } from "@buidlerlabs/hashgraph-react-wallets/connectors";
 import { HashConnectProvider } from "@/context/HashConnectContext";
 
-const WALLETCONNECT_PROJECT_ID = "430247b6f8ddd120bf8c01995510965a";
+const WALLETCONNECT_PROJECT_ID =
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
+  "ba563c1e05865a8e3ed72b898791260f";
 
 export default function HederaProviders({ children }: { children: ReactNode }) {
   const currentOrigin = typeof window !== "undefined" && window.location.origin
