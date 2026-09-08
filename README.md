@@ -66,41 +66,35 @@ AgentBazaar features three production-ready autonomous agents deployed natively 
 ## 🏗️ System Architecture
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor Buyer as User / HashPack Wallet
-    participant Web as AgentBazaar Web (Next.js)
-    participant API as AgentBazaar API (Express)
-    participant Facilitator as Blocky402 Facilitator
-    participant Hedera as Hedera Testnet
-    participant HCS as Hedera Consensus Service
-    participant LLM as Claude AI Engine
+graph LR
+    classDef client fill:#2563eb,stroke:#1d4ed8,stroke-width:2px,color:#fff;
+    classDef platform fill:#7c3aed,stroke:#6d28d9,stroke-width:2px,color:#fff;
+    classDef payment fill:#059669,stroke:#047857,stroke-width:2px,color:#fff;
+    classDef hedera fill:#4f46e5,stroke:#3730a3,stroke-width:2px,color:#fff;
+    classDef ai fill:#d97706,stroke:#b45309,stroke-width:2px,color:#fff;
 
-    Note over Buyer,API: 1. x402 Negotiation & Payment Challenge
-    Buyer->>API: POST /api/agents/run (agentId, inputs)
-    API-->>Buyer: HTTP 402 Payment Required (Base64 PAYMENT-REQUIRED header + breakdown)
+    User["👤 User / HashPack<br/>(Client Wallet)"]:::client
+    Platform["🌐 AgentBazaar<br/>(Marketplace & API)"]:::platform
+    Facilitator["⚡ Blocky402<br/>(x402 Facilitator)"]:::payment
+    Hedera["⛓️ Hedera Testnet<br/>(HBAR & HCS Audit)"]:::hedera
+    AI["🤖 Autonomous Agent<br/>(Claude 3.5 AI Engine)"]:::ai
 
-    Note over Buyer,Hedera: 2. Cryptographic Wallet Signing (No Direct Gas Paid by User)
-    Buyer->>Buyer: Build TransferTransaction (Payer debit, PayTo credit)
-    Buyer->>Buyer: HashPack signTransaction (Sign-only with Blocky402 fee-payer)
-
-    Note over Buyer,Facilitator: 3. Settlement & Execution
-    Buyer->>API: POST /api/agents/run (Payload in X-Payment header)
-    API->>Facilitator: POST /verify (paymentPayload, paymentRequirements)
-    Facilitator-->>API: Valid (Payer verified)
-    API->>Facilitator: POST /settle (paymentPayload)
-    Facilitator->>Hedera: Broadcast & Execute TransferTransaction
-    Facilitator-->>API: Success (hederaTransaction ID)
-
-    Note over API,HCS: 4. Inference & Immutable Audit Trail
-    API->>LLM: Execute Agent Logic (Threadsmith / ScamSniff / LaunchWatch)
-    LLM-->>API: Generated Inference Result
-    API->>HCS: TopicMessageSubmitTransaction (Audit log: Agent, Buyer, Price, TxID)
-    HCS-->>API: HCS Consensus Sequence & Tx ID
-
-    Note over API,Buyer: 5. Verified Response & On-Chain Proof
-    API-->>Buyer: HTTP 200 OK (Output + HashScan URLs + X-Payment response)
+    User -->|"1. Run Request"| Platform
+    Platform -->|"2. 402 Payment Challenge"| User
+    User -->|"3. Sign Transfer"| Platform
+    Platform -->|"4. Settle Payment"| Facilitator
+    Facilitator -->|"5. On-Chain Settlement"| Hedera
+    Platform -->|"6. Trigger Inference"| AI
+    Platform -->|"7. Log Execution"| Hedera
+    AI -->|"8. Return Result"| Platform
+    Platform -->|"9. Output + HashScan Proof"| User
 ```
+
+### 🔄 How It Works in 4 Simple Steps:
+1. **Discover & Select**: The user picks an agent on the marketplace and submits a prompt or task.
+2. **HTTP 402 Paywall**: The API issues an `x402` payment challenge with exact HBAR pricing and platform fee split.
+3. **One-Click HashPack Signing**: The user cryptographically signs the transaction in HashPack (sign-only, no personal gas spent). Blocky402 verifies and settles the payment on Hedera Testnet.
+4. **Autonomous Execution & HCS Audit**: The agent executes the AI task and writes an immutable proof-of-execution receipt directly to **Hedera Consensus Service (HCS)** before returning the verified output.
 
 ---
 
