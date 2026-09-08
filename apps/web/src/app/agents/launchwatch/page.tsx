@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,7 +27,9 @@ import {
   Bell,
   X,
   ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  Copy,
+  Layers
 } from 'lucide-react';
 import { useHashConnect } from '@/context/HashConnectContext';
 import { useAuthStore } from '@/lib/store/auth.store';
@@ -45,6 +47,24 @@ export default function LaunchWatchPage() {
   const [activeMonitors, setActiveMonitors] = useState<any[]>([]);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'broadcasting' | 'mined' | 'verifying' | 'done'>('idle');
   const [lastTxHash, setLastTxHash] = useState<string | null>(null);
+
+  // Load saved monitors from localStorage on client mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('agentbazaar_launchwatch_monitors');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setActiveMonitors(parsed);
+            setStep('active');
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load saved LaunchWatch monitors:', e);
+      }
+    }
+  }, []);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -149,15 +169,35 @@ export default function LaunchWatchPage() {
       const tx = data.hederaTransaction || data.txHash || null;
       if (tx) setLastTxHash(tx);
 
-      setActiveMonitors([...activeMonitors, { 
+      const newMonitor = { 
         id: `lw_${Date.now()}`,
         type: monitoringType,
         target: formData.projectUrl || formData.tokenSymbol || formData.contractAddress || 'Market Stream',
-        frequency: formData.checkFrequency,
+        frequency: formData.checkFrequency || formData.newsFrequency || 'daily',
         status: 'ACTIVE',
         txHash: tx,
         output: data.output,
-      }]);
+        email: formData.email || formData.notificationEmail || user?.email || '',
+        notificationEmail: formData.notificationEmail || formData.email || '',
+        contractAddress: formData.contractAddress,
+        tokenSymbol: formData.tokenSymbol,
+        currentFDV: formData.currentFDV,
+        targetFDV: formData.targetFDV,
+        projectUrl: formData.projectUrl,
+        monitorSocial: formData.monitorSocial,
+        monitorWebsite: formData.monitorWebsite,
+        monitorSentiment: formData.monitorSentiment,
+        newsTopics: formData.newsTopics,
+        createdAt: new Date().toISOString(),
+      };
+
+      setActiveMonitors((prev) => {
+        const updated = [newMonitor, ...prev];
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('agentbazaar_launchwatch_monitors', JSON.stringify(updated));
+        }
+        return updated;
+      });
 
       setStep('active');
       setPaymentStatus('done');
@@ -186,14 +226,20 @@ export default function LaunchWatchPage() {
     }
   };
 
-
   const handleStopMonitoring = async (monitorId: string) => {
     try {
       await fetch(`/api/agents/launchwatch/stop/${monitorId}`, {
         method: 'POST'
-      });
+      }).catch(() => {});
       
-      setActiveMonitors(activeMonitors.filter(m => m.id !== monitorId));
+      setActiveMonitors((prev) => {
+        const updated = prev.filter(m => m.id !== monitorId);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('agentbazaar_launchwatch_monitors', JSON.stringify(updated));
+        }
+        return updated;
+      });
+      toast.success("Monitor stopped");
     } catch (error) {
       console.error('Stop monitoring error:', error);
     }
@@ -614,13 +660,14 @@ export default function LaunchWatchPage() {
                   </div>
                   
                   <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                    {monitor.type === 'project' && `Project: ${monitor.projectUrl}`}
-                    {monitor.type === 'token_milestone' && `Token Milestone: ${monitor.tokenSymbol || 'Token'}`}
+                    {monitor.type === 'project' && `Project: ${monitor.projectUrl || monitor.target}`}
+                    {monitor.type === 'token_milestone' && `Token Milestone: ${monitor.tokenSymbol || monitor.inputs?.tokenSymbol || 'Token'}`}
                     {monitor.type === 'crypto_news' && 'Crypto News Digest'}
                   </h3>
                   
-                  <p className="text-sm text-gray-600 mb-3">
-                    Notifications: {monitor.email}
+                  <p className="text-sm text-gray-600 mb-3 flex items-center gap-2">
+                    <Mail className="w-3.5 h-3.5 text-gray-400" />
+                    <span>Notifications: <strong>{monitor.email || monitor.notificationEmail || monitor.inputs?.email || 'Active in App'}</strong></span>
                   </p>
 
                   {(() => {
@@ -640,9 +687,9 @@ export default function LaunchWatchPage() {
                           href={`https://hashscan.io/testnet/transaction/${displayTx}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline font-mono"
+                          className="inline-flex items-center gap-1.5 text-xs text-orange-600 hover:underline font-mono"
                         >
-                          <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
+                          <ShieldCheck className="w-3.5 h-3.5 text-orange-500" />
                           On-Chain Proof: {displayTx.slice(0, 10)}...{displayTx.slice(-8)}
                           <ExternalLink className="w-3 h-3" />
                         </a>
@@ -651,28 +698,59 @@ export default function LaunchWatchPage() {
                   })()}
 
                   {monitor.type === 'token_milestone' && (
-                    <div className="bg-gray-50 rounded-lg p-3 mb-3">
-                      <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="bg-gray-50 rounded-xl p-4 mb-3 border border-gray-100">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                         <div>
-                          <span className="text-gray-500">Contract:</span>
-                          <p className="font-mono text-xs text-gray-900 mt-1">
-                            {monitor.contractAddress ? `${monitor.contractAddress.slice(0, 10)}...${monitor.contractAddress.slice(-8)}` : 'N/A'}
+                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Contract Address</span>
+                          <div className="flex items-center gap-2 mt-1">
+                            <p className="font-mono text-xs text-gray-900 font-semibold truncate max-w-[180px]">
+                              {monitor.contractAddress || monitor.inputs?.contractAddress || (monitor.target && monitor.target.startsWith('0x') ? monitor.target : 'N/A')}
+                            </p>
+                            {(monitor.contractAddress || monitor.inputs?.contractAddress) && (
+                              <button
+                                onClick={() => {
+                                  const addr = monitor.contractAddress || monitor.inputs?.contractAddress;
+                                  navigator.clipboard.writeText(addr);
+                                  toast.success("Contract address copied!");
+                                }}
+                                className="text-gray-400 hover:text-gray-700 transition-colors"
+                                title="Copy contract"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
+                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Current FDV</span>
+                          <p className="font-semibold text-gray-900 mt-1">
+                            {monitor.currentFDV && !isNaN(Number(monitor.currentFDV))
+                              ? `$${Number(monitor.currentFDV).toLocaleString()}`
+                              : monitor.currentFDV || 'N/A'}
                           </p>
                         </div>
+
                         <div>
-                          <span className="text-gray-500">Target FDV:</span>
-                          <p className="font-semibold text-gray-900 mt-1">
+                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Target FDV</span>
+                          <p className="font-bold text-green-700 mt-1 flex items-center gap-1">
+                            <TrendingUp className="w-3.5 h-3.5 text-green-600" />
                             {monitor.targetFDV && !isNaN(Number(monitor.targetFDV)) 
                               ? `$${Number(monitor.targetFDV).toLocaleString()}` 
-                              : 'N/A'}
+                              : monitor.targetFDV || monitor.inputs?.targetFDV || 'N/A'}
                           </p>
                         </div>
                       </div>
                     </div>
                   )}
 
-                  <div className="flex items-center gap-4 text-sm text-gray-500">
-                    <span>Next check: 2 hours</span>
+                  <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <Layers className="w-3.5 h-3.5" />
+                      Frequency: <strong className="text-gray-700 uppercase">{monitor.frequency || 'Daily'}</strong>
+                    </span>
+                    <span>•</span>
+                    <span>Next check: In 2 hours</span>
                     <span>•</span>
                     <span>Total checks: {monitor.totalChecks || 0}</span>
                   </div>
@@ -681,7 +759,7 @@ export default function LaunchWatchPage() {
                 <Button
                   variant="outline"
                   onClick={() => handleStopMonitoring(monitor.id)}
-                  className="border-red-300 text-red-600 hover:bg-red-50"
+                  className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-semibold text-xs px-4 py-2 rounded-xl transition-all"
                 >
                   Stop
                 </Button>
