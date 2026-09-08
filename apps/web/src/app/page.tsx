@@ -22,9 +22,6 @@ import {
   Lock,
   ChevronDown,
   Twitter,
-  Github,
-  Mail,
-  FileText,
   Gem,
   Loader2,
   Sparkles,
@@ -833,23 +830,15 @@ function Footer() {
             The decentralized protocol for autonomous AI agents, powered by Hedera Consensus Service, MCP routing, and instant micropayments.
           </p>
           <div className="flex gap-2.5 mt-5">
-            {[
-              { icon: Twitter, href: 'https://twitter.com', label: 'Twitter' },
-              { icon: Github, href: 'https://github.com', label: 'GitHub' },
-              { icon: Mail, href: 'mailto:support@agentbazaar.ai', label: 'Email' },
-              { icon: FileText, href: '#', label: 'Docs' },
-            ].map(({ icon: Icon, href, label }) => (
-              <a
-                key={label}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={label}
-                className="w-8 h-8 rounded-lg border border-gray-200 bg-white flex items-center justify-center text-gray-600 hover:border-orange-300 hover:text-orange-600 transition-colors shadow-2xs"
-              >
-                <Icon size={14} />
-              </a>
-            ))}
+            <a
+              href="https://x.com/_AgentBazaar"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Twitter"
+              className="w-8 h-8 rounded-lg border border-gray-200 bg-white flex items-center justify-center text-gray-600 hover:border-orange-300 hover:text-orange-600 transition-colors shadow-2xs"
+            >
+              <Twitter size={14} />
+            </a>
           </div>
         </div>
 
