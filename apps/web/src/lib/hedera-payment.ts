@@ -1,9 +1,6 @@
 import {
   AccountId,
-  Client,
   Hbar,
-  HbarUnit,
-  TransactionId,
   TransferTransaction,
 } from '@hashgraph/sdk';
 
@@ -19,13 +16,15 @@ export interface PaymentRequirements {
   network: string;
   amount: string; // total tinybars
   payTo: string;
+  memo?: string;
   maxTimeoutSeconds?: number;
   asset?: string;
-  extra: {
-    feePayer: string;
+  extra?: {
+    feePayer?: string;
     customFees?: CustomFee[];
     agentPriceTinybars?: number;
     platformFeeTinybars?: number;
+    agentIdentity?: any;
     [key: string]: any;
   };
   resource?: string;
@@ -33,10 +32,10 @@ export interface PaymentRequirements {
 }
 
 /**
- * Builds an unsubmitted, frozen Hedera TransferTransaction for Blocky402 x402 payment.
- * Debits the payer for total tinybars, credits payTo for agent price, and credits
- * fee collector(s) for platform fee(s) per customFees.
- * Transaction paying account is set to paymentRequirements.extra.feePayer.
+ * Builds an unsubmitted Hedera TransferTransaction for Blocky402 / deployment payment.
+ * Debits the payer for total tinybars and credits payTo.
+ * The transaction is left unfrozen so that freezeWithSigner / executeWithSigner
+ * can populate the active wallet's nodeAccountIds and transactionId.
  */
 export function buildPaymentTransaction(
   payerAccountId: string,
@@ -47,9 +46,6 @@ export function buildPaymentTransaction(
   }
   if (!paymentRequirements) {
     throw new Error('Payment requirements are required');
-  }
-  if (!paymentRequirements.extra?.feePayer) {
-    throw new Error('Blocky402 feePayer is missing from payment requirements');
   }
   if (!paymentRequirements.payTo) {
     throw new Error('payTo recipient is missing from payment requirements');
