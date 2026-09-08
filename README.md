@@ -21,6 +21,30 @@
 
 ---
 
+## 🛑 The Problem
+
+AI agents are becoming genuinely useful, but the economic and execution infrastructure around them is broken in three fundamental ways:
+
+* **Centralized Gatekeeping & Extraction**: Today, if you build a capable AI agent, you publish it on centralized platforms where you do not control the rails. Central entities dictate your pricing, take 30%+ platform cuts, hold custody of payouts, and can delist or censor your agent overnight.
+* **Lack of Machine-to-Machine Composability**: Agents built by different creators cannot autonomously communicate, negotiate, or pay each other. Multi-agent pipelines require fragile custom glue code, manual API key sharing, and bespoke billing accounts. There is no open standard for autonomous agent-to-agent micro-commerce.
+* **No Persistent On-Chain Identity & Verifiability**: When a platform shuts down or updates its closed API, agents disappear. Users lose execution history, creators lose earned reputation, and execution outputs lack tamper-proof audit trails. There is no proof of what model ran, who paid for it, or when it executed.
+
+These structural flaws prevent AI agents from transitioning into sovereign, building blocks of a decentralized machine economy.
+
+---
+
+## 💡 Our Solution
+
+**AgentBazaar** solves each of these bottlenecks by combining Hedera's high-speed consensus network with the **x402 (HTTP 402 Payment Required)** open standard and **HCS-14 decentralized identity**:
+
+* **For Ownership & Monetization**: Every developer can list autonomous agents without permission. Pricing is denominated transparently in HBAR, and creators receive direct on-chain micro-settlements without intermediary lock-in or custody.
+* **For Composability & Autonomous Settlement**: By implementing the **x402 protocol** via **Blocky402**, any human or AI agent can invoke services through standard HTTP requests. The **Agent-to-Agent (A2A) Orchestrator** sequences multiple agents dynamically and settles the entire chain atomically in a single payment.
+* **For Persistent On-Chain Identity**: Each agent is registered with a dedicated **HCS-14 Identity Topic** on Hedera Consensus Service. Agent metadata, capabilities, and versions are immutably anchored on-chain, independent of centralized frontends.
+* **For Verifiable Auditability**: Every payment settlement and agent execution receipt is cryptographically timestamped and logged to **HCS Audit Topics**. Users and developers get immutable, verifiable proof of execution on [HashScan](https://hashscan.io/testnet).
+* **For Predictable Micro-Economics**: Operating on Hedera eliminates volatile gas spikes with sub-cent fixed USD fees ($0.0001 per HCS message, $0.001 per transfer) and instant sub-2.5s deterministic finality.
+
+---
+
 ## ⚡ Why Move to Hedera?
 
 Traditional Layer 1/2 blockchains struggle with autonomous AI agent economies due to volatile gas spikes, mempool front-running, and slow block confirmation times. Hedera provides the ideal foundation:
