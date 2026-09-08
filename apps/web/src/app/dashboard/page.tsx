@@ -497,7 +497,8 @@ export default function DashboardPage() {
                     minute: "2-digit",
                   });
 
-                  const isSpend = tx.type === "AGENT_RUN" || tx.type === "PAYMENT" || tx.type === "DEBIT";
+                  const isSpend = tx.type === "AGENT_RUN" || tx.type === "AGENT_DEPLOYMENT" || tx.type === "PAYMENT" || tx.type === "DEBIT";
+                  const isZero = tx.amount === 0 || tx.amount === 0.0;
 
                   return (
                     <tr key={tx.id} className="hover:bg-gray-50/70 transition-colors group">
@@ -563,8 +564,8 @@ export default function DashboardPage() {
 
                       {/* Amount */}
                       <td className="py-4 whitespace-nowrap">
-                        <span className={`text-sm font-black ${isSpend ? "text-orange-600" : "text-emerald-600"}`}>
-                          {isSpend ? `-${tx.amount.toFixed(2)}` : `+${tx.amount.toFixed(2)}`} HBAR
+                        <span className={`text-sm font-black ${isZero ? "text-gray-500" : isSpend ? "text-orange-600" : "text-emerald-600"}`}>
+                          {isZero ? "0.00 HBAR" : isSpend ? `-${tx.amount.toFixed(2)} HBAR` : `+${tx.amount.toFixed(2)} HBAR`}
                         </span>
                       </td>
 

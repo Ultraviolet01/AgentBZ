@@ -185,13 +185,16 @@ export async function POST(req: NextRequest) {
     // ── Record Transaction in DB for Dashboard & History ─────────────────────
     if (userId) {
       try {
+        const isUserPaid = Boolean(paymentPayloadTransaction);
         await prisma.transaction.create({
           data: {
             userId,
-            amount: 0.5,
+            amount: isUserPaid ? 0.5 : 0.0,
             type: 'AGENT_DEPLOYMENT',
             status: 'COMPLETED',
-            description: `On-chain Agent Deployment & HCS-14 Identity registration for ${name} (/agents/${slug})`,
+            description: isUserPaid
+              ? `On-chain Agent Deployment & HCS-14 Identity registration for ${name} (/agents/${slug})`
+              : `Platform-Sponsored On-chain Deployment & HCS-14 Registration for ${name} (/agents/${slug})`,
             txHash: hcsTxId || (paymentPayloadTransaction ? `hashpack_${Date.now()}` : `hcs_topic_${topicId}_${Date.now()}`),
           }
         });
