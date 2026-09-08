@@ -37,12 +37,13 @@ expressApp.use(helmet({
 const allowedOrigins = [
   process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3010",
   "https://agentb.netlify.app",
-  "https://agentbazaar.vercel.app"
+  "https://agentbazaar.vercel.app",
+  "https://agent-bz-web.vercel.app"
 ];
 
 expressApp.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
       callback(null, true);
     } else {
       callback(new Error(`Origin ${origin} not allowed by CORS`), false);
@@ -66,7 +67,7 @@ expressApp.get("/health", (req, res) => {
 // Conditionally listen if not in a serverless environment
 if (process.env.NODE_ENV !== "production" || process.env.VERCEL !== "1") {
   httpServer.listen(port, "0.0.0.0", () => {
-    console.log(`✅ AgentBazaar API with LaunchWatch is LIVE`);
+    console.log(`✅ AgentBazaar Multi-Agent API & Chat Orchestrator is LIVE`);
     console.log(`📡 URL: http://localhost:${port}`);
     console.log(`🏥 Health Check: http://localhost:${port}/health`);
     console.log(`🕰️ Started at: ${new Date().toISOString()}`);
