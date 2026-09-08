@@ -11,25 +11,22 @@ import {
 } from "@buidlerlabs/hashgraph-react-wallets/connectors";
 import { HashConnectProvider } from "@/context/HashConnectContext";
 
-const rawProjectId =
-  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
-  process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID;
-
-const WALLETCONNECT_PROJECT_ID =
-  rawProjectId && rawProjectId !== "ba563c1e05865a8e3ed72b898791260f"
-    ? rawProjectId
-    : "430247b6f8ddd120bf8c01995510965a";
+const WALLETCONNECT_PROJECT_ID = "430247b6f8ddd120bf8c01995510965a";
 
 export default function HederaProviders({ children }: { children: ReactNode }) {
+  const currentOrigin = typeof window !== "undefined" && window.location.origin
+    ? window.location.origin
+    : "https://agent-bz-web.vercel.app";
+
   return (
     <HWBridgeProvider
       metadata={{
         name: "AgentBazaar",
         description: "The decentralized AI agent marketplace with x402 payments",
-        icons: ["https://agentbazaar.io/icon.png"],
-        url: typeof window !== "undefined" ? window.location.origin : "https://agentbazaar.io",
+        icons: [`${currentOrigin}/icon.png`],
+        url: currentOrigin,
       }}
-      projectId={WALLETCONNECT_PROJECT_ID || ""}
+      projectId={WALLETCONNECT_PROJECT_ID}
       connectors={[HWCConnector, HashpackConnector, KabilaConnector, BladeConnector]}
       chains={[HederaTestnet, HederaMainnet]}
     >
