@@ -30,10 +30,10 @@ const agents = [
     description: "Advanced social & smart contract threat analysis.",
     icon: ShieldCheck,
     cost: "1 HBAR",
-    color: "text-green-600",
-    bg: "bg-green-100",
+    color: "text-amber-600",
+    bg: "bg-amber-100",
     href: "/agents/scamsniff",
-    tag: "High Accuracy"
+    tag: "In Dev"
   },
   {
     id: "threadsmith",

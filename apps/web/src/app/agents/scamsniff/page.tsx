@@ -34,10 +34,13 @@ export default function ScamSniffPage() {
             <div>
               <h1 className="text-4xl font-bold text-gray-900 mb-2">ScamSniff</h1>
               <p className="text-gray-600">Real-time threat detection & authenticity verification</p>
-              <div className="flex items-center gap-2 mt-2">
-                <Badge className="bg-green-100 text-green-700">HIGH ACCURACY</Badge>
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <Badge className="bg-amber-100 text-amber-800 border border-amber-300 font-bold text-[10px] tracking-wider px-3 py-1 rounded-full flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  IN DEV
+                </Badge>
+                <Badge className="bg-green-100 text-green-700">SECURITY AUDIT</Badge>
                 <Badge className="bg-blue-100 text-blue-700">CLAUDE 4.5 HAIKU</Badge>
-                <Badge className="bg-orange-100 text-orange-700">VOICE ENABLED</Badge>
               </div>
             </div>
           </div>

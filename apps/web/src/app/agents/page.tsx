@@ -151,13 +151,20 @@ export default function AgentsPage() {
                     <div className="flex-1 space-y-4">
                       <div className="flex flex-wrap items-center gap-3">
                         <h3 className="text-2xl font-bold text-gray-900 tracking-tight uppercase">{agent.name}</h3>
-                        <Badge variant={agent.id === 'scamsniff' ? 'success' : agent.id === 'threadsmith' ? 'warning' : 'info'}>
+                        <Badge variant={agent.id === 'scamsniff' ? 'secondary' : agent.id === 'threadsmith' ? 'warning' : 'info'}>
                           {agent.badge}
                         </Badge>
-                        <div className="flex items-center gap-2 py-1 px-3 rounded-full bg-emerald-50 border border-emerald-100">
-                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest">Live</span>
-                        </div>
+                        {agent.id === 'scamsniff' ? (
+                          <div className="flex items-center gap-2 py-1 px-3 rounded-full bg-amber-50 border border-amber-200">
+                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                            <span className="text-[9px] font-bold text-amber-700 uppercase tracking-widest">In Dev</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 py-1 px-3 rounded-full bg-emerald-50 border border-emerald-100">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest">Live</span>
+                          </div>
+                        )}
                       </div>
                       
                       <p className="text-sm font-semibold text-gray-600 max-w-2xl leading-relaxed">
