@@ -45,6 +45,7 @@ interface AgentItem {
   category: string;
 }
 
+// Built-in featured agents created by AgentBazaar Core (3 official agents)
 const BUILT_IN_AGENTS: AgentItem[] = [
   {
     id: 'scamsniff',
@@ -106,6 +107,10 @@ const BUILT_IN_AGENTS: AgentItem[] = [
     isBuiltIn: true,
     category: 'Crypto & Trading',
   },
+];
+
+// Initial developer deployed agents
+const INITIAL_DEPLOYED_AGENTS: AgentItem[] = [
   {
     id: 'sentinel',
     slug: 'sentinel',
@@ -119,13 +124,14 @@ const BUILT_IN_AGENTS: AgentItem[] = [
     badgeColor: 'bg-purple-100 text-purple-700 border-purple-200',
     cost: '1.0 HBAR',
     creator: '0.0.10389860',
-    verified: true,
+    builderAccountId: '0.0.10389860',
+    verified: false,
     trending: true,
     installs: 320,
     rating: 5.0,
-    isBuiltIn: true,
+    isBuiltIn: false,
     category: 'Analytics',
-  }
+  },
 ];
 
 export default function MarketplacePage() {
@@ -133,7 +139,7 @@ export default function MarketplacePage() {
   const { user, isLoading } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTab, setFilterTab] = useState<'all' | 'builtin' | 'deployed'>('all');
-  const [deployedAgents, setDeployedAgents] = useState<AgentItem[]>([]);
+  const [deployedAgents, setDeployedAgents] = useState<AgentItem[]>(INITIAL_DEPLOYED_AGENTS);
 
   useEffect(() => {
     if (!isLoading) {
@@ -154,18 +160,18 @@ export default function MarketplacePage() {
           const data = await res.json();
           if (data.agents && Array.isArray(data.agents)) {
             const custom = data.agents
-              .filter((a: any) => !['scamsniff', 'threadsmith', 'launchwatch', 'sentinel'].includes((a.slug || '').toLowerCase()))
+              .filter((a: any) => !['scamsniff', 'threadsmith', 'launchwatch'].includes((a.slug || '').toLowerCase()))
               .map((a: any) => ({
                 id: a.id || a.slug,
                 slug: a.slug,
-                route: `/agents/deployed/${a.slug}`,
+                route: (a.slug === 'sentinel') ? '/agents/sentinel' : `/agents/deployed/${a.slug}`,
                 name: a.name,
                 description: a.description || 'Custom autonomous AI agent deployed on Hedera.',
-                icon: Cpu,
-                iconColor: 'text-indigo-600',
-                bgColor: 'bg-indigo-100',
+                icon: a.slug === 'sentinel' ? Bot : Cpu,
+                iconColor: a.slug === 'sentinel' ? 'text-purple-600' : 'text-indigo-600',
+                bgColor: a.slug === 'sentinel' ? 'bg-purple-100' : 'bg-indigo-100',
                 badgeText: a.category ? a.category.toUpperCase() : 'DEVELOPER DEPLOYED',
-                badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+                badgeColor: a.slug === 'sentinel' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200',
                 cost: `${a.pricePerRun || 1} HBAR`,
                 creator: a.creator || a.builderAccountId || 'Community Developer',
                 builderAccountId: a.builderAccountId,
@@ -176,7 +182,17 @@ export default function MarketplacePage() {
                 isBuiltIn: false,
                 category: a.category || 'Custom',
               }));
-            setDeployedAgents(custom);
+
+            const merged = [...INITIAL_DEPLOYED_AGENTS];
+            custom.forEach((c: AgentItem) => {
+              const idx = merged.findIndex(m => m.slug.toLowerCase() === c.slug.toLowerCase());
+              if (idx >= 0) {
+                merged[idx] = c;
+              } else {
+                merged.push(c);
+              }
+            });
+            setDeployedAgents(merged);
           }
         }
       } catch (err) {

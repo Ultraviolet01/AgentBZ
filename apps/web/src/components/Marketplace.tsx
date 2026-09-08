@@ -43,7 +43,7 @@ interface AgentItem {
   category?: string;
 }
 
-// Built-in featured agents created by AgentBazaar
+// Built-in featured agents created by AgentBazaar Core (3 official agents)
 const BUILT_IN_AGENTS: AgentItem[] = [
   {
     id: 'scamsniff',
@@ -102,6 +102,10 @@ const BUILT_IN_AGENTS: AgentItem[] = [
     isBuiltIn: true,
     category: 'Monitoring',
   },
+];
+
+// Initial developer deployed agents
+const INITIAL_DEPLOYED_AGENTS: AgentItem[] = [
   {
     id: 'sentinel',
     slug: 'sentinel',
@@ -115,19 +119,20 @@ const BUILT_IN_AGENTS: AgentItem[] = [
     badgeColor: 'bg-purple-50 text-purple-700 border-purple-200',
     cost: '1 HBAR',
     creator: '0.0.10389860',
-    verified: true,
+    builderAccountId: '0.0.10389860',
+    verified: false,
     trending: true,
     installs: 320,
-    isBuiltIn: true,
+    isBuiltIn: false,
     category: 'Analytics',
-  }
+  },
 ];
 
 export default function Marketplace() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTab, setFilterTab] = useState<'all' | 'builtin' | 'deployed'>('all');
-  const [deployedAgents, setDeployedAgents] = useState<AgentItem[]>([]);
+  const [deployedAgents, setDeployedAgents] = useState<AgentItem[]>(INITIAL_DEPLOYED_AGENTS);
   const [loadingDeployed, setLoadingDeployed] = useState(false);
 
   // Fetch developer-deployed agents from /api/agents/deployed
@@ -139,20 +144,20 @@ export default function Marketplace() {
         if (res.ok) {
           const data = await res.json();
           if (data.agents && Array.isArray(data.agents)) {
-            // Filter out any built-in slug duplicates if saved to DB
+            // Filter out any built-in slug duplicates
             const custom = data.agents
-              .filter((a: any) => !['scamsniff', 'threadsmith', 'launchwatch', 'sentinel'].includes((a.slug || '').toLowerCase()))
+              .filter((a: any) => !['scamsniff', 'threadsmith', 'launchwatch'].includes((a.slug || '').toLowerCase()))
               .map((a: any) => ({
                 id: a.id || a.slug,
                 slug: a.slug,
-                route: `/agents/deployed/${a.slug}`,
+                route: (a.slug === 'sentinel') ? '/agents/sentinel' : `/agents/deployed/${a.slug}`,
                 name: a.name,
                 description: a.description || 'Custom autonomous AI agent deployed on Hedera.',
-                icon: Cpu,
-                iconColor: 'text-indigo-600',
-                bgColor: 'bg-indigo-50',
+                icon: a.slug === 'sentinel' ? Bot : Cpu,
+                iconColor: a.slug === 'sentinel' ? 'text-purple-600' : 'text-indigo-600',
+                bgColor: a.slug === 'sentinel' ? 'bg-purple-50' : 'bg-indigo-50',
                 badge: a.category ? a.category.toUpperCase() : 'DEVELOPER DEPLOYED',
-                badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+                badgeColor: a.slug === 'sentinel' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200',
                 cost: `${a.pricePerRun || 1} HBAR`,
                 creator: a.creator || a.builderAccountId || 'Community Developer',
                 builderAccountId: a.builderAccountId,
@@ -162,7 +167,18 @@ export default function Marketplace() {
                 isBuiltIn: false,
                 category: a.category || 'Custom',
               }));
-            setDeployedAgents(custom);
+            
+            // Merge custom agents with INITIAL_DEPLOYED_AGENTS (ensuring Sentinel is always present if not in DB yet)
+            const merged = [...INITIAL_DEPLOYED_AGENTS];
+            custom.forEach((c: AgentItem) => {
+              const idx = merged.findIndex(m => m.slug.toLowerCase() === c.slug.toLowerCase());
+              if (idx >= 0) {
+                merged[idx] = c;
+              } else {
+                merged.push(c);
+              }
+            });
+            setDeployedAgents(merged);
           }
         }
       } catch (err) {
