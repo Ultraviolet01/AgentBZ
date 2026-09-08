@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useHashConnect } from "@/context/HashConnectContext";
+import { useAuthStore } from "@/lib/store/auth.store";
 
 interface RunAgentButtonProps {
   agentId: string;
@@ -23,7 +24,8 @@ export function RunAgentButton({
   agentName,
   priceHbar,
 }: RunAgentButtonProps) {
-  const { isConnected, connect, sendDeposit, refreshBalance } = useHashConnect();
+  const { accountId, isConnected, connect, sendDeposit, refreshBalance } = useHashConnect();
+  const { user } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ExecutionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,17 +47,19 @@ export function RunAgentButton({
     setResult(null);
 
     try {
-      const NEXT_PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL;
-      if (!NEXT_PUBLIC_API_URL) {
-        throw new Error("NEXT_PUBLIC_API_URL is not configured. Cannot determine which API to call.");
-      }
-      const apiUrl = `${NEXT_PUBLIC_API_URL}/api/agents/run`;
+      const apiUrl = `/api/agents/run`;
 
       // Step 1: First call — no payment, get 402 challenge
       const firstRes = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentId, inputs: { query: input } }),
+        credentials: "include",
+        body: JSON.stringify({ 
+          agentId, 
+          inputs: { query: input },
+          userId: user?.id,
+          walletAddress: accountId,
+        }),
       });
 
       if (firstRes.status !== 402) {
@@ -95,7 +99,13 @@ export function RunAgentButton({
           "Content-Type": "application/json",
           "X-Payment": xPayment,
         },
-        body: JSON.stringify({ agentId, inputs: { query: input } }),
+        credentials: "include",
+        body: JSON.stringify({ 
+          agentId, 
+          inputs: { query: input },
+          userId: user?.id,
+          walletAddress: accountId,
+        }),
       });
 
       if (!secondRes.ok) {
@@ -106,6 +116,10 @@ export function RunAgentButton({
       const data: ExecutionResult = await secondRes.json();
       setResult(data);
 
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("agentbazaar:run-completed", { detail: data }));
+      }
+
       if (refreshBalance) {
         refreshBalance().catch(console.warn);
       }
@@ -115,6 +129,7 @@ export function RunAgentButton({
       setLoading(false);
     }
   }
+
 
   return (
     <div className="space-y-4">

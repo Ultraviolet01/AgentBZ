@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useHashConnect } from "@/context/HashConnectContext";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Maximize2,
   Minimize2,
@@ -46,6 +47,7 @@ const QUICK_PROMPTS = [
 
 export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: AgentChatProps) {
   const { isConnected, connect, sendDeposit, accountId, refreshBalance } = useHashConnect();
+  const { user } = useAuth();
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -81,7 +83,12 @@ export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: Agent
       const res = await fetch("/api/chat/orchestrate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage }),
+        credentials: "include",
+        body: JSON.stringify({
+          message: userMessage,
+          userId: user?.id,
+          walletAddress: accountId,
+        }),
       });
 
       const data = await res.json();
@@ -175,11 +182,14 @@ export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: Agent
           "Content-Type": "application/json",
           "X-Payment": xPayment,
         },
+        credentials: "include",
         body: JSON.stringify({
           message: pendingPlan.originalMessage,
           plan: pendingPlan.plan,
           agentsToCall: pendingPlan.agentsToCall,
           estimatedCostHbar: pendingPlan.estimatedCostHbar,
+          userId: user?.id,
+          walletAddress: accountId,
         }),
       });
 
@@ -197,6 +207,10 @@ export function AgentChat({ isExpanded = false, onToggleExpand, onClose }: Agent
           { role: "assistant", content: `Execution error: ${data.error || "Failed to process request"}` },
         ]);
         return;
+      }
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("agentbazaar:run-completed", { detail: data }));
       }
 
       setMessages((prev) => [

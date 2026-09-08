@@ -71,36 +71,49 @@ export const verifySignature = async (req: Request, res: Response) => {
 
 export const getTransactions = async (req: Request, res: Response) => {
   try {
-    let userId = (req as any).userId;
+    const rawUserId = (req as any).userId || (req.query.userId as string | undefined);
     const walletAddressQuery = req.query.walletAddress as string | undefined;
 
-    if (!userId && walletAddressQuery) {
-      const matched = await prisma.user.findFirst({
+    const userIds = new Set<string>();
+    if (rawUserId && typeof rawUserId === "string") {
+      userIds.add(rawUserId);
+    }
+
+    if (walletAddressQuery) {
+      const matchedUsers = await prisma.user.findMany({
         where: {
           walletAddress: {
             equals: walletAddressQuery,
-            mode: "insensitive"
-          }
-        }
+            mode: "insensitive",
+          },
+        },
+        select: { id: true },
       });
-      if (matched) userId = matched.id;
+      matchedUsers.forEach((u) => userIds.add(u.id));
     }
 
-    if (!userId) {
-      const fallback = await prisma.user.findFirst({ orderBy: { createdAt: "desc" } });
-      if (fallback) userId = fallback.id;
+    const txConditions: any[] = [];
+    if (userIds.size > 0) {
+      txConditions.push({ userId: { in: Array.from(userIds) } });
     }
 
-    if (!userId) {
-      return res.json({ transactions: [] });
+    let transactions = [];
+    if (txConditions.length > 0) {
+      transactions = await prisma.transaction.findMany({
+        where: { OR: txConditions },
+        orderBy: { createdAt: "desc" },
+      });
     }
 
-    const transactions = await prisma.transaction.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" }
-    });
+    // Fallback if no specific user filter matched: return recent platform transactions
+    if (transactions.length === 0 && !rawUserId) {
+      transactions = await prisma.transaction.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      });
+    }
 
-    const mappedTransactions = transactions.map(tx => ({
+    const mappedTransactions = transactions.map((tx) => ({
       id: tx.id,
       type: tx.type,
       subtype: tx.type === "DEPOSIT" ? "ON-CHAIN" : "",
@@ -109,7 +122,7 @@ export const getTransactions = async (req: Request, res: Response) => {
       status: tx.status,
       txHash: tx.txHash,
       createdAt: tx.createdAt.toISOString(),
-      date: tx.createdAt.toISOString().split("T")[0]
+      date: tx.createdAt.toISOString().split("T")[0],
     }));
 
     res.json({ transactions: mappedTransactions });
@@ -121,66 +134,140 @@ export const getTransactions = async (req: Request, res: Response) => {
 
 export const getDashboardStats = async (req: Request, res: Response) => {
   try {
-    let userId = (req as any).userId;
+    const rawUserId = (req as any).userId || (req.query.userId as string | undefined);
     const walletAddressQuery = req.query.walletAddress as string | undefined;
 
-    if (!userId && walletAddressQuery) {
-      const matched = await prisma.user.findFirst({
+    const userIds = new Set<string>();
+    if (rawUserId && typeof rawUserId === "string") {
+      userIds.add(rawUserId);
+    }
+
+    if (walletAddressQuery) {
+      const matchedUsers = await prisma.user.findMany({
         where: {
           walletAddress: {
             equals: walletAddressQuery,
-            mode: "insensitive"
-          }
+            mode: "insensitive",
+          },
+        },
+        select: { id: true },
+      });
+      matchedUsers.forEach((u) => userIds.add(u.id));
+    }
+
+    if (rawUserId) {
+      const authUser = await prisma.user.findUnique({
+        where: { id: rawUserId },
+        select: { walletAddress: true },
+      });
+      if (authUser?.walletAddress) {
+        const linkedUsers = await prisma.user.findMany({
+          where: {
+            walletAddress: {
+              equals: authUser.walletAddress,
+              mode: "insensitive",
+            },
+          },
+          select: { id: true },
+        });
+        linkedUsers.forEach((u) => userIds.add(u.id));
+      }
+    }
+
+    // 1. Query agent runs
+    const runConditions: any[] = [];
+    if (userIds.size > 0) {
+      runConditions.push({ userId: { in: Array.from(userIds) } });
+    }
+
+    let runs = [];
+    if (runConditions.length > 0) {
+      runs = await prisma.agentRun.findMany({
+        where: { OR: runConditions },
+        orderBy: { createdAt: "desc" },
+      });
+    }
+
+    // Also check if any runs have matching payer in metadata if not caught yet
+    if (walletAddressQuery) {
+      const payerRuns = await prisma.agentRun.findMany({
+        where: {
+          outputData: {
+            path: ["metadata", "payer"],
+            equals: walletAddressQuery,
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      for (const pr of payerRuns) {
+        if (!runs.some((r) => r.id === pr.id)) {
+          runs.push(pr);
         }
-      });
-      if (matched) userId = matched.id;
+      }
     }
 
-    if (!userId) {
-      const fallback = await prisma.user.findFirst({ orderBy: { createdAt: "desc" } });
-      if (fallback) userId = fallback.id;
-    }
-
-    if (!userId) {
-      return res.json({
-        totalRuns: 0,
-        lifetimeSpentHbar: 0,
-        walletAddress: walletAddressQuery || null,
-        runs: [],
-        transactions: []
+    // Fallback if no specific user filter matched: return recent platform runs
+    if (runs.length === 0 && !rawUserId) {
+      runs = await prisma.agentRun.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 50,
       });
     }
 
-    const runs = await prisma.agentRun.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" }
-    });
-    const transactions = await prisma.transaction.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" }
-    });
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { walletAddress: true }
-    });
+    // 2. Query transactions
+    const txConditions: any[] = [];
+    if (userIds.size > 0) {
+      txConditions.push({ userId: { in: Array.from(userIds) } });
+    }
+    const runTxHashes = runs
+      .map((r: any) => r.artifactCid || (r.outputData as any)?.metadata?.txHash)
+      .filter((h: any): h is string => typeof h === "string" && h.length > 0);
+
+    if (runTxHashes.length > 0) {
+      txConditions.push({ txHash: { in: runTxHashes } });
+    }
+
+    let transactions = [];
+    if (txConditions.length > 0) {
+      transactions = await prisma.transaction.findMany({
+        where: { OR: txConditions },
+        orderBy: { createdAt: "desc" },
+      });
+    }
+
+    if (transactions.length === 0 && !rawUserId) {
+      transactions = await prisma.transaction.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      });
+    }
 
     const totalRuns = runs.length;
-    const spentFromRuns = runs.reduce((sum, r) => sum + (r.creditsUsed || 1.0), 0);
+    const spentFromRuns = runs.reduce((sum, r) => {
+      const cost = typeof r.creditsUsed === "number"
+        ? r.creditsUsed
+        : typeof (r.outputData as any)?.metadata?.costHbar === "number"
+        ? (r.outputData as any).metadata.costHbar
+        : 1.0;
+      return sum + cost;
+    }, 0);
+
     const spentFromTxs = transactions
-      .filter(t => t.type === "AGENT_RUN" || t.type === "DEBIT")
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter((t) => t.type === "AGENT_RUN" || t.type === "DEBIT" || t.type === "PAYMENT")
+      .reduce((sum, t) => sum + (typeof t.amount === "number" ? t.amount : 0), 0);
 
     const lifetimeSpentHbar = Math.max(spentFromRuns, spentFromTxs);
 
     res.json({
       totalRuns,
       lifetimeSpentHbar,
-      walletAddress: user?.walletAddress || walletAddressQuery || null,
+      walletAddress: walletAddressQuery || null,
       runs,
-      transactions
+      transactions,
     });
   } catch (error: any) {
     console.error("Get dashboard stats error:", error);
     res.status(500).json({ error: "Failed to get dashboard stats" });
   }
 };
+

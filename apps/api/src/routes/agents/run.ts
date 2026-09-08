@@ -1,6 +1,4 @@
-// apps/api/src/routes/agents/run.ts
-// Per-request x402 payment — buyer signs via HashPack, Blocky402 settles
-
+import jwt from "jsonwebtoken";
 import { PrismaClient } from "@agentbazaar/database";
 import {
   buildHederaPaymentRequirements,
@@ -11,6 +9,73 @@ import { logToHCS } from "../../lib/hcs";
 import type { AuditEntry } from "../../lib/hcs";
 
 const db = new PrismaClient();
+const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || "at_super-secret-key";
+
+async function resolveUserId(req: Request, body?: any, payerAddress?: string): Promise<string | null> {
+  // 0. Direct userId from request body
+  if (body?.userId) {
+    try {
+      const u = await db.user.findUnique({ where: { id: body.userId } });
+      if (u) return u.id;
+    } catch (err) {}
+  }
+
+  // 1. Try Bearer token or Cookie in req.headers
+  try {
+    const authHeader = req.headers.get("authorization");
+    let token: string | undefined;
+    if (authHeader?.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    }
+    if (!token) {
+      const cookieHeader = req.headers.get("cookie");
+      if (cookieHeader) {
+        const match =
+          cookieHeader.match(/accessToken=([^;]+)/) ||
+          cookieHeader.match(/auth_token=([^;]+)/);
+        if (match) token = match[1];
+      }
+    }
+    if (token) {
+      const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET) as {
+        userId?: string;
+        id?: string;
+      };
+      const uid = decoded?.userId || decoded?.id;
+      if (uid) {
+        const user = await db.user.findUnique({ where: { id: uid } });
+        if (user) return user.id;
+      }
+    }
+  } catch (err) {}
+
+  // 2. Try payer Hedera/EVM address matching walletAddress
+  const lookupAddress = body?.walletAddress || payerAddress;
+  if (lookupAddress && lookupAddress !== "0.0.unknown") {
+    try {
+      const user = await db.user.findFirst({
+        where: {
+          walletAddress: {
+            equals: lookupAddress,
+            mode: "insensitive",
+          },
+        },
+      });
+      if (user) return user.id;
+    } catch (err) {}
+  }
+
+  // 3. Fallback to most recent user
+  try {
+    const fallbackUser = await db.user.findFirst({
+      orderBy: { createdAt: "desc" },
+    });
+    if (fallbackUser) return fallbackUser.id;
+  } catch (err) {}
+
+  return null;
+}
+
 
 async function runAgentLogic(
   logic: string,
@@ -196,6 +261,57 @@ export async function POST(req: Request) {
       console.warn("[HCS] Log notice:", hcsErr.message);
     }
 
+    // ── Persist run history & transactions in database ─────────────────────────
+    try {
+      const body = { agentId, inputs };
+      const userId = await resolveUserId(req, body, payer);
+      if (userId) {
+        if (payer && payer !== "0.0.unknown") {
+          await db.user.update({
+            where: { id: userId },
+            data: { walletAddress: payer },
+          }).catch(() => {});
+        }
+
+        const cost = (agent.priceHbar ?? 1.0) + 0.5;
+
+        await db.agentRun.create({
+          data: {
+            userId,
+            agentType: agent.name.toLowerCase(),
+            creditsUsed: cost,
+            inputData: inputs || {},
+            outputData: {
+              content: output,
+              metadata: {
+                agentName: agent.name,
+                costHbar: cost,
+                txHash: transaction,
+                payer,
+                hcsTxId,
+              },
+            },
+            status: "COMPLETED",
+            artifactCid: transaction,
+          },
+        });
+
+        await db.transaction.create({
+          data: {
+            userId,
+            amount: cost,
+            type: "AGENT_RUN",
+            status: "CONFIRMED",
+            description: `Executed ${agent.name}`,
+            txHash: transaction,
+          },
+        });
+        console.log(`[Run] Persisted 1 run & transaction for user ${userId}, tx: ${transaction}`);
+      }
+    } catch (dbErr: any) {
+      console.warn("[Run] DB record persist notice:", dbErr.message);
+    }
+
     // Return result with Hedera proof
     const xPaymentResponse = Buffer.from(
       JSON.stringify({ transaction, network: "hedera:testnet" })
@@ -219,6 +335,7 @@ export async function POST(req: Request) {
         },
       }
     );
+
   } catch (err: any) {
     return Response.json(
       { error: err.message || "Failed to execute agent" },

@@ -18,7 +18,15 @@ const db = new PrismaClient();
 const PLATFORM_FEE_HBAR = 0.5;
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || "at_super-secret-key";
 
-async function resolveUserId(req: Request, payerAddress?: string): Promise<string | null> {
+async function resolveUserId(req: Request, body?: any, payerAddress?: string): Promise<string | null> {
+  // 0. Direct userId from request body
+  if (body?.userId) {
+    try {
+      const u = await db.user.findUnique({ where: { id: body.userId } });
+      if (u) return u.id;
+    } catch (err) {}
+  }
+
   // 1. Try Bearer token or Cookie in req.headers
   try {
     const authHeader = req.headers.get("authorization");
@@ -51,12 +59,13 @@ async function resolveUserId(req: Request, payerAddress?: string): Promise<strin
   }
 
   // 2. Try payer Hedera/EVM address matching walletAddress
-  if (payerAddress && payerAddress !== "0.0.unknown") {
+  const lookupAddress = body?.walletAddress || payerAddress;
+  if (lookupAddress && lookupAddress !== "0.0.unknown") {
     try {
       const user = await db.user.findFirst({
         where: {
           walletAddress: {
-            equals: payerAddress,
+            equals: lookupAddress,
             mode: "insensitive",
           },
         },
@@ -72,6 +81,21 @@ async function resolveUserId(req: Request, payerAddress?: string): Promise<strin
     });
     if (fallbackUser) return fallbackUser.id;
   } catch (err) {}
+
+  // 4. Auto-create user for this wallet address if none exists
+  if (lookupAddress && lookupAddress !== "0.0.unknown") {
+    try {
+      const cleanName = String(lookupAddress).replace(/[^a-zA-Z0-9]/g, "");
+      const newUser = await db.user.create({
+        data: {
+          email: `${cleanName}@hedera.agentbazaar.io`,
+          username: `HederaUser_${cleanName.slice(0, 8)}`,
+          walletAddress: lookupAddress,
+        },
+      });
+      return newUser.id;
+    } catch (err) {}
+  }
 
   return null;
 }
@@ -550,7 +574,7 @@ export async function POST(req: Request) {
 
     // ── Persist run history & transactions in database ─────────────────────────
     try {
-      const userId = await resolveUserId(req, payer);
+      const userId = await resolveUserId(req, body, payer);
       if (userId) {
         // Link payer wallet to user if not already linked
         if (payer && payer !== "0.0.unknown") {

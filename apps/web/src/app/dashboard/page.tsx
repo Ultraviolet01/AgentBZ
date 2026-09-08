@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { 
   Zap, 
@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import { useHashConnect } from "@/context/HashConnectContext";
+import { useAuthStore } from "@/lib/store/auth.store";
 import api from "@/lib/api";
 
 interface TransactionItem {
@@ -49,6 +50,7 @@ export default function DashboardPage() {
     isModalOpen, 
     setIsModalOpen 
   } = useHashConnect();
+  const { user } = useAuthStore();
   
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,9 +65,17 @@ export default function DashboardPage() {
   const [walletBalance, setWalletBalance] = useState<string | null>(null);
 
   // Fetch dashboard stats from backend
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async (isSilent = false) => {
     try {
-      const q = accountId ? `?walletAddress=${encodeURIComponent(accountId)}` : "";
+      if (!isSilent) setLoading(true);
+
+      const params = new URLSearchParams();
+      if (accountId) params.set("walletAddress", accountId);
+      else if (user?.walletAddress) params.set("walletAddress", user.walletAddress);
+      if (user?.id) params.set("userId", user.id);
+
+      const q = params.toString() ? `?${params.toString()}` : "";
+
       // Try dedicated stats endpoint, fallback to direct runs + transactions
       let res;
       try {
@@ -134,11 +144,33 @@ export default function DashboardPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [accountId, user?.id, user?.walletAddress]);
 
   useEffect(() => {
     fetchDashboardData();
-  }, [accountId]);
+  }, [fetchDashboardData]);
+
+  // Listen for agent completion events across windows and components
+  useEffect(() => {
+    const handleRunCompleted = () => {
+      fetchDashboardData(true);
+    };
+
+    window.addEventListener("agentbazaar:run-completed", handleRunCompleted);
+    window.addEventListener("focus", handleRunCompleted);
+
+    // Periodic live sync every 15s
+    const interval = setInterval(() => {
+      fetchDashboardData(true);
+    }, 15000);
+
+    return () => {
+      window.removeEventListener("agentbazaar:run-completed", handleRunCompleted);
+      window.removeEventListener("focus", handleRunCompleted);
+      clearInterval(interval);
+    };
+  }, [fetchDashboardData]);
+
 
   // Fetch real-time HBAR balance if Hedera account is connected
   useEffect(() => {
