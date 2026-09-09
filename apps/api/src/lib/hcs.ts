@@ -2,17 +2,12 @@
 // Every agent execution is logged here — verifiable on HashScan
 // ETHGlobal extra point: Verifiable payment audit trails on HCS
 
-import {
-  Client,
-  AccountId,
-  PrivateKey,
-  TopicMessageSubmitTransaction,
-} from "@hiero-ledger/sdk";
+let _client: any = null;
 
-let _client: Client | null = null;
-
-function getHederaClient(): Client {
+async function getHederaClient(): Promise<any> {
   if (_client) return _client;
+
+  const { Client, AccountId, PrivateKey } = await import("@hiero-ledger/sdk");
 
   _client = Client.forTestnet();
   _client.setOperator(
@@ -46,7 +41,8 @@ export async function logToHCS(
   }
 
   try {
-    const client = getHederaClient();
+    const { TopicMessageSubmitTransaction } = await import("@hiero-ledger/sdk");
+    const client = await getHederaClient();
     const tx = await new TopicMessageSubmitTransaction()
       .setTopicId(topicId)
       .setMessage(JSON.stringify(entry))

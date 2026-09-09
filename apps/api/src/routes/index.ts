@@ -40,7 +40,7 @@ router.post("/agents/threadsmith/run", authMiddleware, agentsController.runThrea
 router.post("/agents/launchwatch/setup", authMiddleware, agentsController.setupLaunchWatch);
 router.post("/agents/run", async (req, res) => {
   try {
-    const { POST: handleRun } = await import("./agents/run");
+    const { POST: handleRun } = await import("./agents/run.js");
     const headers: Record<string, string> = { "content-type": "application/json" };
     for (const [k, v] of Object.entries(req.headers)) {
       if (typeof v === "string") headers[k.toLowerCase()] = v;
@@ -65,7 +65,7 @@ router.post("/agents/run", async (req, res) => {
 
 router.post("/agents/deploy", async (req, res) => {
   try {
-    const { POST: handleDeploy } = await import("./agents/deploy");
+    const { POST: handleDeploy } = await import("./agents/deploy.js");
     const headers: Record<string, string> = { "content-type": "application/json" };
     for (const [k, v] of Object.entries(req.headers)) {
       if (typeof v === "string") headers[k.toLowerCase()] = v;
@@ -87,7 +87,7 @@ router.post("/agents/deploy", async (req, res) => {
 // Chat Orchestrator Routes
 router.post(["/chat/orchestrate", "/api/chat/orchestrate"], async (req, res) => {
   try {
-    const { POST: handleOrchestrate } = await import("./chat/orchestrate");
+    const { POST: handleOrchestrate } = await import("./chat/orchestrate.js");
     const headers: Record<string, string> = { "content-type": "application/json" };
     for (const [k, v] of Object.entries(req.headers)) {
       if (typeof v === "string") headers[k.toLowerCase()] = v;

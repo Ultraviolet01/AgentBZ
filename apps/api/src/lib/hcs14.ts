@@ -6,15 +6,8 @@
 // Based on: hedera-code-snippets/hcs-topic-permissioned-write
 // Reference: https://github.com/hedera-dev/hedera-code-snippets
 
-import {
-  Client,
-  AccountId,
-  PrivateKey,
-  TopicCreateTransaction,
-  TopicMessageSubmitTransaction,
-} from "@hiero-ledger/sdk";
-
-function getHederaClient(): Client {
+async function getHederaClient(): Promise<any> {
+  const { Client, AccountId, PrivateKey } = await import("@hiero-ledger/sdk");
   const client = Client.forTestnet();
   client.setOperator(
     AccountId.fromString(process.env.HEDERA_ACCOUNT_ID!),
@@ -45,7 +38,8 @@ export async function registerAgentIdentityHCS14(
   identity: AgentIdentity
 ): Promise<{ topicId: string; hashscanUrl: string }> {
   try {
-    const client = getHederaClient();
+    const { PrivateKey, TopicCreateTransaction, TopicMessageSubmitTransaction } = await import("@hiero-ledger/sdk");
+    const client = await getHederaClient();
 
     const adminKey = PrivateKey.fromStringECDSA(
       process.env.HEDERA_PRIVATE_KEY!
@@ -99,7 +93,8 @@ export async function updateAgentIdentityHCS14(
   update: Partial<AgentIdentity>
 ): Promise<void> {
   try {
-    const client = getHederaClient();
+    const { TopicMessageSubmitTransaction } = await import("@hiero-ledger/sdk");
+    const client = await getHederaClient();
 
     const updateMessage = {
       standard: "HCS-14",
