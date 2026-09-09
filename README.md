@@ -252,6 +252,42 @@ graph TD
 
 ---
 
+## Project Evolution & Commit Provenance (Pre-Existing vs. New Work)
+
+To ensure full transparency during hackathon evaluation, the table below clearly separates the pre-existing foundation from the **100% new Hedera, x402, and AI orchestration systems** built specifically for this submission:
+
+### 📊 Component Comparison Matrix
+
+| Component | Status | Details & Implementation Scope |
+|---|---|---|
+| **Hedera x402 Micropayment Engine** | 🆕 **100% New Work** | Built [`apps/api/src/lib/blocky402.ts`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/lib/blocky402.ts) & [`apps/api/src/routes/agents/run.ts`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/routes/agents/run.ts) implementing HTTP 402 challenge generation, Blocky402 `/verify` and `/settle` flows, and `0.5 HBAR` custom platform fee split. |
+| **Native Hedera Wallet Signing** | 🆕 **100% New Work** | Implemented [`apps/web/src/hooks/useHederaPayment.ts`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/web/src/hooks/useHederaPayment.ts) & [`apps/web/src/lib/hedera-payment.ts`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/web/src/lib/hedera-payment.ts) supporting HashPack, Kabila, Blade, and HWC via `@buidlerlabs/hashgraph-react-wallets` & `@hashgraph/sdk` for gasless intent signing (0 gas). |
+| **Hedera Consensus Service (HCS) Audit Trail** | 🆕 **100% New Work** | Created [`apps/api/src/lib/hcs.ts`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/lib/hcs.ts) for real-time cryptographic audit logging of every payment transaction and agent execution directly to Hedera Topic `0.0.10396393` via `@hiero-ledger/sdk`. |
+| **HCS-14 Decentralized Agent Identity** | 🆕 **100% New Work** | Built [`apps/api/src/lib/hcs14.ts`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/lib/hcs14.ts) and [`apps/api/src/routes/agents/deploy.ts`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/routes/agents/deploy.ts) to create dedicated on-chain identity topics (`TopicCreateTransaction`) and publish immutable metadata for every registered agent. |
+| **AI Chat Orchestrator & A2A Pipeline** | 🆕 **100% New Work** | Developed [`apps/api/src/routes/chat/orchestrate.ts`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/routes/chat/orchestrate.ts) and interactive chat UI: Claude-powered natural language intent parser, autonomous capability discovery, agent-to-agent chained inference, and unified atomic x402 settlement. |
+| **Public Agent Discovery Directory** | 🆕 **100% New Work** | Created [`apps/web/src/app/.well-known/ucp/route.ts`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/web/src/app/.well-known/ucp/route.ts) and [`apps/web/src/app/api/agents/deployed/route.ts`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/web/src/app/api/agents/deployed/route.ts) providing unauthenticated public manifest endpoints for agent discovery. |
+| **7-Step Deploy Studio** | 🆕 **100% New Work** | Built [`apps/web/src/app/deploy/page.tsx`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/web/src/app/deploy/page.tsx) with model configuration, AES-256 key vaulting, on-chain wallet signing, and automatic HCS-14 topic registration. |
+| **Production Containerization & Hosting** | 🆕 **100% New Work** | Created [`Dockerfile`](https://github.com/Ultraviolet01/AgentBZ/blob/main/Dockerfile) and [`railway.json`](https://github.com/Ultraviolet01/AgentBZ/blob/main/railway.json) to deploy the multi-agent API and orchestrator on Railway alongside Vercel frontend. |
+| **Base Next.js UI Scaffold & Database Schema** | 📦 *Pre-Existing Foundation* | General web layout templates, basic Next.js app structure, Tailwind styling configurations, and initial relational database scaffold before Hedera integration. |
+
+---
+
+### 📜 Commit History & Evolution Timeline
+
+The git commit log reflects the sequential transition from the pre-existing base into the fully native Hedera testnet application:
+
+* **Initial Baseline (`4c74292`)**: Initial monorepo layout and web scaffold.
+* **Native Hedera & Blocky402 Migration (`00544bc`)**: Migrated payment flow from simulated/EVM credits to native Hedera wallets (HashPack/Kabila) and Blocky402 x402 exact scheme settlement.
+* **HCS Master Audit Trail (`698fad7`)**: Implemented immutable consensus audit logging on Topic `0.0.10396393` via `@hiero-ledger/sdk`.
+* **HCS-14 Agent Identity Standards (`3aaca77`, `8d12e8d`)**: Added dedicated HCS topic creation for registered agents and routed audit receipts into agent-specific identity topics.
+* **AI Chat Orchestrator & A2A Pipeline (`16f20a7`, `00def36`, `b1a1eb8`)**: Integrated Claude-driven intent routing, autonomous capability discovery, and chained agent settlement.
+* **Deploy Studio & On-Chain Publishing (`ecaaf6f`, `ef8cc32`)**: Implemented 7-step studio with on-chain wallet signing and automatic HCS-14 identity topic generation.
+* **Public Discovery Directory (`fd81402`, `6323593`)**: Added `/.well-known/ucp` public agent directory manifest.
+* **Production Deployment Suite (`9ccc233`, `3d15795`)**: Configured production Docker containerization for Railway backend orchestration and Vercel web client.
+* **Evidence Verification & Deep-Links (`4cddfc9`, `de42a22`)**: Verified exact code line numbers across all qualification and extra points matrices.
+
+---
+
 ## Verifiable On-Chain Testnet Artifacts
 
 * **HCS Platform Master Audit Trail Topic**: [`0.0.10396393`](https://hashscan.io/testnet/topic/0.0.10396393)
