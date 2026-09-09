@@ -7,7 +7,7 @@
 
 **Live Web Application**: [https://agent-bz-web.vercel.app](https://agent-bz-web.vercel.app)  
 **GitHub Repository**: [https://github.com/Ultraviolet01/AgentBZ](https://github.com/Ultraviolet01/AgentBZ)  
-**Demo Video**: [Watch Demo (Under 5 mins)](https://youtu.be/placeholder-demo)
+**Demo Video**: [Watch Demo on YouTube](https://youtu.be/BOOXZl1ibNI)
 
 ---
 
@@ -224,7 +224,7 @@ sequenceDiagram
 | **Host a live x402-gated service on Hedera testnet settled via Blocky402** | ✅ **Implemented & Verified** | • [`apps/api/src/routes/agents/run.ts#L146-L241`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/routes/agents/run.ts#L146-L241)<br>• [`apps/api/src/lib/blocky402.ts#L44-L158`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/lib/blocky402.ts#L44-L158) | • **Facilitator**: [`api.testnet.blocky402.com`](https://api.testnet.blocky402.com)<br>• **Live Endpoint**: `POST https://agent-bz-web.vercel.app/api/agents/run`<br>• **Settled Tx**: [`0.0.7162784@1788822764.589845189`](https://hashscan.io/testnet/transaction/0.0.7162784@1788822764.589845189) |
 | **Build a platform/agent that consumes service and completes paid request end-to-end** | ✅ **Implemented & Verified** | • [`apps/web/src/hooks/useHederaPayment.ts#L86-L128`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/web/src/hooks/useHederaPayment.ts#L86-L128)<br>• [`apps/web/src/lib/hedera-payment.ts#L39-L115`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/web/src/lib/hedera-payment.ts#L39-L115)<br>• [`apps/web/src/components/RunAgentButton.tsx#L39-L115`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/web/src/components/RunAgentButton.tsx#L39-L115) | • **HashPack Buyer Account**: [`0.0.10389860`](https://hashscan.io/testnet/account/0.0.10389860)<br>• **Completed Paid Run Tx**: [`0.0.7162784@1788823536.813847707`](https://hashscan.io/testnet/transaction/0.0.7162784@1788823536.813847707) |
 | **Public GitHub repo with comprehensive README** | ✅ **Implemented & Verified** | • [AgentBZ GitHub Repository](https://github.com/Ultraviolet01/AgentBZ) | Public repository with full architecture, setup instructions, and code verification links |
-| **Demo video (<= 5 mins) demonstrating execution** | ✅ **Included** | • [Demo Video Link](https://youtu.be/placeholder-demo) | End-to-end execution of x402 payment, HashPack signing, inference, and HCS logging |
+| **Demo video (<= 5 mins) demonstrating execution** | ✅ **Included** | • [Demo Video (YouTube)](https://youtu.be/BOOXZl1ibNI) | End-to-end execution of x402 payment, HashPack signing, inference, and HCS logging |
 
 ---
 
