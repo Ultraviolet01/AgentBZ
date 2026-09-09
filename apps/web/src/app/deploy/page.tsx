@@ -96,7 +96,7 @@ export default function DeployAgentPage() {
     slug: '',
 
     // Step 3: Endpoint
-    apiEndpoint: 'https://api.agentbazaar.io/v1/execute',
+    apiEndpoint: 'https://agent-bz-web.vercel.app/api/agents/run',
     webhookUrl: '',
     modelProvider: 'anthropic',
     modelName: 'claude-haiku-4-5-20251001',

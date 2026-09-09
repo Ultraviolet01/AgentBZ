@@ -4,6 +4,28 @@ import { prisma } from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 
 const PUBLIC_AGENT_STATUSES = ['active', 'live', 'approved'];
+const LIVE_AGENT_ENDPOINT = 'https://agent-bz-web.vercel.app/api/agents/run';
+
+function normalizeManifestEndpoint(rawEndpoint: string | null | undefined): string {
+  if (!rawEndpoint) return LIVE_AGENT_ENDPOINT;
+
+  try {
+    const parsed = new URL(rawEndpoint);
+    const hostname = parsed.hostname.toLowerCase();
+
+    if (hostname === 'agent-bz-web.vercel.app' || hostname === 'localhost' || hostname === '127.0.0.1') {
+      return rawEndpoint;
+    }
+
+    if (hostname === 'api.agentbazaar.io' && parsed.pathname === '/v1/execute') {
+      return LIVE_AGENT_ENDPOINT;
+    }
+  } catch {
+    return LIVE_AGENT_ENDPOINT;
+  }
+
+  return LIVE_AGENT_ENDPOINT;
+}
 
 const BUILT_IN_AGENTS = [
   {
@@ -130,7 +152,7 @@ export async function GET() {
           description: agent.description,
           category: agent.category,
           tags: agent.tags,
-          endpoint: agent.apiEndpoint,
+          endpoint: normalizeManifestEndpoint(agent.apiEndpoint),
           webhookUrl: agent.webhookUrl,
           pricePerRun: agent.pricePerRun,
           setupFee: agent.setupFee,
