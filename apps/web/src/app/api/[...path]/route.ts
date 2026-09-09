@@ -25,7 +25,11 @@ export async function DELETE(req: NextRequest) {
 async function handle(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   const search = req.nextUrl.search;
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+  let apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001").trim();
+  if (apiUrl && !apiUrl.startsWith("http://") && !apiUrl.startsWith("https://")) {
+    apiUrl = `https://${apiUrl}`;
+  }
+  apiUrl = apiUrl.replace(/\/+$/, "");
   
   // Strip /api prefix when proxying to Express backend
   const targetPath = pathname.startsWith("/api") ? pathname.replace(/^\/api/, "") : pathname;

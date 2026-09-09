@@ -5,7 +5,11 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    let apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001").trim();
+    if (apiUrl && !apiUrl.startsWith("http://") && !apiUrl.startsWith("https://")) {
+      apiUrl = `https://${apiUrl}`;
+    }
+    apiUrl = apiUrl.replace(/\/+$/, "");
 
     // Forward headers including X-Payment
     const headers: Record<string, string> = {
