@@ -254,9 +254,22 @@ graph TD
 
 ## Project Evolution & Commit Provenance (Pre-Existing vs. New Work)
 
-To ensure full transparency during hackathon evaluation, the table below clearly separates the pre-existing foundation from the **100% new Hedera, x402, and AI orchestration systems** built specifically for this submission:
+To ensure full transparency during hackathon evaluation, the section below details the project's evolution: what was in the early prototype / pre-existing base, what was completely refactored or replaced, and the **100% new Hedera native architecture** built for this submission—backed by git commit evidence.
 
-### 📊 Component Comparison Matrix
+---
+
+### 🔄 Evolution & Replacement of Early Prototypes
+
+| Legacy / Prior Component | What Was There Before | New Replacement & Upgrade | Commit Evidence |
+|---|---|---|---|
+| **EVM / MetaMask / Base Chain Stack** | Early experiments used MetaMask (`MetamaskConnector.tsx`), EVM contracts (`AgentBazaarRegistry.sol`), Base chain USDC transfers, and centralized DB credit deductions. | **100% Replaced** with native Hedera wallets (HashPack, Kabila, Blade, HWC) via `@buidlerlabs/hashgraph-react-wallets`, `@hashgraph/sdk`, and gasless **Blocky402 x402 exact scheme** micropayments in HBAR. | • [`00544bc`](https://github.com/Ultraviolet01/AgentBZ/commit/00544bc0b58bb1d41a3eb71c7437198cf22d4157) (Migrated to native Hedera wallet & Blocky402)<br>• [`7664005`](https://github.com/Ultraviolet01/AgentBZ/commit/7664005fa3e3b15394be7ce161aa7066f4c08e17) (Purged MetamaskConnector & EVM libs) |
+| **KeeperHub Webhook Proxy Gate** | Early prototype relied on off-chain KeeperHub webhooks, manual API key sharing, and proxy dispatch. | **100% Replaced** with direct on-chain **x402 paywall** via Blocky402, AES-256 credential vaulting, and native **Hedera Consensus Service (HCS)** audit logging. | • [`fc65e86`](https://github.com/Ultraviolet01/AgentBZ/commit/fc65e86) (Purged legacy KeeperHub webhook auth)<br>• [`8d12e8d`](https://github.com/Ultraviolet01/AgentBZ/commit/8d12e8d) (Enforce live HCS-14 & purge synthetic fallbacks) |
+| **Legacy Single-Page Deploy Form** | Rudimentary single-page form with plain text inputs, generic credit labels, and no cryptographic on-chain registration. | **100% Rebuilt** into the **7-Step Deploy Studio** with Execution Modes (Inference vs. Autonomous Trigger), MCP Tool selection, AES-256 Key Vault, native HashPack on-chain signing, and automatic **HCS-14 topic generation**. | • [`ecaaf6f`](https://github.com/Ultraviolet01/AgentBZ/commit/ecaaf6fd0a4ec23249b0705b046014e099d1096f) (7-step Deploy Studio with Mode & MCP)<br>• [`ef8cc32`](https://github.com/Ultraviolet01/AgentBZ/commit/ef8cc32) (On-chain wallet signing with HCS-14 topic registration) |
+| **Static Legacy Landing Page** | Basic landing page with hardcoded mock statistics, placeholder cards, and generic UI copy. | **100% Rebuilt** into a state-of-the-art interactive dark glassmorphism interface with SVG roadmaps, live dynamic testnet metric counters, and interactive flow diagrams. | • [`b31cec7`](https://github.com/Ultraviolet01/AgentBZ/commit/b31cec7d3068d3ec7ee2c87bb394fb9912937778) (Restructure landing page architecture & SVGs)<br>• [`40b6855`](https://github.com/Ultraviolet01/AgentBZ/commit/40b6855) (Replace mock statistics with live dynamic metrics) |
+
+---
+
+### 📊 Component Comparison Matrix (100% New Hedera Work)
 
 | Component | Status | Details & Implementation Scope |
 |---|---|---|
@@ -277,11 +290,12 @@ To ensure full transparency during hackathon evaluation, the table below clearly
 The git commit log reflects the sequential transition from the pre-existing base into the fully native Hedera testnet application:
 
 * **Initial Baseline (`4c74292`)**: Initial monorepo layout and web scaffold.
-* **Native Hedera & Blocky402 Migration (`00544bc`)**: Migrated payment flow from simulated/EVM credits to native Hedera wallets (HashPack/Kabila) and Blocky402 x402 exact scheme settlement.
+* **Native Hedera & Blocky402 Migration (`00544bc`)**: Migrated payment flow from simulated/EVM credits to native Hedera wallets (HashPack/Kabila) and Blocky402 x402 exact scheme settlement; purged legacy Metamask libraries.
 * **HCS Master Audit Trail (`698fad7`)**: Implemented immutable consensus audit logging on Topic `0.0.10396393` via `@hiero-ledger/sdk`.
-* **HCS-14 Agent Identity Standards (`3aaca77`, `8d12e8d`)**: Added dedicated HCS topic creation for registered agents and routed audit receipts into agent-specific identity topics.
+* **HCS-14 Agent Identity Standards (`3aaca77`, `8d12e8d`)**: Added dedicated HCS topic creation for registered agents and routed audit receipts into agent-specific identity topics; removed synthetic fallbacks and KeeperHub references (`fc65e86`).
+* **Deploy Studio & On-Chain Publishing (`ecaaf6f`, `ef8cc32`)**: Completely overhauled legacy deploy form into 7-step studio with on-chain wallet signing and automatic HCS-14 identity topic generation.
+* **Landing Page Overhaul (`b31cec7`, `40b6855`)**: Restructured landing page with interactive SVGs, roadmaps, and real-time live testnet statistics.
 * **AI Chat Orchestrator & A2A Pipeline (`16f20a7`, `00def36`, `b1a1eb8`)**: Integrated Claude-driven intent routing, autonomous capability discovery, and chained agent settlement.
-* **Deploy Studio & On-Chain Publishing (`ecaaf6f`, `ef8cc32`)**: Implemented 7-step studio with on-chain wallet signing and automatic HCS-14 identity topic generation.
 * **Public Discovery Directory (`fd81402`, `6323593`)**: Added `/.well-known/ucp` public agent directory manifest.
 * **Production Deployment Suite (`9ccc233`, `3d15795`)**: Configured production Docker containerization for Railway backend orchestration and Vercel web client.
 * **Evidence Verification & Deep-Links (`4cddfc9`, `de42a22`)**: Verified exact code line numbers across all qualification and extra points matrices.
