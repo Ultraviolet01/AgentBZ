@@ -145,73 +145,83 @@ graph TD
 
 ## 💳 Hedera x402 Micropayment Flow
 
-AgentBazaar leverages the **HTTP 402 Payment Required (x402)** standard combined with **Blocky402 facilitator** and native **Hedera wallets (HashPack / Kabila / Blade)** for trustless, pay-per-call AI micro-settlement.
+AgentBazaar uses the **HTTP 402 Payment Required (x402)** standard combined with the **Blocky402 facilitator** and native **Hedera wallets (HashPack / Kabila / Blade)** for trustless, pay-per-call AI micro-settlement.
+
+### 🧭 Flow at a Glance (4 Simple Steps)
+
+```
+┌─────────────────────────┐       ┌─────────────────────────┐       ┌─────────────────────────┐       ┌─────────────────────────┐
+│  1. HTTP 402 Challenge  │ ────> │  2. Gasless Sign (0 Gas)│ ────> │ 3. On-Chain Settlement │ ────> │ 4. AI Run & HCS Proof   │
+│  API returns exact fee  │       │  User signs pure intent │       │  Blocky402 co-signs gas │       │  Inference + Immutable  │
+│  & split in tinybars    │       │  in HashPack / Kabila   │       │  & settles on Hedera    │       │  receipt on Topic 0.0.x │
+└─────────────────────────┘       └─────────────────────────┘       └─────────────────────────┘       └─────────────────────────┘
+```
+
+---
 
 ### 📊 End-to-End Sequence Diagram
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as 👤 User / HashPack Wallet
-    participant Web as 🌐 Next.js Frontend (Vercel)
+    actor User as 👤 User / HashPack
+    participant Web as 🌐 Frontend (Vercel)
     participant API as ⚡ Express API (Railway)
     participant Blocky as 🛡️ Blocky402 Facilitator
     participant Hedera as ⛓️ Hedera Testnet
-    participant HCS as 📜 Hedera Consensus Service
+    participant HCS as 📜 HCS Audit Topic
 
-    User->>Web: Request Agent Run / Goal (e.g. ThreadSmith or Orchestrator)
-    Web->>API: POST /api/agents/run (or /api/chat/orchestrate)
-    API-->>Web: 402 Payment Required (Challenge with exact tinybars & custom fee split)
-    Note over Web,User: Parse 402 requirements (payTo, amount, memo, feePayer)
-    Web->>User: Request Signature (Unsigned CryptoTransfer payload)
-    User-->>Web: User Signs Intent with Wallet (Signed bytes)
-    Web->>API: POST /api/agents/run (Header: X-Payment base64 payload)
-    API->>Blocky: POST /settle (Verify signature + Co-sign gas)
-    Blocky->>Hedera: Broadcast & Execute Atomic CryptoTransfer
-    Hedera-->>Blocky: Transaction Confirmed (Tx ID & Consensus Timestamp)
-    Blocky-->>API: 200 OK (Settlement Verified)
-    API->>API: Execute AI Agent Inference (Claude / LLM / Tools)
-    API->>HCS: Publish Execution & Payment Proof (Topic 0.0.10396393)
-    HCS-->>API: Immutable Sequence Number & Timestamp
-    API-->>Web: 200 OK (Inference Output + Tx ID + HashScan Proof Links)
-    Web-->>User: Render Interactive Tweet Cards / Analysis + Tx Verification
+    rect rgb(240, 245, 255)
+    Note over User,API: 🔵 PHASE 1: HTTP 402 Challenge
+    User->>Web: 1. Request Agent Run (e.g. ThreadSmith)
+    Web->>API: 2. POST /api/agents/run (Unpaid request)
+    API-->>Web: 3. 402 Payment Required (Challenge with tinybars & payTo)
+    end
+
+    rect rgb(255, 251, 235)
+    Note over User,Web: 🟡 PHASE 2: Gasless Wallet Signing
+    Web->>User: 4. Prompt HashPack / Kabila (Unsigned Transfer)
+    User-->>Web: 5. User signs transfer intent (0 gas paid by user)
+    end
+
+    rect rgb(240, 253, 244)
+    Note over Web,Hedera: 🟢 PHASE 3: Facilitated Settlement
+    Web->>API: 6. POST /api/agents/run (Header: X-Payment Base64 Payload)
+    API->>Blocky: 7. Settle payment payload via /settle
+    Blocky->>Hedera: 8. Co-sign fee & broadcast CryptoTransfer
+    Hedera-->>Blocky: 9. Transfer confirmed on Hedera Testnet (Tx ID)
+    Blocky-->>API: 10. Settlement verified (200 OK)
+    end
+
+    rect rgb(250, 245, 255)
+    Note over API,User: 🟣 PHASE 4: AI Inference & Immutable HCS Audit
+    API->>API: 11. Execute AI Agent (Claude 3.5 Sonnet / Hedera Kit)
+    API->>HCS: 12. Submit audit receipt to HCS Topic 0.0.10396393
+    HCS-->>API: 13. Consensus timestamp & sequence confirmed
+    API-->>Web: 14. Return 200 OK (Output + Tx ID + HashScan Proof)
+    Web-->>User: 15. Render visual Tweet Cards & HashScan verification
+    end
 ```
 
-### 📝 Step-by-Step Payment Mechanics:
+---
 
-1. **Initial Unpaid Request & HTTP 402 Challenge**:
-   - The client invokes an agent endpoint ([`POST /api/agents/run`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/routes/agents/run.ts) or [`POST /api/chat/orchestrate`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/routes/chat/orchestrate.ts)) without payment headers.
-   - The backend queries the Blocky402 facilitator for the active `feePayer` account and computes exact pricing in tinybars (including custom protocol fee splits).
-   - The server responds with `HTTP 402 Payment Required` containing `paymentRequirements` (`amount`, `payTo`, `memo`, `network: "hedera:testnet"`).
+### 📝 Step-by-Step Payment Breakdown
 
-2. **Client Sign-Only Intent (Gasless for User)**:
-   - The frontend parses the challenge and prepares an unsigned `CryptoTransfer` transaction.
-   - The user signs the transaction in **HashPack / Kabila / Blade** via WalletConnect.
-   - *Advantage*: The user only authorizes the exact transfer amount; Blocky402 acts as the fee payer for the Hedera network gas fee.
+1. **HTTP 402 Challenge Formulation**:
+   - The user or client initiates an execution request ([`POST /api/agents/run`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/routes/agents/run.ts) or [`POST /api/chat/orchestrate`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/routes/chat/orchestrate.ts)).
+   - The backend looks up the Blocky402 fee-payer and returns an `HTTP 402 Payment Required` challenge specifying the exact amount in tinybars (including the 0.5 HBAR protocol fee split).
 
-3. **Payment Submission (`X-Payment` Header)**:
-   - The signed transaction is encoded into a standardized base64 `x402` payload:
-     ```json
-     {
-       "x402Version": 2,
-       "scheme": "exact",
-       "network": "hedera:testnet",
-       "accepted": { ...paymentRequirements },
-       "payload": { "transaction": "<SignedTransactionBase64>" }
-     }
-     ```
-   - The client re-submits the request with the `X-Payment` header.
+2. **Gasless Intent Signing**:
+   - The frontend prompts the connected Hedera wallet (HashPack, Kabila, Blade) to sign the pure transfer intent.
+   - The user pays **0 network gas** for the signature; the facilitator acts as the fee payer on-chain.
 
-4. **Facilitator Verification & On-Chain Settlement**:
-   - The Express backend calls the Blocky402 `/settle` endpoint with the payload.
-   - Blocky402 validates signatures, co-signs as `feePayer`, and broadcasts the transaction directly to Hedera Testnet.
+3. **Settlement via Blocky402**:
+   - The frontend submits the base64-encoded `X-Payment` header back to the server.
+   - The backend passes the payload to Blocky402, which co-signs and broadcasts the atomic transfer across Hedera testnet nodes.
 
-5. **AI Inference & Immutable HCS Audit Trail**:
-   - Once settlement is confirmed on-chain, the agent engine executes the required inference task (Claude 3.5 Sonnet / Hedera Agent Kit tools).
-   - The API logs an immutable audit receipt to **Hedera Consensus Service (HCS Master Topic `0.0.10396393`)** containing the buyer ID, agent ID, transaction hash, and timestamp.
-
-6. **Response Delivery**:
-   - The result is returned with the verified Hedera transaction ID, allowing users to inspect the settled payment and audit trail directly on [HashScan](https://hashscan.io/testnet).
+4. **Execution & Immutable HCS Logging**:
+   - Upon on-chain confirmation, the model executes the requested inference.
+   - The platform logs an immutable audit entry to **Hedera Consensus Service (HCS Topic `0.0.10396393`)** and returns the structured output along with live [HashScan](https://hashscan.io/testnet) verification links.
 
 ---
 
