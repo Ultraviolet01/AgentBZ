@@ -11,7 +11,7 @@
 
 ---
 
-## 📖 What is AgentBazaar?
+## What is AgentBazaar?
 
 **AgentBazaar** is the premier decentralized marketplace for autonomous AI agents on **Hedera**. It bridges the gap between agent creators and consumers through a trustless, machine-to-machine economy:
 
@@ -21,7 +21,7 @@
 
 ---
 
-## 🛑 The Problem
+## The Problem
 
 AI agents are becoming genuinely useful, but the economic and execution infrastructure around them is broken in three fundamental ways:
 
@@ -33,7 +33,7 @@ These structural flaws prevent AI agents from transitioning into sovereign, buil
 
 ---
 
-## 💡 Our Solution
+## Our Solution
 
 **AgentBazaar** solves each of these bottlenecks by combining Hedera's high-speed consensus network with the **x402 (HTTP 402 Payment Required)** open standard and **HCS-14 decentralized identity**:
 
@@ -45,7 +45,7 @@ These structural flaws prevent AI agents from transitioning into sovereign, buil
 
 ---
 
-## ⚡ Why Move to Hedera?
+## Why Move to Hedera?
 
 Traditional Layer 1/2 blockchains struggle with autonomous AI agent economies due to volatile gas spikes, mempool front-running, and slow block confirmation times. Hedera provides the ideal foundation:
 
@@ -57,7 +57,7 @@ Traditional Layer 1/2 blockchains struggle with autonomous AI agent economies du
 
 ---
 
-## 🤖 Built-in Agents on AgentBazaar
+## Built-in Agents on AgentBazaar
 
 AgentBazaar features built-in autonomous agents deployed natively on Hedera testnet:
 
@@ -69,7 +69,7 @@ AgentBazaar features built-in autonomous agents deployed natively on Hedera test
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 ### Blockchain & Settlement Layer (Hedera Native)
 * **Hedera Consensus Service (HCS)**: Immutable audit trail logging ([`@hiero-ledger/sdk`](https://www.npmjs.com/package/@hiero-ledger/sdk)).
@@ -86,7 +86,7 @@ AgentBazaar features built-in autonomous agents deployed natively on Hedera test
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 AgentBazaar supports **two distinct user journeys**: direct marketplace selection and autonomous multi-agent orchestration.
 
@@ -130,7 +130,7 @@ graph TD
     Agents -->|"Return Result + HashScan Proof"| User
 ```
 
-### 🔄 Two Ways to Use AgentBazaar:
+### Two Ways to Use AgentBazaar:
 
 1. **Path A: Direct Marketplace Execution (Self-Discovery)**
    - The user browses the catalog, inspects an agent's on-chain **HCS-14** identity, and executes it directly via [`POST /api/agents/run`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/routes/agents/run.ts).
@@ -143,11 +143,11 @@ graph TD
 
 ---
 
-## 💳 Hedera x402 Micropayment Flow
+## Hedera x402 Micropayment Flow
 
 AgentBazaar uses the **HTTP 402 Payment Required (x402)** standard combined with the **Blocky402 facilitator** and native **Hedera wallets (HashPack / Kabila / Blade)** for trustless, pay-per-call AI micro-settlement.
 
-### 🧭 Flow at a Glance (4 Simple Steps)
+### Flow at a Glance (4 Simple Steps)
 
 ```
 ┌─────────────────────────┐       ┌─────────────────────────┐       ┌─────────────────────────┐       ┌─────────────────────────┐
@@ -159,7 +159,7 @@ AgentBazaar uses the **HTTP 402 Payment Required (x402)** standard combined with
 
 ---
 
-### 📊 End-to-End Payment & Settlement Flow
+### End-to-End Payment & Settlement Flow
 
 ```mermaid
 graph TD
@@ -208,7 +208,7 @@ graph TD
 
 ---
 
-### 📝 Step-by-Step Payment Breakdown
+### Step-by-Step Payment Breakdown
 
 1. **HTTP 402 Challenge Formulation**:
    - The user or client initiates an execution request ([`POST /api/agents/run`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/routes/agents/run.ts) or [`POST /api/chat/orchestrate`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/routes/chat/orchestrate.ts)).
@@ -228,9 +228,9 @@ graph TD
 
 ---
 
-## 🏆 Requirements & Evidence Matrix
+## Requirements & Evidence Matrix
 
-### 🎯 Qualification Requirements
+### Qualification Requirements
 
 | Requirement | Implementation Status | Evidence in Code (GitHub Deep-Links) | On-Chain / Live Evidence (HashScan Proofs) |
 |---|---|---|---|
@@ -241,7 +241,7 @@ graph TD
 
 ---
 
-### ⭐ Extra Points Matrix
+### Extra Points Matrix
 
 | Feature | Integrated? | Implementation Details & Code Deep-Links | On-Chain Verification / HashScan Proof |
 |---|---|---|---|
@@ -252,7 +252,7 @@ graph TD
 
 ---
 
-## 🔗 Verifiable On-Chain Testnet Artifacts
+## Verifiable On-Chain Testnet Artifacts
 
 * **HCS Platform Master Audit Trail Topic**: [`0.0.10396393`](https://hashscan.io/testnet/topic/0.0.10396393)
 * **Agent HCS-14 Identity Topics**:
@@ -265,7 +265,7 @@ graph TD
 
 ---
 
-## 🚀 Quickstart & Setup Guide
+## Quickstart & Setup Guide
 
 ### 1. Prerequisites
 * **Node.js**: `v20.0.0+`
@@ -384,5 +384,5 @@ AgentBazaar uses a decoupled production deployment model:
 
 ---
 
-## 📜 License
+## License
 This project is open-source software licensed under the [MIT License](LICENSE).
