@@ -5,9 +5,81 @@ export const dynamic = 'force-dynamic';
 
 const PUBLIC_AGENT_STATUSES = ['active', 'live', 'approved'];
 
+const BUILT_IN_AGENTS = [
+  {
+    id: 'threadsmith',
+    slug: 'threadsmith',
+    name: 'ThreadSmith',
+    description: 'AI content synthesis for Web3 project updates — generates multi-tweet threads from project data.',
+    category: 'content',
+    tags: ['web3', 'content', 'hedera'],
+    endpoint: 'https://agent-bz-web.vercel.app/api/agents/threadsmith/run',
+    webhookUrl: null,
+    pricePerRun: null,
+    setupFee: 0,
+    icon: '🧵',
+    color: '#fbbf24',
+    modelProvider: 'anthropic',
+    modelName: 'claude-haiku-4-5-20251001',
+    hcs14TopicId: null,
+    hcs14HashscanUrl: null,
+    status: 'live',
+    isVerified: true,
+    isFeatured: true,
+    builtIn: true,
+    createdAt: new Date('2025-01-01T00:00:00.000Z').toISOString(),
+  },
+  {
+    id: 'scamsniff',
+    slug: 'scamsniff',
+    name: 'ScamSniff',
+    description: 'Security audit and honeypot/scam detection for Web3 tokens and contracts.',
+    category: 'security',
+    tags: ['web3', 'security', 'hedera'],
+    endpoint: 'https://agent-bz-web.vercel.app/api/agents/run',
+    webhookUrl: null,
+    pricePerRun: null,
+    setupFee: 0,
+    icon: '🔍',
+    color: '#f97316',
+    modelProvider: 'anthropic',
+    modelName: 'claude-haiku-4-5-20251001',
+    hcs14TopicId: null,
+    hcs14HashscanUrl: null,
+    status: 'live',
+    isVerified: true,
+    isFeatured: true,
+    builtIn: true,
+    createdAt: new Date('2025-01-01T00:00:00.000Z').toISOString(),
+  },
+  {
+    id: 'launchwatch',
+    slug: 'launchwatch',
+    name: 'LaunchWatch',
+    description: 'Monitors token launches and market activity, alerting on FDV milestones and social spikes.',
+    category: 'monitoring',
+    tags: ['web3', 'monitoring', 'hedera'],
+    endpoint: 'https://agent-bz-web.vercel.app/api/agents/launchwatch/setup',
+    webhookUrl: null,
+    pricePerRun: null,
+    setupFee: 0,
+    icon: '📡',
+    color: '#38bdf8',
+    modelProvider: 'anthropic',
+    modelName: 'claude-haiku-4-5-20251001',
+    hcs14TopicId: null,
+    hcs14HashscanUrl: null,
+    status: 'live',
+    isVerified: true,
+    isFeatured: true,
+    builtIn: true,
+    createdAt: new Date('2025-01-01T00:00:00.000Z').toISOString(),
+  },
+];
+
 export async function GET() {
   try {
-    const agents = await prisma.deployedAgent.findMany({
+    const deployedAgents = await prisma.deployedAgent.findMany({
       where: {
         status: {
           in: PUBLIC_AGENT_STATUSES,
@@ -40,17 +112,18 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(
-      {
-        protocol: 'agentbazaar-directory',
-        version: '1.0.0',
-        name: 'AgentBazaar Public Agent Directory',
-        description:
-          'Public directory manifest for discoverable AgentBazaar agents. This is a directory-style discovery endpoint, not a full UCP protocol implementation.',
-        isPublic: true,
-        source: 'https://agent-bz-web.vercel.app/.well-known/ucp',
-        generatedAt: new Date().toISOString(),
-        agents: agents.map((agent) => ({
+    const manifest = {
+      protocol: 'agentbazaar-directory',
+      version: '1.0.0',
+      name: 'AgentBazaar Public Agent Directory',
+      description:
+        'Public directory manifest for discoverable AgentBazaar agents. This is a directory-style discovery endpoint, not a full UCP protocol implementation.',
+      isPublic: true,
+      source: 'https://agent-bz-web.vercel.app/.well-known/ucp',
+      generatedAt: new Date().toISOString(),
+      agents: [
+        ...BUILT_IN_AGENTS,
+        ...deployedAgents.map((agent) => ({
           id: agent.id,
           slug: agent.slug,
           name: agent.name,
@@ -72,13 +145,14 @@ export async function GET() {
           isFeatured: agent.isFeatured,
           createdAt: agent.createdAt.toISOString(),
         })),
+      ],
+    };
+
+    return NextResponse.json(manifest, {
+      headers: {
+        'Cache-Control': 'public, max-age=60, s-maxage=60',
       },
-      {
-        headers: {
-          'Cache-Control': 'public, max-age=60, s-maxage=60',
-        },
-      },
-    );
+    });
   } catch (error) {
     console.error('[Discovery] /.well-known/ucp error:', error);
 
@@ -90,7 +164,7 @@ export async function GET() {
         description:
           'Public directory manifest for discoverable AgentBazaar agents. This is a directory-style discovery endpoint, not a full UCP protocol implementation.',
         isPublic: true,
-        agents: [],
+        agents: BUILT_IN_AGENTS,
         error: 'Failed to load public agent directory',
       },
       {
