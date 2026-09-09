@@ -71,22 +71,71 @@ interface ParsedThread {
 
 function normalizeParsed(parsed: any): ParsedThread | null {
   if (!parsed) return null;
-  const data = parsed.thread || parsed;
-  if (data.tweets && Array.isArray(data.tweets)) {
+  const data = parsed.thread || parsed.data || parsed;
+
+  const rawTweets =
+    (Array.isArray(data) && data) ||
+    (Array.isArray(data.thread_content) && data.thread_content) ||
+    (Array.isArray(data.tweets) && data.tweets) ||
+    (Array.isArray(data.posts) && data.posts) ||
+    (Array.isArray(data.items) && data.items) ||
+    (Array.isArray(parsed.thread_content) && parsed.thread_content) ||
+    (Array.isArray(parsed.tweets) && parsed.tweets) ||
+    (Array.isArray(parsed.posts) && parsed.posts);
+
+  if (rawTweets && rawTweets.length > 0) {
+    const meta = data.thread_metadata || data.metadata || parsed.thread_metadata || parsed.metadata || {};
+    const perf = data.performance_metrics || parsed.performance_metrics || {};
+
+    const collectedTags: string[] = [];
+    if (Array.isArray(meta.hashtags)) collectedTags.push(...meta.hashtags);
+    rawTweets.forEach((t: any) => {
+      if (Array.isArray(t.engagement_tags)) collectedTags.push(...t.engagement_tags);
+      if (Array.isArray(t.tags)) collectedTags.push(...t.tags);
+    });
+    const uniqueTags = Array.from(new Set(collectedTags));
+
     return {
       id: data.id || parsed.id,
-      title: data.title || parsed.title,
-      tone: data.tone || parsed.tone,
-      estimatedViralScore: data.estimatedViralScore || parsed.estimatedViralScore,
-      tweets: data.tweets.map((t: any, idx: number) => ({
-        order: t.order ?? idx + 1,
-        content: typeof t === 'string' ? t : (t.content || t.text || ''),
-        type: t.type || (idx === 0 ? 'hook' : idx === data.tweets.length - 1 ? 'CTA' : 'body'),
-        engagement_target: t.engagement_target,
-      })),
-      metadata: data.metadata || parsed.metadata,
+      title: meta.title || data.title || parsed.title || meta.topic,
+      tone: meta.tone || data.tone || parsed.tone,
+      estimatedViralScore: data.estimatedViralScore || parsed.estimatedViralScore || (perf.retweet_potential === 'high' ? 9 : 8),
+      tweets: rawTweets.map((t: any, idx: number) => {
+        const text = typeof t === 'string' ? t : (t.content || t.text || t.tweet || t.message || '');
+        const itemType = t.type || (idx === 0 ? 'hook' : idx === rawTweets.length - 1 ? 'CTA' : 'body');
+        return {
+          order: t.order ?? t.tweet_number ?? idx + 1,
+          content: text,
+          type: itemType,
+          engagement_target: t.engagement_target || t.key_insight,
+        };
+      }),
+      metadata: {
+        hashtags: uniqueTags.length > 0 ? uniqueTags : meta.hashtags,
+        suggestedPostTime: perf.ideal_post_time || meta.suggestedPostTime,
+        estimatedReach: perf.estimated_reach || meta.estimatedReach,
+      },
       recommendations: data.recommendations || parsed.recommendations,
       viralElements: data.viralElements || parsed.viralElements,
+    };
+  }
+  return null;
+}
+
+function parseMarkdownThread(raw: string): ParsedThread | null {
+  if (!raw) return null;
+  const sections = raw.split(/\n\s*---\s*\n|\n(?=(?:🧵|\d+[\/\.]\s|\*\*Tweet\s+\d+))/i)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  if (sections.length >= 2) {
+    return {
+      title: sections[0].startsWith("#") ? sections[0].replace(/^#+\s*/, "") : undefined,
+      tweets: sections.map((sec, idx) => ({
+        order: idx + 1,
+        content: sec.replace(/^#+\s*.*?\n/, "").trim(),
+        type: idx === 0 ? 'hook' : idx === sections.length - 1 ? 'CTA' : 'body',
+      })),
     };
   }
   return null;
@@ -100,7 +149,12 @@ function parseThreadData(raw: string): ParsedThread | null {
     // 1. If wrapped in markdown code blocks, extract inner content
     const codeBlockMatch = clean.match(/```(?:json)?\s*([\s\S]*?)(\n```|$)/i);
     if (codeBlockMatch && codeBlockMatch[1]) {
-      clean = codeBlockMatch[1].trim();
+      const inner = codeBlockMatch[1].trim();
+      try {
+        const parsed = JSON.parse(inner);
+        const res = normalizeParsed(parsed);
+        if (res) return res;
+      } catch {}
     }
 
     // 2. Find outermost JSON object
@@ -126,16 +180,22 @@ function parseThreadData(raw: string): ParsedThread | null {
       }
 
       // Try repairing truncated json array
-      const lastTweetEnd = candidate.lastIndexOf('}');
-      if (lastTweetEnd !== -1) {
-        try {
-          const repaired = candidate.substring(0, lastTweetEnd + 1) + ']}}';
-          const parsed = JSON.parse(repaired);
-          const res = normalizeParsed(parsed);
-          if (res) return res;
-        } catch {}
+      for (const suffix of ['}', ']}', ']}}', '"]}}']) {
+        const lastTweetEnd = candidate.lastIndexOf('}');
+        if (lastTweetEnd !== -1) {
+          try {
+            const repaired = candidate.substring(0, lastTweetEnd + 1) + suffix;
+            const parsed = JSON.parse(repaired);
+            const res = normalizeParsed(parsed);
+            if (res) return res;
+          } catch {}
+        }
       }
     }
+
+    // 3. Fallback to parsing markdown thread sections
+    const mdThread = parseMarkdownThread(clean);
+    if (mdThread) return mdThread;
   } catch (e) {
     console.warn("Failed to parse thread data:", e);
   }
@@ -797,9 +857,9 @@ export default function ThreadSmithPage() {
                     className="h-full"
                   >
                     <div 
-                      className="outline-none text-base lg:text-lg leading-[1.7] text-gray-800 font-mono min-h-[500px] whitespace-pre-wrap bg-gray-50/80 p-8 rounded-2xl border border-gray-200/70"
+                      className="outline-none text-base lg:text-lg leading-[1.7] text-gray-800 font-sans min-h-[500px] whitespace-pre-wrap bg-gray-50/80 p-8 rounded-2xl border border-gray-200/70"
                     >
-                      {output}
+                      {getFormattedThreadText(parsedThread, output)}
                     </div>
                   </motion.div>
                 )}
