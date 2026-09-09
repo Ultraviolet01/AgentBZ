@@ -159,47 +159,50 @@ AgentBazaar uses the **HTTP 402 Payment Required (x402)** standard combined with
 
 ---
 
-### 📊 End-to-End Sequence Diagram
+### 📊 End-to-End Payment & Settlement Flow
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor User as 👤 User / HashPack
-    participant Web as 🌐 Frontend (Vercel)
-    participant API as ⚡ Express API (Railway)
-    participant Blocky as 🛡️ Blocky402 Facilitator
-    participant Hedera as ⛓️ Hedera Testnet
-    participant HCS as 📜 HCS Audit Topic
+graph TD
+    classDef client fill:#2563eb,stroke:#1d4ed8,stroke-width:2px,color:#ffffff;
+    classDef challenge fill:#7c3aed,stroke:#6d28d9,stroke-width:2px,color:#ffffff;
+    classDef wallet fill:#d97706,stroke:#b45309,stroke-width:2px,color:#ffffff;
+    classDef settlement fill:#059669,stroke:#047857,stroke-width:2px,color:#ffffff;
+    classDef inference fill:#ea580c,stroke:#c2410c,stroke-width:2px,color:#ffffff;
+    classDef audit fill:#4f46e5,stroke:#3730a3,stroke-width:2px,color:#ffffff;
+    classDef success fill:#16a34a,stroke:#15803d,stroke-width:2px,color:#ffffff;
 
-    rect rgb(240, 245, 255)
-    Note over User,API: 🔵 PHASE 1: HTTP 402 Challenge
-    User->>Web: 1. Request Agent Run (e.g. ThreadSmith)
-    Web->>API: 2. POST /api/agents/run (Unpaid request)
-    API-->>Web: 3. 402 Payment Required (Challenge with tinybars & payTo)
+    subgraph Step1 ["1️⃣ HTTP 402 Challenge Phase"]
+        A["👤 User / HashPack Wallet<br/>Triggers Agent Run or Goal"]:::client
+        B["⚡ AgentBazaar Express API<br/>Calculates Tinybars & Protocol Split"]:::challenge
+        A -->|"1. POST /api/agents/run (Unpaid)"| B
+        B -->|"2. 402 Payment Required (Challenge)"| A
     end
 
-    rect rgb(255, 251, 235)
-    Note over User,Web: 🟡 PHASE 2: Gasless Wallet Signing
-    Web->>User: 4. Prompt HashPack / Kabila (Unsigned Transfer)
-    User-->>Web: 5. User signs transfer intent (0 gas paid by user)
+    subgraph Step2 ["2️⃣ Gasless Signing Phase (0 Gas)"]
+        C["👛 HashPack / Kabila Wallet<br/>User signs pure transfer intent"]:::wallet
+        A -->|"3. Prompt Wallet Sign"| C
+        C -->|"4. Return Signed Payload (0 Gas)"| A
     end
 
-    rect rgb(240, 253, 244)
-    Note over Web,Hedera: 🟢 PHASE 3: Facilitated Settlement
-    Web->>API: 6. POST /api/agents/run (Header: X-Payment Base64 Payload)
-    API->>Blocky: 7. Settle payment payload via /settle
-    Blocky->>Hedera: 8. Co-sign fee & broadcast CryptoTransfer
-    Hedera-->>Blocky: 9. Transfer confirmed on Hedera Testnet (Tx ID)
-    Blocky-->>API: 10. Settlement verified (200 OK)
+    subgraph Step3 ["3️⃣ Facilitated On-Chain Settlement"]
+        D["⚡ Express API Backend<br/>Receives X-Payment Header"]:::challenge
+        E["🛡️ Blocky402 Facilitator<br/>Co-signs Gas & Relays to Network"]:::settlement
+        F["⛓️ Hedera Testnet<br/>Executes Atomic CryptoTransfer"]:::settlement
+        A -->|"5. Re-send with X-Payment"| D
+        D -->|"6. Forward Payload to /settle"| E
+        E -->|"7. Broadcast Transfer"| F
+        F -->|"8. Tx Confirmed (Tx ID)"| E
+        E -->|"9. Settlement Verified (200 OK)"| D
     end
 
-    rect rgb(250, 245, 255)
-    Note over API,User: 🟣 PHASE 4: AI Inference & Immutable HCS Audit
-    API->>API: 11. Execute AI Agent (Claude 3.5 Sonnet / Hedera Kit)
-    API->>HCS: 12. Submit audit receipt to HCS Topic 0.0.10396393
-    HCS-->>API: 13. Consensus timestamp & sequence confirmed
-    API-->>Web: 14. Return 200 OK (Output + Tx ID + HashScan Proof)
-    Web-->>User: 15. Render visual Tweet Cards & HashScan verification
+    subgraph Step4 ["4️⃣ AI Inference & Immutable HCS Audit"]
+        G["🤖 AI Agent Engine (Claude 3.5)<br/>Generates Intelligence & Runs Tools"]:::inference
+        H["📜 Hedera Consensus Service<br/>Logs Proof to Topic 0.0.10396393"]:::audit
+        I["🎉 Interactive Output & Proof<br/>Visual Cards + HashScan Verification"]:::success
+        D -->|"10. Trigger Agent Inference"| G
+        G -->|"11. Record Receipt on HCS"| H
+        H -->|"12. Consensus Timestamp"| D
+        D -->|"13. 200 OK + Output + Proof"| I
     end
 ```
 
