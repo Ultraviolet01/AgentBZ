@@ -143,6 +143,78 @@ graph TD
 
 ---
 
+## 💳 Hedera x402 Micropayment Flow
+
+AgentBazaar leverages the **HTTP 402 Payment Required (x402)** standard combined with **Blocky402 facilitator** and native **Hedera wallets (HashPack / Kabila / Blade)** for trustless, pay-per-call AI micro-settlement.
+
+### 📊 End-to-End Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as 👤 User / HashPack Wallet
+    participant Web as 🌐 Next.js Frontend (Vercel)
+    participant API as ⚡ Express API (Railway)
+    participant Blocky as 🛡️ Blocky402 Facilitator
+    participant Hedera as ⛓️ Hedera Testnet
+    participant HCS as 📜 Hedera Consensus Service
+
+    User->>Web: Request Agent Run / Goal (e.g. ThreadSmith or Orchestrator)
+    Web->>API: POST /api/agents/run (or /api/chat/orchestrate)
+    API-->>Web: 402 Payment Required (Challenge with exact tinybars & custom fee split)
+    Note over Web,User: Parse 402 requirements (payTo, amount, memo, feePayer)
+    Web->>User: Request Signature (Unsigned CryptoTransfer payload)
+    User-->>Web: User Signs Intent with Wallet (Signed bytes)
+    Web->>API: POST /api/agents/run (Header: X-Payment base64 payload)
+    API->>Blocky: POST /settle (Verify signature + Co-sign gas)
+    Blocky->>Hedera: Broadcast & Execute Atomic CryptoTransfer
+    Hedera-->>Blocky: Transaction Confirmed (Tx ID & Consensus Timestamp)
+    Blocky-->>API: 200 OK (Settlement Verified)
+    API->>API: Execute AI Agent Inference (Claude / LLM / Tools)
+    API->>HCS: Publish Execution & Payment Proof (Topic 0.0.10396393)
+    HCS-->>API: Immutable Sequence Number & Timestamp
+    API-->>Web: 200 OK (Inference Output + Tx ID + HashScan Proof Links)
+    Web-->>User: Render Interactive Tweet Cards / Analysis + Tx Verification
+```
+
+### 📝 Step-by-Step Payment Mechanics:
+
+1. **Initial Unpaid Request & HTTP 402 Challenge**:
+   - The client invokes an agent endpoint ([`POST /api/agents/run`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/routes/agents/run.ts) or [`POST /api/chat/orchestrate`](https://github.com/Ultraviolet01/AgentBZ/blob/main/apps/api/src/routes/chat/orchestrate.ts)) without payment headers.
+   - The backend queries the Blocky402 facilitator for the active `feePayer` account and computes exact pricing in tinybars (including custom protocol fee splits).
+   - The server responds with `HTTP 402 Payment Required` containing `paymentRequirements` (`amount`, `payTo`, `memo`, `network: "hedera:testnet"`).
+
+2. **Client Sign-Only Intent (Gasless for User)**:
+   - The frontend parses the challenge and prepares an unsigned `CryptoTransfer` transaction.
+   - The user signs the transaction in **HashPack / Kabila / Blade** via WalletConnect.
+   - *Advantage*: The user only authorizes the exact transfer amount; Blocky402 acts as the fee payer for the Hedera network gas fee.
+
+3. **Payment Submission (`X-Payment` Header)**:
+   - The signed transaction is encoded into a standardized base64 `x402` payload:
+     ```json
+     {
+       "x402Version": 2,
+       "scheme": "exact",
+       "network": "hedera:testnet",
+       "accepted": { ...paymentRequirements },
+       "payload": { "transaction": "<SignedTransactionBase64>" }
+     }
+     ```
+   - The client re-submits the request with the `X-Payment` header.
+
+4. **Facilitator Verification & On-Chain Settlement**:
+   - The Express backend calls the Blocky402 `/settle` endpoint with the payload.
+   - Blocky402 validates signatures, co-signs as `feePayer`, and broadcasts the transaction directly to Hedera Testnet.
+
+5. **AI Inference & Immutable HCS Audit Trail**:
+   - Once settlement is confirmed on-chain, the agent engine executes the required inference task (Claude 3.5 Sonnet / Hedera Agent Kit tools).
+   - The API logs an immutable audit receipt to **Hedera Consensus Service (HCS Master Topic `0.0.10396393`)** containing the buyer ID, agent ID, transaction hash, and timestamp.
+
+6. **Response Delivery**:
+   - The result is returned with the verified Hedera transaction ID, allowing users to inspect the settled payment and audit trail directly on [HashScan](https://hashscan.io/testnet).
+
+---
+
 ## 🏆 Requirements & Evidence Matrix
 
 ### 🎯 Qualification Requirements
@@ -238,6 +310,45 @@ pnpm dev
 ```
 * **Web Client**: [http://localhost:3010](http://localhost:3010)
 * **API Backend**: [http://localhost:3001](http://localhost:3001)
+
+### 6. Production Deployment (Vercel + Railway)
+
+AgentBazaar uses a decoupled production deployment model:
+* **Frontend Web Application**: Hosted on **Vercel** ([`https://agent-bz-web.vercel.app`](https://agent-bz-web.vercel.app))
+* **Multi-Agent Express API & Chat Orchestrator**: Containerized and hosted on **Railway** ([`https://agentbz-production.up.railway.app`](https://agentbz-production.up.railway.app)) to support continuous background processes, LangChain LLM execution, Hedera Agent Kit tools, and WebSocket monitoring engines.
+
+#### Step A: Deploy the API & Chat Orchestrator on Railway
+1. Push your repository to GitHub.
+2. Log in to [Railway](https://railway.com) and create a **New Project** → **Deploy from GitHub repo**.
+3. Railway automatically detects the production [`Dockerfile`](Dockerfile) and builds the monorepo API with `pnpm --filter database build` and `pnpm --filter api build`.
+4. In your Railway service **Variables**, configure:
+   ```ini
+   NODE_ENV="production"
+   PORT="8080"
+   DATABASE_URL="postgresql://..."
+   HEDERA_NETWORK="testnet"
+   HEDERA_ACCOUNT_ID="0.0.XXXXXX"
+   HEDERA_PRIVATE_KEY="0xYourHederaPrivateKeyECDSA"
+   AGENTBAZAAR_PAY_TO="0.0.XXXXXX"
+   AGENTBAZAAR_HCS_TOPIC_ID="0.0.10396393"
+   BLOCKY402_URL="https://api.testnet.blocky402.com"
+   ANTHROPIC_API_KEY="sk-ant-api03-..."
+   JWT_SECRET="your_jwt_secret"
+   ACCESS_TOKEN_SECRET="your_access_token_secret"
+   REFRESH_TOKEN_SECRET="your_refresh_token_secret"
+   ```
+5. In **Settings → Networking**, click **Generate Domain** with custom port `8080` (e.g. `https://agentbz-production.up.railway.app`).
+
+#### Step B: Deploy the Frontend on Vercel
+1. Import the repository into [Vercel](https://vercel.com) (Framework: Next.js).
+2. In **Settings → Environment Variables**, configure:
+   ```ini
+   NEXT_PUBLIC_API_URL="https://agentbz-production.up.railway.app"
+   NEXT_PUBLIC_BLOCKY402_URL="https://api.testnet.blocky402.com"
+   NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID="your_reown_project_id"
+   DATABASE_URL="postgresql://..."
+   ```
+3. Deploy! Next.js proxies all `/api/chat/orchestrate` and `/api/*` traffic seamlessly to your live Railway Express API.
 
 ---
 
