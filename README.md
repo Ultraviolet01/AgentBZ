@@ -338,7 +338,7 @@ AgentBazaar uses a decoupled production deployment model:
    ```ini
    NODE_ENV="production"
    PORT="8080"
-   DATABASE_URL="postgresql://..."
+   DATABASE_URL="postgresql://postgres:password@host:5432/agentbazaar?schema=public"
    HEDERA_NETWORK="testnet"
    HEDERA_ACCOUNT_ID="0.0.XXXXXX"
    HEDERA_PRIVATE_KEY="0xYourHederaPrivateKeyECDSA"
@@ -350,18 +350,39 @@ AgentBazaar uses a decoupled production deployment model:
    ACCESS_TOKEN_SECRET="your_access_token_secret"
    REFRESH_TOKEN_SECRET="your_refresh_token_secret"
    ```
-5. In **Settings → Networking**, click **Generate Domain** with custom port `8080` (e.g. `https://agentbz-production.up.railway.app`).
+5. In **Settings → Networking**, click **Generate Domain** with custom port `8080` (e.g. `https://<your-railway-app>.up.railway.app`).
 
 #### Step B: Deploy the Frontend on Vercel
 1. Import the repository into [Vercel](https://vercel.com) (Framework: Next.js).
-2. In **Settings → Environment Variables**, configure:
+2. In **Settings → Environment Variables**, configure the complete environment configuration:
    ```ini
-   NEXT_PUBLIC_API_URL="https://agentbz-production.up.railway.app"
+   # API Proxy (Points to your live Railway Express API)
+   NEXT_PUBLIC_API_URL="https://<your-railway-app>.up.railway.app"
+   NEXT_PUBLIC_APP_URL="https://<your-vercel-app>.vercel.app"
+
+   # Hedera Network & Blocky402 Facilitator
    NEXT_PUBLIC_BLOCKY402_URL="https://api.testnet.blocky402.com"
+   BLOCKY402_URL="https://api.testnet.blocky402.com"
+   HEDERA_NETWORK="testnet"
+   HEDERA_ACCOUNT_ID="0.0.XXXXXX"
+   HEDERA_PRIVATE_KEY="0xYourHederaPrivateKeyECDSA"
+   AGENTBAZAAR_PAY_TO="0.0.XXXXXX"
+   NEXT_PUBLIC_PLATFORM_ACCOUNT="0.0.XXXXXX"
+   HEDERA_HCS_TOPIC_ID="0.0.10396393"
+
+   # WalletConnect / Reown (Required for HashPack / Kabila wallet connection)
    NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID="your_reown_project_id"
-   DATABASE_URL="postgresql://..."
+
+   # Database & Authentication
+   DATABASE_URL="postgresql://postgres:password@host:5432/agentbazaar?schema=public"
+   JWT_SECRET="your_jwt_secret"
+   ACCESS_TOKEN_SECRET="your_access_token_secret"
+   REFRESH_TOKEN_SECRET="your_refresh_token_secret"
+
+   # AI Inference Engine
+   ANTHROPIC_API_KEY="sk-ant-api03-..."
    ```
-3. Deploy! Next.js proxies all `/api/chat/orchestrate` and `/api/*` traffic seamlessly to your live Railway Express API.
+3. Deploy! Next.js proxies all `/api/chat/orchestrate` and `/api/*` traffic seamlessly to your live Railway Express API container.
 
 ---
 
